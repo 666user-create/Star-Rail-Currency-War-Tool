@@ -4,15 +4,6 @@ import { line } from '@shared/dialogue'
 
 type Anim = '' | 'bounce' | 'howl' | 'cheer'
 
-const MENU_ITEMS = [
-  { key: 'record', label: () => (recordingRef.current ? '结束记录' : '开始记录') },
-  { key: 'panel', label: () => '打开战绩面板' },
-  { key: 'launch', label: () => '货币战争启动!' },
-  { key: 'settings', label: () => '设置' },
-  { key: 'sep', label: () => '' },
-  { key: 'quit', label: () => '退出' }
-] as const
-
 export default function App() {
   const [anim, setAnim] = useState<Anim>('')
   const [bubble, setBubble] = useState('')
@@ -23,8 +14,15 @@ export default function App() {
   const bubbleTimer = useRef<ReturnType<typeof setTimeout>>()
   const animTimer = useRef<ReturnType<typeof setTimeout>>()
   const pointer = useRef({ down: false, moved: false, x: 0, y: 0 })
-  const recordingRef = useRef(false)
-  recordingRef.current = recording
+
+  const MENU_ITEMS = [
+    { key: 'record', label: () => (recording ? '结束记录' : '开始记录') },
+    { key: 'panel', label: () => '打开战绩面板' },
+    { key: 'launch', label: () => '货币战争启动!' },
+    { key: 'settings', label: () => '设置' },
+    { key: 'sep', label: () => '' },
+    { key: 'quit', label: () => '退出' }
+  ] as const
 
   // —— 台词气泡 ——
   const say = useCallback((text: string, hold = 4000) => {
@@ -136,7 +134,7 @@ export default function App() {
       className="pet-root"
       onContextMenu={onContextMenu}
       onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
+      onPointerUp={onPetPointerUp}
     >
       {/* 气泡 */}
       {(bubble || recording) && (

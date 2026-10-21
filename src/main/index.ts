@@ -22,6 +22,13 @@ function loadPage(win: BrowserWindow, page: string): void {
   else win.loadFile(path.join(__dirname, `../renderer/${page}.html`))
 }
 
+function isOnScreen(x: number, y: number): boolean {
+  return screen.getAllDisplays().some((d) => {
+    const a = d.workArea
+    return x >= a.x - 200 && x <= a.x + a.width - 60 && y >= a.y - 100 && y <= a.y + a.height - 60
+  })
+}
+
 function createPetWindow(): void {
   petWindow = new BrowserWindow({
     width: 260,
@@ -36,14 +43,24 @@ function createPetWindow(): void {
     show: false,
     webPreferences: { preload: preloadPath(), contextIsolation: true, nodeIntegration: false, sandbox: false }
   })
-  if (settings.petX != null && settings.petY != null) {
+  if (settings.petX != null && settings.petY != null && isOnScreen(settings.petX, settings.petY)) {
     petWindow.setPosition(settings.petX, settings.petY)
   } else {
     const { workArea } = screen.getPrimaryDisplay()
-    petWindow.setPosition(workArea.x + workArea.width - 320, workArea.y + workArea.height - 300)
+    petWindow.setPosition(workArea.x + workArea.width - 320, workArea.y + workArea.height - 340)
   }
   loadPage(petWindow, 'pet')
-  petWindow.once('ready-to-show', () => petWindow?.showInactive())
+  // 透明窗口的 ready-to-show 不保证触发（已知 Electron 坑）：双保险立即显示 + 渲染诊断日志
+  const show = () => petWindow?.showInactive()
+  petWindow.once('ready-to-show', show)
+  setTimeout(show, 800)
+  petWindow.webContents.on('did-fail-load', (_e, code, desc) => console.error('[renderer-load]', code, desc))
+  petWindow.webContents.on('render-process-gone', (_e, d) => console.error('[renderer-gone]', d.reason))
+  petWindow.webContents.on('console-message', (...args: unknown[]) => {
+    const details = args.find((a) => a && typeof a === 'object' && 'message' in (a as object)) as { message?: string } | undefined
+    const msg = details?.message ?? String(args[1] ?? '')
+    if (msg) console.error('[renderer]', msg)
+  })
   petWindow.on('closed', () => { petWindow = null; app.quit() })
 }
 
