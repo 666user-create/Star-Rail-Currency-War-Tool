@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import PetSprite from './PetSprite'
 import PetOfficial from './PetOfficial'
 import { line } from '@shared/dialogue'
+import type { PetRect } from '@shared/types'
 import './sprite.css'
 
 // 形象仅两档：官方模型（extractor 本机生成）与截图素材；未就绪显示占位
@@ -65,6 +66,7 @@ export default function App() {
   const bubbleTimer = useRef<ReturnType<typeof setTimeout>>()
   const animTimer = useRef<ReturnType<typeof setTimeout>>()
   const pointer = useRef({ down: false, moved: false, x: 0, y: 0 })
+  const bubbleRef = useRef<HTMLDivElement>(null)
 
   const MENU_ITEMS = [
     { key: 'record', label: () => (recording ? '结束记录' : '开始记录') },
@@ -172,12 +174,37 @@ export default function App() {
     e.preventDefault()
     setMenu({ x: e.clientX, y: e.clientY })
   }
-  // 只有右键菜单需要整窗命中（条目可点）。
-  // 气泡/计时徽章是 pointer-events:none 纯展示，早前跟着切 'full' 会让 176×212 整窗
-  // 吃掉点击长达 4s（气泡每 20~60s 必弹）→ "一些地方点不了"；现维持 'pet' 区域不动
-  useEffect(() => {
-    window.api.petShape(menu ? 'full' : 'pet')
-  }, [menu])
+  // 区域 = 全部可见内容的并集（Windows setShape 连绘制一起裁，实测气泡上半截/蹦跳耳朵
+  // 曾被区域顶边 y=34 平口切掉）：
+  //  - 基础：本体+热区，透明角落保持点穿（不复现"点不了"）
+  //  - 待机动效时头顶抬升 → 顶边抬到 0
+  //  - 气泡/计时徽章：按实测 bbox 追加（从 y=2 起，远高于原区域顶边）
+  //  - 菜单：整窗放开（条目可点）
+  useLayoutEffect(() => {
+    if (menu) {
+      window.api.petShape([{ x: 0, y: 0, width: 176, height: 212 }])
+      return
+    }
+    const rects: PetRect[] = [
+      anim ? { x: 24, y: 0, width: 128, height: 182 } : { x: 24, y: 34, width: 128, height: 148 },
+      { x: 116, y: 146, width: 46, height: 46 }
+    ]
+    const bw = bubbleRef.current
+    if (bw) {
+      const r = bw.getBoundingClientRect()
+      if (r.width > 0 && r.height > 0) {
+        const x = Math.max(0, Math.floor(r.left))
+        const y = Math.max(0, Math.floor(r.top))
+        rects.push({
+          x,
+          y,
+          width: Math.min(176, Math.ceil(r.right)) - x,
+          height: Math.min(212, Math.ceil(r.bottom)) - y
+        })
+      }
+    }
+    window.api.petShape(rects)
+  }, [menu, bubble, recording, anim])
   useEffect(() => {
     if (!menu) return
     const close = () => setMenu(null)
@@ -222,7 +249,7 @@ export default function App() {
     >
       {/* 气泡 */}
       {(bubble || recording) && (
-        <div className="bubble-wrap">
+        <div className="bubble-wrap" ref={bubbleRef}>
           {recording && <div className="rec-badge">● 记录中 {mmss}</div>}
           {bubble && <div className="bubble">{bubble}</div>}
         </div>

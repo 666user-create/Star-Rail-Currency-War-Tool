@@ -12,22 +12,34 @@ let repo: Repository
 let settings: AppSettings
 let recordStartedAt: number | null = null
 let dragTimer: ReturnType<typeof setInterval> | null = null
-let petShapeMode: 'full' | 'pet' = 'pet'
+let petShapeRects: import('@shared/types').PetRect[] | null = null
 let lastHealAt = 0
 
-// 桌宠命中形状（176×212 窗口，窗口相对坐标）：
-// 'pet' 只让本体可见区接收鼠标，透明角落全部点穿到下层窗口；'full' 放开整窗（叠加层显示时）
+// 默认区域（渲染层上报前的兜底）：本体 + 秒表热区；透明角落点穿到下层窗口
+const DEFAULT_SHAPE = [
+  { x: 24, y: 34, width: 128, height: 148 },
+  { x: 116, y: 146, width: 46, height: 46 }
+]
+
+// 区域同时裁剪绘制（SetWindowRgn 语义）：矩形必须罩住全部可见内容，
+// 渲染层按实测 bbox 动态上报（气泡从 y=2 起、蹦跳头顶到 y<34），这里统一夹进 176×212
+function shapeRects(): Array<{ x: number; y: number; width: number; height: number }> {
+  const rects = petShapeRects ?? DEFAULT_SHAPE
+  const out: Array<{ x: number; y: number; width: number; height: number }> = []
+  for (const r of rects) {
+    const x = Math.max(0, Math.min(r.x, 176))
+    const y = Math.max(0, Math.min(r.y, 212))
+    const w = Math.max(0, Math.min(r.x + r.width, 176) - x)
+    const h = Math.max(0, Math.min(r.y + r.height, 212) - y)
+    if (w > 0 && h > 0) out.push({ x, y, width: w, height: h })
+  }
+  return out.length > 0 ? out : DEFAULT_SHAPE
+}
+
 function applyPetShape(): void {
   if (!petWindow || typeof petWindow.setShape !== 'function') return
   ensurePetSize() // 区域坐标依赖窗口尺寸：先自愈再算区域
-  if (petShapeMode === 'full') {
-    petWindow.setShape([{ x: 0, y: 0, width: 176, height: 212 }])
-    return
-  }
-  petWindow.setShape([
-    { x: 24, y: 34, width: 128, height: 148 },
-    { x: 116, y: 146, width: 46, height: 46 }
-  ])
+  petWindow.setShape(shapeRects())
 }
 
 // 尺寸自愈：窗口曾被外部改成 383×408（原因未确证），setShape 区域/夹紧/布局全部错位 → 模型被裁没。
@@ -49,14 +61,7 @@ function ensurePetSize(): void {
   lastHealAt = now
   console.error(`[pet] size self-heal ${b.width}x${b.height} -> ${PET_W}x${PET_H} @${b.x},${b.y}`)
   petWindow.setBounds({ x: b.x, y: b.y, width: PET_W, height: PET_H })
-  if (petShapeMode === 'full') {
-    petWindow.setShape([{ x: 0, y: 0, width: PET_W, height: PET_H }])
-  } else {
-    petWindow.setShape([
-      { x: 24, y: 34, width: 128, height: 148 },
-      { x: 116, y: 146, width: 46, height: 46 }
-    ])
-  }
+  petWindow.setShape(shapeRects())
 }
 
 function preloadPath(): string {
@@ -297,10 +302,9 @@ function setupIpc(): void {
   ipcMain.on('settings:open', () => createSettingsWindow())
   ipcMain.on('app:quit', () => app.quit())
 
-  // 穿透优化：默认只让桌宠本体区域接收鼠标（其余透明区可点穿到下层窗口）；
-  // 气泡/计时/菜单等叠加层可见时由渲染层切到 'full' 放开整窗
-  ipcMain.on('pet:shape', (_e, mode: 'full' | 'pet') => {
-    petShapeMode = mode
+  // 区域由渲染层按可见内容实测上报（本体/气泡/动效头顶/菜单），主进程统一夹进窗口后应用
+  ipcMain.on('pet:shape', (_e, rects: import('@shared/types').PetRect[]) => {
+    petShapeRects = Array.isArray(rects) && rects.length > 0 ? rects : null
     applyPetShape()
   })
 

@@ -67,6 +67,14 @@ export interface AppSettings {
   petStyle?: 'official' | 'sprite' | 'svg' | '3d'
 }
 
+/** 窗口相对坐标矩形（setShape 区域单元） */
+export interface PetRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface PetApi {
   listMatches(limit?: number): Promise<Match[]>
   getMatch(id: number): Promise<Match | null>
@@ -84,7 +92,9 @@ export interface PetApi {
   sprite(): Promise<string | null>
   officialModel(): Promise<{ obj: string; tex: string; cool: string; warm: string } | null>
   panelToggle(): void
-  petShape(mode: 'full' | 'pet'): void
+  /** setShape 区域（窗口相对坐标）。Windows 上区域连绘制一起裁，
+   *  必须覆盖全部可见内容（本体/气泡/动效头顶），否则对应像素被切掉 */
+  petShape(rects: PetRect[]): void
   settingsOpen(): void
   petDrag(action: 'start' | 'move' | 'end'): void
   quit(): void
