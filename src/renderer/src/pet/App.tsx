@@ -143,7 +143,7 @@ export default function App() {
     pointer.current.down = false
     window.api.petDrag('end')
     if (wasClick) {
-      playAnim('cheer', 900)
+      playAnim('bounce', 1600) // 点击=兴奋两跳连跳串（对齐原版被戳时的反应；cheer 保留给记录/启动）
       say(line('click'))
     }
   }
