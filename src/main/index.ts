@@ -18,6 +18,7 @@ let petShapeMode: 'full' | 'pet' = 'pet'
 // 'pet' 只让本体可见区接收鼠标，透明角落全部点穿到下层窗口；'full' 放开整窗（叠加层显示时）
 function applyPetShape(): void {
   if (!petWindow || typeof petWindow.setShape !== 'function') return
+  ensurePetSize() // 区域坐标依赖窗口尺寸：先自愈再算区域
   if (petShapeMode === 'full') {
     petWindow.setShape([{ x: 0, y: 0, width: 176, height: 212 }])
     return
@@ -26,6 +27,30 @@ function applyPetShape(): void {
     { x: 24, y: 34, width: 128, height: 148 },
     { x: 116, y: 146, width: 46, height: 46 }
   ])
+}
+
+// 尺寸自愈：窗口曾被外部改成 383×408（原因未确证），setShape 区域/夹紧/布局全部错位 → 模型被裁没。
+// min/max 尺寸约束（创建参数）+ resize 监听 + 关键路径校验三重兜底；每次纠正都留痕进 dev 日志。
+const PET_W = 176
+const PET_H = 212
+function ensurePetSize(): void {
+  if (!petWindow || petWindow.isDestroyed()) return
+  // topmost 位可能被外部窗口活动清掉（实测掉到 Z4/Z5 被全屏 Edge 盖住）→ 每次校验时用高层级重申
+  petWindow.setAlwaysOnTop(true, 'screen-saver')
+  const b = petWindow.getBounds()
+  // 1px 级 DPI 取整抖动（177↔176）无害，容忍；只拦真正的外部大改（如 383×408）
+  if (Math.abs(b.width - PET_W) > 1 || Math.abs(b.height - PET_H) > 1) {
+    console.error(`[pet] size self-heal ${b.width}x${b.height} -> ${PET_W}x${PET_H} @${b.x},${b.y}`)
+    petWindow.setBounds({ x: b.x, y: b.y, width: PET_W, height: PET_H })
+    if (petShapeMode === 'full') {
+      petWindow.setShape([{ x: 0, y: 0, width: PET_W, height: PET_H }])
+    } else {
+      petWindow.setShape([
+        { x: 24, y: 34, width: 128, height: 148 },
+        { x: 116, y: 146, width: 46, height: 46 }
+      ])
+    }
+  }
 }
 
 function preloadPath(): string {
@@ -68,6 +93,11 @@ function createPetWindow(): void {
   petWindow = new BrowserWindow({
     width: 176,
     height: 212,
+    // 尺寸硬锁：外部（键盘吸附/窗口工具）改尺寸会被 DefWindowProc 按 min/max 夹回
+    minWidth: 176,
+    maxWidth: 176,
+    minHeight: 212,
+    maxHeight: 212,
     transparent: true,
     frame: false,
     resizable: false,
@@ -78,9 +108,12 @@ function createPetWindow(): void {
     show: false,
     webPreferences: { preload: preloadPath(), contextIsolation: true, nodeIntegration: false, sandbox: false }
   })
+  // 兜底自愈：任何路径改了尺寸（min/max 拦不住的）→ 拉回 + 重打区域 + 留痕
+  petWindow.on('resize', () => ensurePetSize())
   if (settings.petX != null && settings.petY != null) {
-    // 恢复位置也过夹紧：旧版本若存过屏外坐标，直接拉回可见区
-    const p = clampToScreens(settings.petX, settings.petY, 176, 212)
+    // 恢复位置也过夹紧：旧版本若存过屏外坐标，直接拉回可见区（按真实窗口尺寸算）
+    const cur = petWindow.getBounds()
+    const p = clampToScreens(settings.petX, settings.petY, cur.width, cur.height)
     petWindow.setPosition(Math.round(p.x), Math.round(p.y))
   } else {
     const { workArea } = screen.getPrimaryDisplay()
@@ -89,6 +122,7 @@ function createPetWindow(): void {
   loadPage(petWindow, 'pet')
   // 透明窗口的 ready-to-show 不保证触发（已知 Electron 坑）：双保险立即显示 + 渲染诊断日志
   const show = () => {
+    ensurePetSize()
     petWindow?.showInactive()
     applyPetShape()
   }
@@ -102,6 +136,14 @@ function createPetWindow(): void {
     if (msg) console.error('[renderer]', msg)
   })
   petWindow.on('closed', () => { petWindow = null; app.quit() })
+  // 周期兜底：全屏应用/覆盖层可能随时清掉 topmost 位或改尺寸，5s 巡检一次。
+  // setAlwaysOnTop(true) 在内部状态已为 true 时是空操作（实测掉到 Z4 被盖）→ 高层级 + moveTop 真正抬回
+  setInterval(() => {
+    if (!petWindow || petWindow.isDestroyed()) return
+    ensurePetSize()
+    petWindow.setAlwaysOnTop(true, 'screen-saver')
+    petWindow.moveTop()
+  }, 5000)
 }
 
 function createPanelWindow(): void {
@@ -263,6 +305,7 @@ function setupIpc(): void {
     if (!dragTimer || !petWindow) return
     clearInterval(dragTimer)
     dragTimer = null
+    ensurePetSize() // 保存前确保尺寸正确，坏尺寸不落盘
     const b = petWindow.getBounds()
     if (isOnScreen(b.x, b.y)) {
       settings.petX = b.x
@@ -283,6 +326,7 @@ function setupIpc(): void {
         if (!petWindow) { dragTimer = null; return }
         // 心跳超时：鼠标移出小窗口后释放 → pointerup 丢失 → 幽灵拖动自动终止
         if (Date.now() - lastDragMove > 1200) { endDrag(); return }
+        ensurePetSize() // 拖动中尺寸被改 → 先拉回再夹紧（区域/夹紧都依赖正确尺寸）
         const c = screen.getCursorScreenPoint()
         const nb = petWindow.getBounds()
         const p = clampToScreens(c.x - offX, c.y - offY, nb.width, nb.height)
