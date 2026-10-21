@@ -181,19 +181,23 @@ function setupIpc(): void {
     return spriteCache
   })
 
-  // 官方解包模型：assets/official_pet/pet03.obj + pet03_color.png（本地素材，永不入 git）
-  let officialCache: { obj: string; tex: string } | null | undefined
+  // 官方解包模型：assets/official_pet/（本地素材，永不入 git）+ Cool/Warm Ramp 色带
+  let officialCache: { obj: string; tex: string; cool: string; warm: string } | null | undefined
   ipcMain.handle('pet:officialModel', () => {
     if (officialCache !== undefined) return officialCache
     const dir = path.join(app.getAppPath(), 'assets', 'official_pet')
     try {
       const objPath = path.join(dir, 'pet03.obj')
       const texPath = path.join(dir, 'pet03_color.png')
+      const coolPath = path.join(dir, 'pet03_cool.png')
+      const warmPath = path.join(dir, 'pet03_warm.png')
       officialCache =
         fs.existsSync(objPath) && fs.existsSync(texPath)
           ? {
               obj: fs.readFileSync(objPath, 'utf8'),
-              tex: fs.readFileSync(texPath).toString('base64')
+              tex: fs.readFileSync(texPath).toString('base64'),
+              cool: fs.existsSync(coolPath) ? fs.readFileSync(coolPath).toString('base64') : '',
+              warm: fs.existsSync(warmPath) ? fs.readFileSync(warmPath).toString('base64') : ''
             }
           : null
     } catch {

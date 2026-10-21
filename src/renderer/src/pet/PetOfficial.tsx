@@ -88,8 +88,15 @@ export default function PetOfficial({ anim }: { anim: Anim }) {
         return
       }
       const tex = await new THREE.TextureLoader().loadAsync('data:image/png;base64,' + data.tex)
+      const loader = new THREE.TextureLoader()
+      const cool = data.cool
+        ? await loader.loadAsync('data:image/png;base64,' + data.cool)
+        : undefined
+      const warm = data.warm
+        ? await loader.loadAsync('data:image/png;base64,' + data.warm)
+        : undefined
       const obj = new OBJLoader().parse(data.obj)
-      const mat = createHsrToon(tex)
+      const mat = createHsrToon(tex, cool, warm)
       obj.traverse((c) => {
         if (c instanceof THREE.Mesh) c.material = mat
       })

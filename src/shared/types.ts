@@ -82,7 +82,7 @@ export interface PetApi {
   getSettings(): Promise<AppSettings>
   setSettings(patch: Partial<AppSettings>): Promise<AppSettings>
   sprite(): Promise<string | null>
-  officialModel(): Promise<{ obj: string; tex: string } | null>
+  officialModel(): Promise<{ obj: string; tex: string; cool: string; warm: string } | null>
   panelToggle(): void
   settingsOpen(): void
   petDrag(action: 'start' | 'end'): void

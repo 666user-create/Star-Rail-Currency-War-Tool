@@ -93,8 +93,13 @@ export default function OfficialPreview() {
 
     ;(async () => {
       const colorTex = await combine(BASE + 'pet03_color.png', BASE + 'pet03_color.png')
-      // HSR 风 toon：三段冷暖 + 边缘光（对比旧版 Standard 材质）
-      const mat = createHsrToon(colorTex)
+      // 官方 Cool/Warm Ramp 真色带（缺则回退硬编码三段）
+      const texLoader = new THREE.TextureLoader()
+      const [cool, warm] = await Promise.all([
+        texLoader.loadAsync(BASE + 'pet03_cool.png').catch(() => null),
+        texLoader.loadAsync(BASE + 'pet03_warm.png').catch(() => null)
+      ])
+      const mat = createHsrToon(colorTex, cool ?? undefined, warm ?? undefined)
 
       const parts: [string, THREE.Material][] = [['pet03.obj', mat]]
       for (const [file, mat] of parts) {
