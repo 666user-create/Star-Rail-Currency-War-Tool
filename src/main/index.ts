@@ -13,6 +13,7 @@ let settings: AppSettings
 let recordStartedAt: number | null = null
 let dragTimer: ReturnType<typeof setInterval> | null = null
 let petShapeMode: 'full' | 'pet' = 'pet'
+let lastHealAt = 0
 
 // 桌宠命中形状（176×212 窗口，窗口相对坐标）：
 // 'pet' 只让本体可见区接收鼠标，透明角落全部点穿到下层窗口；'full' 放开整窗（叠加层显示时）
@@ -38,18 +39,23 @@ function ensurePetSize(): void {
   // topmost 位可能被外部窗口活动清掉（实测掉到 Z4/Z5 被全屏 Edge 盖住）→ 每次校验时用高层级重申
   petWindow.setAlwaysOnTop(true, 'screen-saver')
   const b = petWindow.getBounds()
-  // 1px 级 DPI 取整抖动（177↔176）无害，容忍；只拦真正的外部大改（如 383×408）
-  if (Math.abs(b.width - PET_W) > 1 || Math.abs(b.height - PET_H) > 1) {
-    console.error(`[pet] size self-heal ${b.width}x${b.height} -> ${PET_W}x${PET_H} @${b.x},${b.y}`)
-    petWindow.setBounds({ x: b.x, y: b.y, width: PET_W, height: PET_H })
-    if (petShapeMode === 'full') {
-      petWindow.setShape([{ x: 0, y: 0, width: PET_W, height: PET_H }])
-    } else {
-      petWindow.setShape([
-        { x: 24, y: 34, width: 128, height: 148 },
-        { x: 116, y: 146, width: 46, height: 46 }
-      ])
-    }
+  const dw = Math.abs(b.width - PET_W)
+  const dh = Math.abs(b.height - PET_H)
+  if (dw <= 1 && dh <= 1) return // DPI 取整抖动（177↔176）容忍
+  // 拖动中 setPosition 的 DIP↔物理取整会让读数短暂 178×214：小偏差节流 500ms，避免每 tick
+  // setBounds 打成 resize 风暴；大偏差（外部真改尺寸，如 383×408）立即纠正
+  const now = Date.now()
+  if (dw <= 6 && dh <= 6 && now - lastHealAt < 500) return
+  lastHealAt = now
+  console.error(`[pet] size self-heal ${b.width}x${b.height} -> ${PET_W}x${PET_H} @${b.x},${b.y}`)
+  petWindow.setBounds({ x: b.x, y: b.y, width: PET_W, height: PET_H })
+  if (petShapeMode === 'full') {
+    petWindow.setShape([{ x: 0, y: 0, width: PET_W, height: PET_H }])
+  } else {
+    petWindow.setShape([
+      { x: 24, y: 34, width: 128, height: 148 },
+      { x: 116, y: 146, width: 46, height: 46 }
+    ])
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import PetSprite from './PetSprite'
 import PetOfficial from './PetOfficial'
 import { line } from '@shared/dialogue'
@@ -18,6 +18,27 @@ export default function App() {
   const [anim, setAnim] = useState<Anim>('')
   const [bubble, setBubble] = useState('')
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
+  // 菜单渲染后夹进视口：右键点靠近右边/底边时向左上收，保证整块可见（layout 版避免首帧闪位）
+  useLayoutEffect(() => {
+    if (!menu) return
+    const el = menuRef.current
+    if (!el) return
+    const clamp = (): void => {
+      const vw = window.innerWidth
+      const vh = window.innerHeight
+      setMenuPos({
+        x: Math.max(0, Math.min(menu.x, vw - el.offsetWidth - 2)),
+        y: Math.max(0, Math.min(menu.y, vh - el.offsetHeight - 2))
+      })
+    }
+    clamp()
+    // 二次复测：首帧测量可能早于 pop 动画/字体度量落定（实测曾 161px vs 实际 ~212px，
+    // 偏差 51px → 底部"退出"项被裁出视口），动画后再测一次重夹
+    const t = setTimeout(clamp, 250)
+    return () => clearTimeout(t)
+  }, [menu])
   const [recording, setRecording] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [style, setStyle] = useState<PetStyle>('none')
@@ -50,7 +71,7 @@ export default function App() {
     { key: 'panel', label: () => '打开战绩面板' },
     { key: 'launch', label: () => '货币战争启动!' },
     { key: 'settings', label: () => '设置' },
-    { key: 'style', label: () => `切换形象 · 当前:${STYLE_LABEL[style]}` },
+    { key: 'style', label: () => `形象·${STYLE_LABEL[style]}` },
     { key: 'sep', label: () => '' },
     { key: 'quit', label: () => '退出' }
   ] as const
@@ -93,6 +114,11 @@ export default function App() {
   // —— 点击（区分拖动） ——
   const onPetPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return
+    // 菜单开着时：本体点击先关菜单（否则 full 区吃掉点击、菜单粘住只能靠点窗外关）
+    if (menu) {
+      setMenu(null)
+      return
+    }
     pointer.current = { down: true, moved: false, x: e.screenX, y: e.screenY }
     window.api.petDrag('start')
   }
@@ -146,10 +172,12 @@ export default function App() {
     e.preventDefault()
     setMenu({ x: e.clientX, y: e.clientY })
   }
-  // 叠加层（气泡/计时徽章/菜单）可见时放开整窗命中，否则只命中桌宠本体区域
+  // 只有右键菜单需要整窗命中（条目可点）。
+  // 气泡/计时徽章是 pointer-events:none 纯展示，早前跟着切 'full' 会让 176×212 整窗
+  // 吃掉点击长达 4s（气泡每 20~60s 必弹）→ "一些地方点不了"；现维持 'pet' 区域不动
   useEffect(() => {
-    window.api.petShape(bubble || recording || menu ? 'full' : 'pet')
-  }, [bubble, recording, menu])
+    window.api.petShape(menu ? 'full' : 'pet')
+  }, [menu])
   useEffect(() => {
     if (!menu) return
     const close = () => setMenu(null)
@@ -228,9 +256,9 @@ export default function App() {
         />
       </div>
 
-      {/* 右键菜单 */}
+      {/* 右键菜单：打开后按实测尺寸夹进 176×212 视口（否则超出窗口底/右边被裁） */}
       {menu && (
-        <div className="ctx-menu" style={{ left: menu.x, top: menu.y }}>
+        <div className="ctx-menu" ref={menuRef} style={{ left: menuPos.x, top: menuPos.y }}>
           {MENU_ITEMS.map((item) =>
             item.key === 'sep' ? (
               <div key="sep" className="ctx-sep" />

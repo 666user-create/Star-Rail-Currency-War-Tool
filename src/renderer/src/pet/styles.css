@@ -145,11 +145,12 @@ body { margin: 0; background: transparent; }
   50% { transform: scaleY(1.05) translateY(-3px); }
 }
 
-/* —— 右键菜单 —— */
+/* —— 右键菜单 ——
+   视口只有 176×212：最坏尺寸必须塞得下（紧凑行距），打开时 JS 按实测宽高夹进视口 */
 .ctx-menu {
   position: fixed;
   z-index: 99;
-  min-width: 150px;
+  min-width: 130px;
   background: var(--panel);
   backdrop-filter: blur(10px);
   border: 1.5px solid rgba(232, 196, 118, 0.45);
@@ -159,11 +160,15 @@ body { margin: 0; background: transparent; }
   animation: pop 0.14s ease-out;
 }
 .ctx-item {
-  padding: 7px 12px;
-  font-size: 13px;
+  padding: 5px 10px;
+  font-size: 12px;
+  /* 行高必须显式定死：无值时实测渲染行距 31.6px(6 项+分隔线总高 ~212px=视口极限，
+     底部"退出"被裁)，且与首帧 offsetHeight 测量(~23.8px 行距)不一致导致夹紧算错 */
+  line-height: 1.35;
   color: #e8e6f0;
   border-radius: 6px;
   cursor: pointer;
+  white-space: nowrap;
 }
 .ctx-item:hover { background: rgba(232, 196, 118, 0.18); color: var(--gold); }
 .ctx-sep { height: 1px; margin: 4px 8px; background: rgba(255, 255, 255, 0.12); }
