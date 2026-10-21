@@ -2,11 +2,17 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import PetArt from './PetArt'
 import Pet3D from './Pet3D'
 import PetSprite from './PetSprite'
+import PetOfficial from './PetOfficial'
 import { line } from '@shared/dialogue'
 import './sprite.css'
 
-type PetStyle = 'sprite' | 'svg' | '3d'
-const STYLE_LABEL: Record<PetStyle, string> = { sprite: '官方素材', svg: '2D 手绘', '3d': '3D 手办' }
+type PetStyle = 'official' | 'sprite' | 'svg' | '3d'
+const STYLE_LABEL: Record<PetStyle, string> = {
+  official: '官方模型',
+  sprite: '官方素材',
+  svg: '2D 手绘',
+  '3d': '3D 手办'
+}
 
 type Anim = '' | 'bounce' | 'howl' | 'cheer'
 
@@ -18,13 +24,22 @@ export default function App() {
   const [elapsed, setElapsed] = useState(0)
   const [style, setStyle] = useState<PetStyle>('svg')
   const [spriteUrl, setSpriteUrl] = useState<string | null>(null)
+  const [hasOfficial, setHasOfficial] = useState(false)
 
   useEffect(() => {
-    void Promise.all([window.api.getSettings(), window.api.sprite()]).then(([s, url]) => {
+    void Promise.all([
+      window.api.getSettings(),
+      window.api.sprite(),
+      window.api.officialModel()
+    ]).then(([s, url, off]) => {
       setSpriteUrl(url)
-      let eff = (s.petStyle as PetStyle | undefined) ?? (url ? 'sprite' : 'svg')
-      if (url && eff === '3d') eff = 'sprite' // 3D 实验已被否，素材在则优先官方素材
-      if (!url && eff === 'sprite') eff = 'svg'
+      const hasOff = !!off
+      setHasOfficial(hasOff)
+      let eff =
+        (s.petStyle as PetStyle | undefined) ??
+        (hasOff ? 'official' : url ? 'sprite' : 'svg')
+      if (eff === 'official' && !hasOff) eff = 'svg'
+      if (eff === 'sprite' && !url) eff = 'svg'
       setStyle(eff)
     })
   }, [])
@@ -144,7 +159,12 @@ export default function App() {
     }
     if (key === 'settings') window.api.settingsOpen()
     if (key === 'style') {
-      const order: PetStyle[] = spriteUrl ? ['sprite', 'svg', '3d'] : ['svg', '3d']
+      const order: PetStyle[] = [
+        ...(hasOfficial ? (['official'] as PetStyle[]) : []),
+        ...(spriteUrl ? (['sprite'] as PetStyle[]) : []),
+        'svg',
+        '3d'
+      ]
       const ns = order[(order.indexOf(style) + 1) % order.length]
       setStyle(ns)
       await window.api.setSettings({ petStyle: ns })
@@ -176,7 +196,9 @@ export default function App() {
         onPointerDown={onPetPointerDown}
         onClick={() => { /* 点击由 pointerup 统一处理，避免拖动误触发点击 */ }}
       >
-        {style === 'sprite' && spriteUrl ? (
+        {style === 'official' ? (
+          <PetOfficial anim={anim} />
+        ) : style === 'sprite' && spriteUrl ? (
           <PetSprite src={spriteUrl} anim={anim} />
         ) : style === '3d' ? (
           <Pet3D anim={anim} />

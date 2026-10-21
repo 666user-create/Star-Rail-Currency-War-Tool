@@ -181,6 +181,27 @@ function setupIpc(): void {
     return spriteCache
   })
 
+  // 官方解包模型：assets/official_pet/pet03.obj + pet03_color.png（本地素材，永不入 git）
+  let officialCache: { obj: string; tex: string } | null | undefined
+  ipcMain.handle('pet:officialModel', () => {
+    if (officialCache !== undefined) return officialCache
+    const dir = path.join(app.getAppPath(), 'assets', 'official_pet')
+    try {
+      const objPath = path.join(dir, 'pet03.obj')
+      const texPath = path.join(dir, 'pet03_color.png')
+      officialCache =
+        fs.existsSync(objPath) && fs.existsSync(texPath)
+          ? {
+              obj: fs.readFileSync(objPath, 'utf8'),
+              tex: fs.readFileSync(texPath).toString('base64')
+            }
+          : null
+    } catch {
+      officialCache = null
+    }
+    return officialCache
+  })
+
   ipcMain.on('panel:toggle', () => togglePanel())
   ipcMain.on('settings:open', () => createSettingsWindow())
   ipcMain.on('app:quit', () => app.quit())
