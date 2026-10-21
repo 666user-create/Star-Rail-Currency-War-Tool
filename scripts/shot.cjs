@@ -29,8 +29,8 @@ app.whenReady().then(async () => {
     console.log('[page]', d ? d.message : String(args[1] ?? ''))
   })
   await win.loadURL(url)
-  // 等场景构建 + 若干帧渲染 + 首次眨眼时点
-  await new Promise((r) => setTimeout(r, 2600))
+  // 等场景构建 + 模型/贴图异步加载 + 若干帧渲染
+  await new Promise((r) => setTimeout(r, 4200))
   const img = await win.webContents.capturePage()
   fs.writeFileSync(out, img.toPNG())
   console.log('SAVED:', out)

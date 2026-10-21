@@ -3,6 +3,13 @@ node_modules/
 dist/
 out/
 *.log
+__pycache__/
 # 官方素材形象：本地/release 分发，不进仓库（非商业同人使用条款）
 assets/pet/*.png
 assets/pet/*.webp
+# 解包试作产物：纯本地评估，永不入库
+assets/_extract/
+src/renderer/public/official_pet/
+# 解包/逆向工具链（含解密密钥调用）：永不入公开仓库，仅本地使用
+scripts/*.py
+assets/_extract/_tools/
