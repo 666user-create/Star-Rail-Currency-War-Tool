@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
+import { createHsrToon } from './toonMaterial'
 
 type Anim = '' | 'bounce' | 'howl' | 'cheer'
 
@@ -87,14 +88,8 @@ export default function PetOfficial({ anim }: { anim: Anim }) {
         return
       }
       const tex = await new THREE.TextureLoader().loadAsync('data:image/png;base64,' + data.tex)
-      tex.colorSpace = THREE.SRGBColorSpace
       const obj = new OBJLoader().parse(data.obj)
-      const mat = new THREE.MeshStandardMaterial({
-        map: tex,
-        roughness: 0.82,
-        metalness: 0,
-        side: THREE.DoubleSide
-      })
+      const mat = createHsrToon(tex)
       obj.traverse((c) => {
         if (c instanceof THREE.Mesh) c.material = mat
       })

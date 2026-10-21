@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import * as THREE from 'three'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
+import { createHsrToon } from '../pet/toonMaterial'
 
 /**
  * 官方解包模型本地预览（纯本地评估，素材不入 git）。
@@ -92,13 +93,8 @@ export default function OfficialPreview() {
 
     ;(async () => {
       const colorTex = await combine(BASE + 'pet03_color.png', BASE + 'pet03_color.png')
-      // 无独立 alpha 蒙版：蒙版直接用自身 RGB → 全不透明（避免白底采样用 alphaTest 0）
-      const mat = new THREE.MeshStandardMaterial({
-        map: colorTex,
-        roughness: 0.8,
-        metalness: 0,
-        side: THREE.DoubleSide
-      })
+      // HSR 风 toon：三段冷暖 + 边缘光（对比旧版 Standard 材质）
+      const mat = createHsrToon(colorTex)
 
       const parts: [string, THREE.Material][] = [['pet03.obj', mat]]
       for (const [file, mat] of parts) {
