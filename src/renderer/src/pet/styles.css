@@ -83,20 +83,14 @@ body { margin: 0; background: transparent; }
 }
 .pet-hitbox:active { cursor: grabbing; }
 
-.pet-svg { display: block; }
-
-/* 3D 形象容器：铺满桌宠窗口（260×300），画布透明 */
+/* 3D 官方模型容器：铺满桌宠窗口（260×300），画布透明 */
 .pet3d-holder {
   width: 260px;
   height: 300px;
 }
 .pet3d-holder canvas { display: block; }
-.pet-svg.pet-breathe { animation: breathe 3.2s ease-in-out infinite; }
-.pet-body { transform-origin: 100px 210px; }
 
-.eyes { transform-origin: 100px 94px; animation: blink 4.5s infinite; }
-.mouth-howl { display: none; }
-.stopwatch-prop { animation: swing 3.6s ease-in-out infinite; }
+/* 记录热区（官方模型档下无秒表视觉，热区仍可用） */
 .prop-hotzone {
   position: absolute;
   right: 12px;
@@ -107,60 +101,48 @@ body { margin: 0; background: transparent; }
   cursor: pointer;
 }
 .prop-hotzone.recording { animation: recglow 1.4s ease-in-out infinite; }
-
-/* 动作 */
-@keyframes breathe {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-3px) scale(1.015); }
-}
-@keyframes blink {
-  0%, 92%, 100% { transform: scaleY(1); }
-  95% { transform: scaleY(0.08); }
-}
-@keyframes swing {
-  0%, 100% { transform: rotate(-6deg); }
-  50% { transform: rotate(7deg); }
-}
 @keyframes recglow {
   0%, 100% { box-shadow: 0 0 0 0 rgba(217, 79, 79, 0.55); }
   50% { box-shadow: 0 0 14px 6px rgba(217, 79, 79, 0.25); }
 }
 
-.anim-bounce .pet-body { animation: bounce 0.55s ease-in-out 2; }
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  40% { transform: translateY(-22px) scale(1.03, 0.96); }
-  60% { transform: translateY(0) scale(0.96, 1.04); }
+/* —— 未提取占位 —— */
+.pet-placeholder {
+  width: 260px;
+  height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  line-height: 1.5;
+  text-align: center;
 }
-
-.anim-howl .pet-body { animation: howlrock 1.2s ease-in-out; }
-.anim-howl .mouth-smile { display: none; }
-.anim-howl .mouth-howl { display: block; }
-.anim-howl .head { transform-origin: 100px 120px; animation: howlhead 1.2s ease-in-out; }
-@keyframes howlrock {
-  0%, 100% { transform: rotate(0); }
-  30% { transform: rotate(-4deg); }
-  60% { transform: rotate(3deg); }
+.ph-egg {
+  width: 74px;
+  height: 94px;
+  background: radial-gradient(circle at 35% 30%, #fffdf6 0%, #f0e3c8 60%, #d8c49c 100%);
+  border: 3px solid var(--ink);
+  border-radius: 50% 50% 46% 46% / 62% 62% 38% 38%;
+  box-shadow: 0 8px 14px rgba(0, 0, 0, 0.35);
+  animation: ph-sleep 3.2s ease-in-out infinite;
 }
-@keyframes howlhead {
-  0%, 100% { transform: translateY(0); }
-  40% { transform: translateY(-4px) scale(1.04); }
+.ph-text {
+  font-size: 12.5px;
+  color: #e8e6f0;
+  background: var(--panel);
+  border: 1.5px solid rgba(232, 196, 118, 0.45);
+  border-radius: 10px;
+  padding: 8px 12px;
 }
-
-.anim-cheer .pet-body { animation: cheer 0.45s ease-in-out 2; }
-.anim-cheer .arm-left { animation: armupL 0.45s ease-in-out 2; }
-.anim-cheer .arm-right { animation: armupR 0.45s ease-in-out 2; }
-@keyframes cheer {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-12px); }
+.ph-text code {
+  color: var(--gold);
+  font-size: 11.5px;
+  word-break: break-all;
 }
-@keyframes armupL {
-  0%, 100% { transform: rotate(0); }
-  50% { transform: rotate(-40deg) translateY(-8px); }
-}
-@keyframes armupR {
-  0%, 100% { transform: rotate(0); }
-  50% { transform: rotate(40deg) translateY(-8px); }
+@keyframes ph-sleep {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.05) translateY(-3px); }
 }
 
 /* —— 右键菜单 —— */

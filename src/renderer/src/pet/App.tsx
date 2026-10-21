@@ -1,17 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import PetArt from './PetArt'
-import Pet3D from './Pet3D'
 import PetSprite from './PetSprite'
 import PetOfficial from './PetOfficial'
 import { line } from '@shared/dialogue'
 import './sprite.css'
 
-type PetStyle = 'official' | 'sprite' | 'svg' | '3d'
+// 形象仅两档：官方模型（extractor 本机生成）与截图素材；未就绪显示占位
+type PetStyle = 'official' | 'sprite' | 'none'
 const STYLE_LABEL: Record<PetStyle, string> = {
   official: '官方模型',
-  sprite: '官方素材',
-  svg: '2D 手绘',
-  '3d': '3D 手办'
+  sprite: '截图素材',
+  none: '未提取'
 }
 
 type Anim = '' | 'bounce' | 'howl' | 'cheer'
@@ -22,7 +20,7 @@ export default function App() {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const [recording, setRecording] = useState(false)
   const [elapsed, setElapsed] = useState(0)
-  const [style, setStyle] = useState<PetStyle>('svg')
+  const [style, setStyle] = useState<PetStyle>('none')
   const [spriteUrl, setSpriteUrl] = useState<string | null>(null)
   const [hasOfficial, setHasOfficial] = useState(false)
 
@@ -35,11 +33,10 @@ export default function App() {
       setSpriteUrl(url)
       const hasOff = !!off
       setHasOfficial(hasOff)
-      let eff =
-        (s.petStyle as PetStyle | undefined) ??
-        (hasOff ? 'official' : url ? 'sprite' : 'svg')
-      if (eff === 'official' && !hasOff) eff = 'svg'
-      if (eff === 'sprite' && !url) eff = 'svg'
+      let eff: PetStyle = s.petStyle === 'official' || s.petStyle === 'sprite' ? s.petStyle : 'none'
+      if (eff === 'none') eff = hasOff ? 'official' : url ? 'sprite' : 'none'
+      if (eff === 'official' && !hasOff) eff = url ? 'sprite' : 'none'
+      if (eff === 'sprite' && !url) eff = hasOff ? 'official' : 'none'
       setStyle(eff)
     })
   }, [])
@@ -161,14 +158,15 @@ export default function App() {
     if (key === 'style') {
       const order: PetStyle[] = [
         ...(hasOfficial ? (['official'] as PetStyle[]) : []),
-        ...(spriteUrl ? (['sprite'] as PetStyle[]) : []),
-        'svg',
-        '3d'
+        ...(spriteUrl ? (['sprite'] as PetStyle[]) : [])
       ]
+      if (order.length === 0) order.push('none')
       const ns = order[(order.indexOf(style) + 1) % order.length]
-      setStyle(ns)
-      await window.api.setSettings({ petStyle: ns })
-      say(`换装完毕~现在是「${STYLE_LABEL[ns]}」，老板觉得如何？`)
+      if (ns !== style) {
+        setStyle(ns)
+        await window.api.setSettings({ petStyle: ns })
+        say(`换装完毕~现在是「${STYLE_LABEL[ns]}」，老板觉得如何？`)
+      }
     }
     if (key === 'quit') window.api.quit()
   }
@@ -200,10 +198,15 @@ export default function App() {
           <PetOfficial anim={anim} />
         ) : style === 'sprite' && spriteUrl ? (
           <PetSprite src={spriteUrl} anim={anim} />
-        ) : style === '3d' ? (
-          <Pet3D anim={anim} />
         ) : (
-          <PetArt anim={anim} />
+          <div className="pet-placeholder">
+            <div className="ph-egg" />
+            <div className="ph-text">
+              随宠模型未提取
+              <br />
+              <code>python extractor/extract_pet.py</code>
+            </div>
+          </div>
         )}
         {/* 秒表道具：单独热区，点击切换记录 */}
         <div
