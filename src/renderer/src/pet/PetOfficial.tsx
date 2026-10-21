@@ -69,50 +69,55 @@ export default function PetOfficial({ anim }: { anim: Anim }) {
       wrap.rotation.set(0, 0, 0)
       wrap.scale.set(1, 1, 1)
       if (cur === 'bounce') {
-        // 对齐原版待机的贴地感：单次轻跳 = 蓄力下蹲 → 蹬地拉伸 → 空中抛物线(顶点~0.22)
-        // → 落地压扁回弹 → 回稳停顿（旧版 |sin(7t)| 连跳 2.2次/秒且挤压时机在顶点，方向反了）
-        const p = at % 1.3
+        // 参考视频实测（t4.8-5.2 / 6.4-6.6 / 6.9-7.1）：兴奋时一小串连跳 —— 每跳周期
+        // 0.75s（腾空~0.26s、顶点~0.18、落地停顿~0.28s 再起下一跳），空中腿收+微后仰
+        // （原版双臂上举，刚体模型做不了，用整体拉伸+后仰近似兴奋感）
+        const p = at % 0.75
         let y = 0
         let sy = 1
         let sx = 1
-        if (p < 0.10) {
-          const k = p / 0.10
-          y = -0.035 * k * k
-          sy = 1 - 0.10 * k * k
-          sx = 1 + 0.055 * k * k
-        } else if (p < 0.16) {
-          const k = (p - 0.10) / 0.06
-          y = -0.035 + 0.075 * k
-          sy = 0.90 + 0.22 * k
-          sx = 1.055 - 0.14 * k
-        } else if (p < 0.50) {
-          const k = (p - 0.16) / 0.34
-          y = 0.04 * (1 - k) + 0.8 * k * (1 - k)
-          const fast = Math.abs(Math.cos(Math.PI * k)) // 起飞/俯冲时拉伸，顶点回正
-          sy = 1 + 0.06 * fast
-          sx = 1 - 0.03 * fast
-        } else if (p < 0.60) {
-          const v = (p - 0.50) / 0.10
+        let pitch = 0
+        if (p < 0.08) {
+          const k = p / 0.08 // 蓄力下蹲
+          y = -0.015 * k * k
+          sy = 1 - 0.06 * k * k
+          sx = 1 + 0.03 * k * k
+        } else if (p < 0.12) {
+          const k = (p - 0.08) / 0.04 // 蹬地拉伸
+          y = -0.015 + 0.065 * k
+          sy = 0.94 + 0.18 * k
+          sx = 1.03 - 0.11 * k
+        } else if (p < 0.38) {
+          const k = (p - 0.12) / 0.26 // 空中抛物线
+          y = 0.05 * (1 - k) + 0.62 * k * (1 - k)
+          const fast = Math.abs(Math.cos(Math.PI * k))
+          sy = 1 + 0.07 * fast
+          sx = 1 - 0.035 * fast
+          pitch = -0.06 * Math.sin(Math.PI * k) // 腾空轻微后仰（近似原版上举发力感）
+        } else if (p < 0.47) {
+          const v = (p - 0.38) / 0.09 // 落地压扁
           const hit = Math.sin(Math.PI * v)
           y = -0.02 * hit
-          sy = 1 - 0.14 * hit
-          sx = 1 + 0.07 * hit
-        }
+          sy = 1 - 0.13 * hit
+          sx = 1 + 0.065 * hit
+        } // [0.47,0.75) 落地停顿，蓄势下一跳
         wrap.position.y = y
         wrap.scale.y = sy
         wrap.scale.x = sx
+        wrap.rotation.x = pitch
       } else if (cur === 'cheer') {
-        wrap.position.y = Math.abs(Math.sin(at * 9)) * 0.14
-        wrap.rotation.z = Math.sin(at * 9) * 0.05
+        wrap.position.y = Math.abs(Math.sin(at * 9)) * 0.10
+        wrap.rotation.z = Math.sin(at * 9) * 0.04
       } else if (cur === 'howl') {
         wrap.rotation.x = -0.16
         wrap.rotation.z = Math.sin(at * 4) * 0.05
       } else {
-        // 贴地待机（对齐原版视频参考）：呼吸式起伏 + 缓慢重心左右摇摆，不离地
-        wrap.position.y = Math.sin(t * 1.6) * 0.012
-        wrap.rotation.z = Math.sin(t * 0.9) * 0.03
-        wrap.scale.y = 1 + Math.sin(t * 1.6) * 0.014
-        wrap.scale.x = 1 - Math.sin(t * 1.6) * 0.007
+        // 对齐参考视频的站姿：几乎静止 —— 极微呼吸 + 每~7s 一次的缓慢重心侧倾。
+        // 参考里没有连续摇摆（上一版 0.9Hz 摇摆不像的来源），也从不离地
+        wrap.position.y = Math.sin(t * 1.3) * 0.006
+        wrap.rotation.z = Math.sin(t * 0.45) * 0.035
+        wrap.scale.y = 1 + Math.sin(t * 1.3) * 0.008
+        wrap.scale.x = 1 - Math.sin(t * 1.3) * 0.004
       }
       // 影子钉在地面：反向抵消 wrap 的位移，并随腾空高度缩小
       shadow.position.y = shadowBaseY - wrap.position.y

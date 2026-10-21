@@ -97,7 +97,8 @@ export default function App() {
     const schedule = () => {
       t = setTimeout(() => {
         const a: Anim[] = ['bounce', 'howl', 'cheer']
-        playAnim(a[Math.floor(Math.random() * a.length)])
+        const pick = a[Math.floor(Math.random() * a.length)]
+        playAnim(pick, pick === 'bounce' ? 1600 : 1200) // 连跳串 2 跳×0.75s+收尾，完整落地结束
         if (Math.random() < 0.4) say(line('idle'))
         schedule()
       }, 20000 + Math.random() * 40000)
@@ -158,7 +159,7 @@ export default function App() {
     } else {
       const match = await window.api.recordEnd()
       setRecording(false)
-      playAnim('bounce', 900)
+      playAnim('bounce', 1600) // 两跳连跳串完整播完
       say(line('end'))
       if (match && match.result === 'win') setTimeout(() => say(line('win')), 2200)
       if (match && match.result === 'loss') setTimeout(() => say(line('loss')), 2200)
