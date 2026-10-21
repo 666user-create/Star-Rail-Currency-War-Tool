@@ -94,7 +94,7 @@ body { margin: 0; background: transparent; }
 .pet-svg.pet-breathe { animation: breathe 3.2s ease-in-out infinite; }
 .pet-body { transform-origin: 100px 210px; }
 
-.eyes { transform-origin: 100px 90px; animation: blink 4.5s infinite; }
+.eyes { transform-origin: 100px 94px; animation: blink 4.5s infinite; }
 .mouth-howl { display: none; }
 .stopwatch-prop { animation: swing 3.6s ease-in-out infinite; }
 .prop-hotzone {

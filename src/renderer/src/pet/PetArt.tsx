@@ -1,9 +1,10 @@
 import React from 'react'
 
 /**
- * 原创小奇美拉桌宠 · 2.5D 毛绒渐变版
- * （风格神似官方随宠"说怪话"的 3D 渲染质感，非复刻素材）
- * 动画钩子与 styles.css 保持一致：pet-body / head / eyes / mouth-* / arm-* / stopwatch-prop
+ * 原创小奇美拉桌宠 · 2D 量尺版 v3
+ * 比例全部换算自官模（pet03）顶点实测：宽/高=0.89、头占44%~100%、
+ * 眼径0.20H@53%高、±0.37H、身宽0.68H、耳尖±0.81H、项圈@0.82H、铃铛@0.66H。
+ * 动画钩子与 styles.css 一致：pet-body / head / eyes / mouth-* / arm-* / stopwatch-prop
  */
 export default function PetArt({ anim }: { anim: string }) {
   return (
@@ -14,37 +15,31 @@ export default function PetArt({ anim }: { anim: string }) {
       height="253"
     >
       <defs>
-        {/* 毛发底色：暖白，右下沉暖影 */}
         <radialGradient id="fur" cx="38%" cy="28%" r="85%">
           <stop offset="0%" stopColor="#fffdf6" />
           <stop offset="55%" stopColor="#f5e9d2" />
           <stop offset="100%" stopColor="#dcc5a2" />
         </radialGradient>
-        {/* 黑毛兜帽：顶部冷高光，底部深邃 */}
         <radialGradient id="hood" cx="34%" cy="18%" r="95%">
           <stop offset="0%" stopColor="#453e5e" />
           <stop offset="45%" stopColor="#282238" />
           <stop offset="100%" stopColor="#16121f" />
         </radialGradient>
-        {/* 脸部：更透的奶白 */}
         <radialGradient id="face" cx="40%" cy="30%" r="80%">
           <stop offset="0%" stopColor="#fffaef" />
           <stop offset="70%" stopColor="#f7ecd8" />
           <stop offset="100%" stopColor="#e8d5b8" />
         </radialGradient>
-        {/* 红宝石眼睛 */}
         <radialGradient id="iris" cx="35%" cy="28%" r="80%">
           <stop offset="0%" stopColor="#ff9d9d" />
           <stop offset="45%" stopColor="#e04747" />
           <stop offset="100%" stopColor="#6e1a2e" />
         </radialGradient>
-        {/* 金属铃铛 */}
         <linearGradient id="bell" x1="0" y1="0" x2="0.3" y2="1">
           <stop offset="0%" stopColor="#ffeeb0" />
           <stop offset="45%" stopColor="#eab94f" />
           <stop offset="100%" stopColor="#a8772c" />
         </linearGradient>
-        {/* 秒表金属 */}
         <linearGradient id="watchBody" x1="0" y1="0" x2="0.4" y2="1">
           <stop offset="0%" stopColor="#fbf3dd" />
           <stop offset="55%" stopColor="#e6d3ab" />
@@ -60,119 +55,107 @@ export default function PetArt({ anim }: { anim: string }) {
         <filter id="softer" x="-60%" y="-60%" width="220%" height="220%">
           <feGaussianBlur stdDeviation="6" />
         </filter>
-        <clipPath id="bodyClip"><ellipse cx="100" cy="152" rx="50" ry="46" /></clipPath>
-        <clipPath id="headClip"><ellipse cx="100" cy="82" rx="62" ry="52" /></clipPath>
+        <clipPath id="bodyClip"><ellipse cx="100" cy="150" rx="68" ry="42" /></clipPath>
       </defs>
 
       {/* 地面软影 */}
-      <ellipse cx="100" cy="217" rx="54" ry="9" fill="#0a0714" opacity="0.45" filter="url(#soft)" />
+      <ellipse cx="100" cy="215" rx="58" ry="9" fill="#0a0714" opacity="0.45" filter="url(#soft)" />
 
       <g className="pet-body">
-        {/* 尾巴（蓬松） */}
+        {/* 尾部羽饰（侧视点缀） */}
         <path
-          d="M150 156 Q182 152 176 126 Q194 142 186 158 Q176 172 156 168 Z"
+          d="M156 150 Q186 146 180 122 Q198 138 190 154 Q180 168 160 164 Z"
           fill="url(#fur)" stroke="#4a3f5c" strokeWidth="2.5" strokeLinejoin="round"
         />
-        <path d="M170 138 Q180 144 178 154" stroke="#fffdf6" strokeWidth="3" fill="none" opacity="0.5" strokeLinecap="round" />
 
-        {/* 身体 */}
-        <ellipse cx="100" cy="152" rx="50" ry="46" fill="url(#fur)" />
+        {/* 身体：官模 0.68H 半宽（x32..168, y108..192） */}
+        <ellipse cx="100" cy="150" rx="68" ry="42" fill="url(#fur)" />
         <g clipPath="url(#bodyClip)">
-          {/* 腹部高光 */}
-          <ellipse cx="82" cy="136" rx="30" ry="24" fill="#fffdf6" opacity="0.55" filter="url(#soft)" />
-          {/* 底部暖影 */}
-          <ellipse cx="100" cy="196" rx="52" ry="20" fill="#a8895f" opacity="0.5" filter="url(#softer)" />
+          <ellipse cx="78" cy="134" rx="34" ry="22" fill="#fffdf6" opacity="0.55" filter="url(#soft)" />
+          <ellipse cx="100" cy="190" rx="66" ry="18" fill="#a8895f" opacity="0.5" filter="url(#softer)" />
         </g>
-        <ellipse cx="100" cy="152" rx="50" ry="46" fill="none" stroke="#4a3f5c" strokeWidth="2.5" />
+        <ellipse cx="100" cy="150" rx="68" ry="42" fill="none" stroke="#4a3f5c" strokeWidth="2.5" />
 
-        {/* 小脚 */}
-        <ellipse cx="82" cy="194" rx="13.5" ry="8.5" fill="url(#fur)" stroke="#4a3f5c" strokeWidth="2.5" />
-        <ellipse cx="118" cy="194" rx="13.5" ry="8.5" fill="url(#fur)" stroke="#4a3f5c" strokeWidth="2.5" />
-        <circle cx="78" cy="193" r="1.8" fill="#f2788a" opacity="0.7" />
-        <circle cx="86" cy="193" r="1.8" fill="#f2788a" opacity="0.7" />
-        <circle cx="114" cy="193" r="1.8" fill="#f2788a" opacity="0.7" />
-        <circle cx="122" cy="193" r="1.8" fill="#f2788a" opacity="0.7" />
+        {/* 小脚：底 8%、总宽 0.35H */}
+        <ellipse cx="78" cy="193" rx="15" ry="8" fill="url(#fur)" stroke="#4a3f5c" strokeWidth="2.5" />
+        <ellipse cx="122" cy="193" rx="15" ry="8" fill="url(#fur)" stroke="#4a3f5c" strokeWidth="2.5" />
+        <circle cx="73" cy="192" r="1.9" fill="#d94f4f" opacity="0.8" />
+        <circle cx="83" cy="192" r="1.9" fill="#d94f4f" opacity="0.8" />
+        <circle cx="117" cy="192" r="1.9" fill="#d94f4f" opacity="0.8" />
+        <circle cx="127" cy="192" r="1.9" fill="#d94f4f" opacity="0.8" />
 
-        {/* 左臂 */}
-        <ellipse className="arm-left" cx="52" cy="150" rx="14" ry="9.5" fill="url(#fur)" stroke="#4a3f5c" strokeWidth="2.5"
-          style={{ transformOrigin: '64px 150px' }} />
-        {/* 右臂 */}
-        <ellipse className="arm-right" cx="148" cy="150" rx="14" ry="9.5" fill="url(#fur)" stroke="#4a3f5c" strokeWidth="2.5"
-          style={{ transformOrigin: '136px 150px' }} />
+        {/* 鳍臂：身侧 ±64，外缘不超头宽 */}
+        <ellipse className="arm-left" cx="36" cy="150" rx="15" ry="10" fill="url(#fur)" stroke="#4a3f5c" strokeWidth="2.5"
+          style={{ transformOrigin: '50px 150px' }} />
+        <ellipse className="arm-right" cx="164" cy="150" rx="15" ry="10" fill="url(#fur)" stroke="#4a3f5c" strokeWidth="2.5"
+          style={{ transformOrigin: '150px 150px' }} />
 
-        {/* 秒表道具 */}
-        <g className="stopwatch-prop" style={{ transformOrigin: '158px 156px' }}>
-          <line x1="157" y1="155" x2="168" y2="177" stroke="#4a3f5c" strokeWidth="2.5" />
-          <rect x="162.5" y="174.5" width="11" height="7" rx="2.5" fill="#d94f4f" stroke="#4a3f5c" strokeWidth="2" />
-          <circle cx="168" cy="192" r="15" fill="url(#watchBody)" stroke="#4a3f5c" strokeWidth="2.5" />
-          <circle cx="168" cy="192" r="10.5" fill="#fffaf0" stroke="#b8934e" strokeWidth="1.5" />
-          <path d="M160 186 A10 10 0 0 1 168 182" stroke="#ffffff" strokeWidth="2.5" fill="none" opacity="0.9" strokeLinecap="round" />
-          <line x1="168" y1="192" x2="168" y2="185.5" stroke="#4a3f5c" strokeWidth="2" strokeLinecap="round" />
-          <line x1="168" y1="192" x2="173.5" y2="194.5" stroke="#d94f4f" strokeWidth="2" strokeLinecap="round" />
-          <circle cx="168" cy="192" r="1.6" fill="#4a3f5c" />
+        {/* 秒表道具（记录开关视觉锚点，热区见 prop-hotzone） */}
+        <g className="stopwatch-prop" style={{ transformOrigin: '172px 157px' }}>
+          <line x1="171" y1="156" x2="178" y2="176" stroke="#4a3f5c" strokeWidth="2.5" />
+          <rect x="173" y="173.5" width="11" height="7" rx="2.5" fill="#d94f4f" stroke="#4a3f5c" strokeWidth="2" />
+          <circle cx="178.5" cy="191" r="14" fill="url(#watchBody)" stroke="#4a3f5c" strokeWidth="2.5" />
+          <circle cx="178.5" cy="191" r="9.5" fill="#fffaf0" stroke="#b8934e" strokeWidth="1.5" />
+          <path d="M171 185.5 A9.5 9.5 0 0 1 178.5 181.5" stroke="#ffffff" strokeWidth="2.5" fill="none" opacity="0.9" strokeLinecap="round" />
+          <line x1="178.5" y1="191" x2="178.5" y2="185" stroke="#4a3f5c" strokeWidth="2" strokeLinecap="round" />
+          <line x1="178.5" y1="191" x2="184" y2="193.5" stroke="#d94f4f" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="178.5" cy="191" r="1.6" fill="#4a3f5c" />
         </g>
 
-        {/* 项圈 + 铃铛 */}
-        <path d="M66 124 Q100 136 134 124 L132 133 Q100 145 68 133 Z" fill="#241e30" stroke="#4a3f5c" strokeWidth="2" />
-        <circle cx="100" cy="141" r="11.5" fill="url(#bell)" stroke="#7a5a20" strokeWidth="1.8" />
-        <path d="M93.5 136 A9 9 0 0 1 101 133.5" stroke="#fff8dc" strokeWidth="2.5" fill="none" opacity="0.95" strokeLinecap="round" />
-        <line x1="92.5" y1="141" x2="107.5" y2="141" stroke="#7a5a20" strokeWidth="1.8" />
-        <circle cx="100" cy="145" r="2.4" fill="#7a5a20" />
+        {/* 项圈 @0.82H（y118）+ 铃铛 @0.66H（y134） */}
+        <path d="M60 114 Q100 127 140 114 L138 126 Q100 139 62 126 Z" fill="#241e30" stroke="#4a3f5c" strokeWidth="2" />
+        <circle cx="100" cy="137" r="14" fill="url(#bell)" stroke="#7a5a20" strokeWidth="1.8" />
+        <path d="M92 131 A11 11 0 0 1 101 128" stroke="#fff8dc" strokeWidth="2.5" fill="none" opacity="0.95" strokeLinecap="round" />
+        <line x1="90" y1="137" x2="110" y2="137" stroke="#7a5a20" strokeWidth="1.8" />
+        <circle cx="100" cy="141.5" r="2.6" fill="#7a5a20" />
 
-        {/* —— 头部 —— */}
+        {/* —— 头部：头区 y6..118（44%~100%H），头半宽 89 —— */}
         <g className="head">
-          {/* 耳朵（外） */}
-          <path d="M58 46 L40 4 L86 30 Z" fill="url(#hood)" stroke="#4a3f5c" strokeWidth="2.5" strokeLinejoin="round" />
-          <path d="M142 46 L160 4 L114 30 Z" fill="url(#hood)" stroke="#4a3f5c" strokeWidth="2.5" strokeLinejoin="round" />
-          {/* 耳朵（内，绒粉） */}
-          <path d="M60 40 L49 16 L76 30 Z" fill="#f3d9cf" />
-          <path d="M140 40 L151 16 L124 30 Z" fill="#f3d9cf" />
+          {/* 耳朵：立耳略外倾，尖端 ±62 @ y4 */}
+          <path d="M66 42 L38 4 L94 24 Z" fill="url(#hood)" stroke="#4a3f5c" strokeWidth="2.5" strokeLinejoin="round" />
+          <path d="M134 42 L162 4 L106 24 Z" fill="url(#hood)" stroke="#4a3f5c" strokeWidth="2.5" strokeLinejoin="round" />
+          <path d="M68 37 L47 15 L84 27 Z" fill="#f3d9cf" />
+          <path d="M132 37 L153 15 L116 27 Z" fill="#f3d9cf" />
 
-          {/* 兜帽主体 */}
-          <ellipse cx="100" cy="82" rx="62" ry="52" fill="url(#hood)" stroke="#4a3f5c" strokeWidth="2.5" />
-          {/* 帽侧绒球（更圆润的脸颊轮廓） */}
-          <circle cx="48" cy="98" r="22" fill="url(#hood)" stroke="#4a3f5c" strokeWidth="2" />
-          <circle cx="152" cy="98" r="22" fill="url(#hood)" stroke="#4a3f5c" strokeWidth="2" />
+          {/* 兜帽主体（眼位处与脸留 9px 侧缘，帽顶 y28） */}
+          <ellipse cx="100" cy="70" rx="89" ry="42" fill="url(#hood)" stroke="#4a3f5c" strokeWidth="2.5" />
+          {/* 帽侧绒球（颊部最宽处 ±89） */}
+          <circle cx="26" cy="86" r="17" fill="url(#hood)" stroke="#4a3f5c" strokeWidth="2" />
+          <circle cx="174" cy="86" r="17" fill="url(#hood)" stroke="#4a3f5c" strokeWidth="2" />
           {/* 帽顶冷光 */}
-          <path d="M52 56 Q78 24 118 30" stroke="#8f86c9" strokeWidth="4" fill="none" opacity="0.35" filter="url(#soft)" strokeLinecap="round" />
+          <path d="M46 54 Q76 26 120 32" stroke="#8f86c9" strokeWidth="4.5" fill="none" opacity="0.35" filter="url(#soft)" strokeLinecap="round" />
           {/* 帽上奶白斑纹 */}
-          <ellipse cx="73" cy="42" rx="8" ry="5" fill="#f5e9d2" transform="rotate(-16 73 42)" />
-          <ellipse cx="125" cy="37" rx="5.5" ry="4" fill="#f5e9d2" transform="rotate(14 125 37)" />
+          <ellipse cx="74" cy="44" rx="9" ry="5.5" fill="#f5e9d2" transform="rotate(-16 74 44)" />
+          <ellipse cx="127" cy="39" rx="6" ry="4.5" fill="#f5e9d2" transform="rotate(14 127 39)" />
 
-          {/* 脸 */}
-          <ellipse cx="100" cy="94" rx="45" ry="37" fill="url(#face)" />
-          {/* 下巴软影 */}
-          <ellipse cx="100" cy="122" rx="34" ry="10" fill="#c9a97e" opacity="0.35" filter="url(#soft)" />
+          {/* 脸：y50..118（下巴收在项圈上方），x36..164 */}
+          <ellipse cx="100" cy="84" rx="64" ry="34" fill="url(#face)" />
+          <ellipse cx="100" cy="110" rx="44" ry="10" fill="#c9a97e" opacity="0.3" filter="url(#soft)" />
 
-          {/* 眼睛 */}
+          {/* 眼睛：径40 @ (63/137, 94) */}
           <g className="eyes">
-            {/* 眼窝软影 */}
-            <ellipse cx="81" cy="91" rx="15" ry="14" fill="#8a6a55" opacity="0.25" filter="url(#soft)" />
-            <ellipse cx="119" cy="91" rx="15" ry="14" fill="#8a6a55" opacity="0.25" filter="url(#soft)" />
-            {/* 左眼 */}
-            <circle cx="81" cy="90" r="13" fill="url(#iris)" stroke="#2c2333" strokeWidth="2.5" />
-            <ellipse cx="82" cy="93" rx="5" ry="6" fill="#3a1020" />
-            <circle cx="76.5" cy="85" r="4.5" fill="#ffffff" />
-            <circle cx="86" cy="95.5" r="2.2" fill="#ffd9e2" />
-            {/* 右眼 */}
-            <circle cx="119" cy="90" r="13" fill="url(#iris)" stroke="#2c2333" strokeWidth="2.5" />
-            <ellipse cx="120" cy="93" rx="5" ry="6" fill="#3a1020" />
-            <circle cx="114.5" cy="85" r="4.5" fill="#ffffff" />
-            <circle cx="124" cy="95.5" r="2.2" fill="#ffd9e2" />
-            {/* 上眼睑 */}
-            <path d="M70 84 Q81 76 92 84" stroke="#2c2333" strokeWidth="3.5" fill="none" strokeLinecap="round" />
-            <path d="M108 84 Q119 76 130 84" stroke="#2c2333" strokeWidth="3.5" fill="none" strokeLinecap="round" />
+            <circle cx="63" cy="94" r="23" fill="#2c2333" />
+            <circle cx="137" cy="94" r="23" fill="#2c2333" />
+            <circle cx="63" cy="94" r="20" fill="url(#iris)" />
+            <circle cx="137" cy="94" r="20" fill="url(#iris)" />
+            <ellipse cx="64" cy="97" rx="7" ry="8" fill="#3a1020" />
+            <ellipse cx="138" cy="97" rx="7" ry="8" fill="#3a1020" />
+            <circle cx="56" cy="86" r="6" fill="#ffffff" />
+            <circle cx="130" cy="86" r="6" fill="#ffffff" />
+            <circle cx="71" cy="103" r="3" fill="#ffd9e2" />
+            <circle cx="145" cy="103" r="3" fill="#ffd9e2" />
           </g>
 
           {/* 腮红 */}
-          <ellipse cx="62" cy="106" rx="11" ry="7" fill="url(#blush)" />
-          <ellipse cx="138" cy="106" rx="11" ry="7" fill="url(#blush)" />
+          <ellipse cx="52" cy="104" rx="12" ry="7.5" fill="url(#blush)" />
+          <ellipse cx="148" cy="104" rx="12" ry="7.5" fill="url(#blush)" />
 
-          {/* 嘴：默认猫唇 / 嗷呜 */}
-          <path className="mouth-smile" d="M93 110 q4 5 7 0 q3 5 7 0" fill="none" stroke="#6b4a55" strokeWidth="2.5" strokeLinecap="round" />
+          {/* 鼻 @y101 + ω 猫嘴 @y106..112 / 嗷呜 */}
+          <ellipse cx="100" cy="101" rx="4" ry="3" fill="#6b4a55" />
+          <path className="mouth-smile" d="M84 106 q8 9 16 0 q8 9 16 0" fill="none" stroke="#6b4a55" strokeWidth="3" strokeLinecap="round" />
           <g className="mouth-howl">
-            <ellipse cx="100" cy="114" rx="9" ry="11" fill="#7a3b46" stroke="#6b4a55" strokeWidth="2" />
-            <ellipse cx="100" cy="119" rx="5" ry="5" fill="#e88a96" />
+            <ellipse cx="100" cy="112" rx="11" ry="13" fill="#7a3b46" stroke="#6b4a55" strokeWidth="2" />
+            <ellipse cx="100" cy="118" rx="6" ry="6" fill="#e88a96" />
           </g>
         </g>
       </g>
