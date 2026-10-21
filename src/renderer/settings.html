@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>设置</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 20px;
+        background: #0d1226; color: #e8e6f0;
+        font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+        font-size: 13px;
+      }
+      h3 { margin: 0 0 14px; font-size: 15px; }
+      label { display: block; color: #8b8fa8; font-size: 11.5px; margin-bottom: 4px; }
+      .row { display: flex; gap: 8px; margin-bottom: 14px; }
+      input {
+        flex: 1; background: #1b2240; color: #e8e6f0;
+        border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+        padding: 7px 10px; font-size: 12.5px;
+      }
+      button {
+        background: #e8c476; color: #0d1226; font-weight: 700;
+        border: none; border-radius: 8px; padding: 7px 16px;
+        font-size: 12.5px; cursor: pointer;
+      }
+      button.ghost { background: #1b2240; color: #e8e6f0; border: 1px solid rgba(255,255,255,0.12); }
+      .hint { color: #8b8fa8; font-size: 11px; line-height: 1.6; }
+      .ok { color: #6fcf97; font-size: 12px; margin-left: 8px; }
+    </style>
+  </head>
+  <body>
+    <h3>设置</h3>
+    <label>游戏本体路径（用于「货币战争启动!」按钮）</label>
+    <div class="row">
+      <input id="path" placeholder="例如 D:\Games\Star Rail\StarRail.exe" />
+      <button class="ghost" id="save">保存</button>
+    </div>
+    <div class="hint">
+      仅用于启动你本地已安装的游戏；本工具不做任何自动操作。<br />
+      © 米哈游版权所有 · 非官方同人作品
+    </div>
+    <script type="module">
+      const input = document.getElementById('path')
+      const save = document.getElementById('save')
+      window.api.getSettings().then((s) => { input.value = s.gamePath || '' })
+      save.addEventListener('click', async () => {
+        await window.api.setSettings({ gamePath: input.value.trim() })
+        const tag = document.createElement('span')
+        tag.className = 'ok'
+        tag.textContent = '已保存 ✓'
+        save.after(tag)
+        setTimeout(() => tag.remove(), 1500)
+      })
+    </script>
+  </body>
+</html>
