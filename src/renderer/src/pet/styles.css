@@ -84,6 +84,13 @@ body { margin: 0; background: transparent; }
 .pet-hitbox:active { cursor: grabbing; }
 
 .pet-svg { display: block; }
+
+/* 3D 形象容器：铺满桌宠窗口（260×300），画布透明 */
+.pet3d-holder {
+  width: 260px;
+  height: 300px;
+}
+.pet3d-holder canvas { display: block; }
 .pet-svg.pet-breathe { animation: breathe 3.2s ease-in-out infinite; }
 .pet-body { transform-origin: 100px 210px; }
 

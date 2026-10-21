@@ -64,6 +64,7 @@ export interface AppSettings {
   gamePath: string
   petX?: number
   petY?: number
+  petStyle?: 'svg' | '3d'
 }
 
 export interface PetApi {

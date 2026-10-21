@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import PetArt from './PetArt'
+import Pet3D from './Pet3D'
 import { line } from '@shared/dialogue'
 
 type Anim = '' | 'bounce' | 'howl' | 'cheer'
@@ -10,6 +11,11 @@ export default function App() {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const [recording, setRecording] = useState(false)
   const [elapsed, setElapsed] = useState(0)
+  const [style, setStyle] = useState<'svg' | '3d'>('svg')
+
+  useEffect(() => {
+    void window.api.getSettings().then((s) => setStyle(s.petStyle ?? 'svg'))
+  }, [])
 
   const bubbleTimer = useRef<ReturnType<typeof setTimeout>>()
   const animTimer = useRef<ReturnType<typeof setTimeout>>()
@@ -20,6 +26,7 @@ export default function App() {
     { key: 'panel', label: () => '打开战绩面板' },
     { key: 'launch', label: () => '货币战争启动!' },
     { key: 'settings', label: () => '设置' },
+    { key: 'style', label: () => (style === '3d' ? '切换 2D 形象' : '切换 3D 形象') },
     { key: 'sep', label: () => '' },
     { key: 'quit', label: () => '退出' }
   ] as const
@@ -124,6 +131,12 @@ export default function App() {
       else say(line('needGamePath'), 5000)
     }
     if (key === 'settings') window.api.settingsOpen()
+    if (key === 'style') {
+      const ns = style === '3d' ? 'svg' : '3d'
+      setStyle(ns)
+      await window.api.setSettings({ petStyle: ns })
+      say(ns === '3d' ? '换上新皮肤啦，老板~（3D版）' : '还是这身舒服，老板~（2D版）')
+    }
     if (key === 'quit') window.api.quit()
   }
 
@@ -148,9 +161,9 @@ export default function App() {
       <div
         className="pet-hitbox"
         onPointerDown={onPetPointerDown}
-        onClick={() => { /* 点击由 pointerup 统一处理，避免拖动误触 */ }}
+        onClick={() => { /* 点击由 pointerup 统一处理，避免拖动误触发点击 */ }}
       >
-        <PetArt anim={anim} />
+        {style === '3d' ? <Pet3D anim={anim} /> : <PetArt anim={anim} />}
         {/* 秒表道具：单独热区，点击切换记录 */}
         <div
           className={`prop-hotzone ${recording ? 'recording' : ''}`}
