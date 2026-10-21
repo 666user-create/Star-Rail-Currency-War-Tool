@@ -34,6 +34,7 @@ function buildChimera() {
   const glint = new THREE.MeshBasicMaterial({ color: 0xffffff })
   const blushMat = new THREE.MeshBasicMaterial({ color: 0xf2788a, transparent: true, opacity: 0.55 })
   const mouthMat = new THREE.MeshBasicMaterial({ color: 0x7a3b46 })
+  const mouthDark = toon(0x5c4150)
 
   const root = new THREE.Group()
 
@@ -61,12 +62,17 @@ function buildChimera() {
   const arms: THREE.Group[] = []
   for (const s of [-1, 1]) {
     const pivot = new THREE.Group()
-    pivot.position.set(0.5 * s, 0.78, 0.1)
-    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.13, 0.2, 6, 12), fur)
-    arm.position.y = -0.16
+    pivot.position.set(0.64 * s, 0.8, 0.12)
+    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 0.28, 6, 12), fur)
+    arm.position.y = -0.19
     arm.rotation.z = 0
     pivot.add(arm)
-    pivot.rotation.z = s * -0.5 // 默认向外撇
+    // 黑色上臂袖套（官方设定：手臂上半截是黑毛）
+    const sleeve = new THREE.Mesh(new THREE.SphereGeometry(0.14, 14, 10), hood)
+    sleeve.scale.set(1, 0.62, 1)
+    sleeve.position.y = -0.02
+    pivot.add(sleeve)
+    pivot.rotation.z = s * -0.7 // 向外撇出剪影
     root.add(pivot)
     arms.push(pivot)
 
@@ -86,13 +92,13 @@ function buildChimera() {
     }
   }
 
-  // 项圈 + 铃铛
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.06, 10, 32), dark)
-  collar.position.y = 0.98
+  // 项圈（下移到下巴缝，正面侧面都露出）+ 铃铛挂胸前
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.065, 10, 40), dark)
+  collar.position.y = 0.82
   collar.rotation.x = Math.PI / 2
   root.add(collar)
-  const bell = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12), gold)
-  bell.position.set(0, 0.9, 0.36)
+  const bell = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 12), gold)
+  bell.position.set(0, 0.72, 0.62)
   root.add(bell)
 
   // 头（可动组：歪头/嗷呜抬头都作用于它）
@@ -104,10 +110,10 @@ function buildChimera() {
   skull.scale.set(1, 0.92, 0.95)
   head.add(skull)
 
-  // 脸（前凸奶白面罩）
+  // 脸（大面罩：前凸越过帽球，形成官方那种"帽檐开口"交割线）
   const face = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), faceMat)
-  face.scale.set(0.82, 0.72, 0.62)
-  face.position.set(0, -0.1, 0.34)
+  face.scale.set(0.98, 0.85, 0.6)
+  face.position.set(0, -0.1, 0.4)
   head.add(face)
 
   // 耳朵
@@ -122,27 +128,33 @@ function buildChimera() {
     head.add(inner)
   }
 
-  // 帽上白斑
-  for (const [x, y, r] of [[-0.28, 0.5, 0.11], [0.3, 0.42, 0.08]] as const) {
+  // 帽上白斑（官方签名细节，压出表面避免被几何吞掉）
+  for (const [x, y, r] of [[-0.28, 0.5, 0.13], [0.3, 0.42, 0.1]] as const) {
     const spot = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), fur)
     spot.scale.set(1, 0.55, 0.6)
-    spot.position.set(x, y, 0.38)
+    spot.position.set(x, y, 0.44)
     head.add(spot)
   }
 
-  // 眼睛（眨眼通过整体 scaleY 实现）
+  // 眼睛：完整落在脸内，深色垫底模拟官方描边（眨眼 = 整组 scaleY）
   const eyes = new THREE.Group()
   head.add(eyes)
   for (const s of [-1, 1]) {
-    const e = new THREE.Mesh(new THREE.CircleGeometry(0.13, 24), eyeRed)
-    e.position.set(0.17 * s, -0.06, 0.66)
+    const backing = new THREE.Mesh(new THREE.CircleGeometry(0.172, 28), eyeDark)
+    backing.position.set(0.185 * s, -0.08, 0.688)
+    eyes.add(backing)
+    const e = new THREE.Mesh(new THREE.CircleGeometry(0.15, 28), eyeRed)
+    e.position.set(0.185 * s, -0.08, 0.696)
     eyes.add(e)
-    const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.055, 20), eyeDark)
-    pupil.position.set(0.17 * s, -0.065, 0.665)
+    const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.062, 22), eyeDark)
+    pupil.position.set(0.185 * s, -0.085, 0.704)
     eyes.add(pupil)
-    const g = new THREE.Mesh(new THREE.CircleGeometry(0.04, 16), glint)
-    g.position.set(0.17 * s - 0.045, 0.005, 0.67)
+    const g = new THREE.Mesh(new THREE.CircleGeometry(0.05, 18), glint)
+    g.position.set(0.185 * s - 0.05, -0.015, 0.71)
     eyes.add(g)
+    const g2 = new THREE.Mesh(new THREE.CircleGeometry(0.024, 14), glint)
+    g2.position.set(0.185 * s + 0.055, -0.13, 0.71)
+    eyes.add(g2)
   }
 
   // 腮红
@@ -153,21 +165,35 @@ function buildChimera() {
     head.add(b)
   }
 
-  // 嘴（嗷呜时放大）
-  const mouth = new THREE.Mesh(new THREE.CircleGeometry(0.05, 16), mouthMat)
-  mouth.scale.set(1.3, 0.7, 1)
-  mouth.position.set(0, -0.24, 0.67)
-  head.add(mouth)
+  // 嘴：ω 猫嘴（两个上开口弧）/ 嗛呜张嘴（椭圆），按状态切换可见性
+  const mouthSmile = new THREE.Group()
+  for (const s of [-1, 1]) {
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.011, 8, 20, Math.PI), mouthDark)
+    arc.position.set(0.043 * s, -0.245, 0.69)
+    arc.rotation.z = Math.PI + s * 0.12
+    mouthSmile.add(arc)
+  }
+  head.add(mouthSmile)
+  const mouthOpen = new THREE.Mesh(new THREE.CircleGeometry(0.058, 20), mouthMat)
+  mouthOpen.scale.set(1, 1.4, 1)
+  mouthOpen.position.set(0, -0.25, 0.694)
+  mouthOpen.visible = false
+  head.add(mouthOpen)
+  // 鼻点
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), mouthDark)
+  nose.scale.set(1.3, 0.9, 0.8)
+  nose.position.set(0, -0.16, 0.702)
+  head.add(nose)
 
   // 接地影
   const shadow = new THREE.Mesh(
     new THREE.CircleGeometry(0.6, 32),
-    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 })
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.26 })
   )
   shadow.rotation.x = -Math.PI / 2
   shadow.position.y = 0.01
 
-  return { root, head, eyes, mouth, arms, shadow }
+  return { root, head, eyes, mouthSmile, mouthOpen, arms, shadow }
 }
 
 export default function Pet3D({ anim }: { anim: Anim }) {
@@ -205,7 +231,7 @@ export default function Pet3D({ anim }: { anim: Anim }) {
     scene.add(wrap)
 
     let raf = 0
-    let blinkAt = performance.now() + 2500
+    let blinkAt = performance.now() + 4500
     const start = performance.now()
 
     const loop = () => {
@@ -219,9 +245,11 @@ export default function Pet3D({ anim }: { anim: Anim }) {
       pet.root.position.y = 0
       pet.head.rotation.x = THREE.MathUtils.lerp(pet.head.rotation.x, 0, 0.15)
       pet.head.rotation.z = THREE.MathUtils.lerp(pet.head.rotation.z, Math.sin(t * 1.4) * 0.03, 0.1)
-      pet.mouth.scale.set(1.3, 0.7, 1)
-      pet.arms[0].rotation.z = THREE.MathUtils.lerp(pet.arms[0].rotation.z, 0.5, 0.15)
-      pet.arms[1].rotation.z = THREE.MathUtils.lerp(pet.arms[1].rotation.z, -0.5, 0.15)
+      const howling = cur === 'howl'
+      pet.mouthSmile.visible = !howling
+      pet.mouthOpen.visible = howling
+      pet.arms[0].rotation.z = THREE.MathUtils.lerp(pet.arms[0].rotation.z, 0.7, 0.15)
+      pet.arms[1].rotation.z = THREE.MathUtils.lerp(pet.arms[1].rotation.z, -0.7, 0.15)
 
       // 眨眼
       const now = performance.now()
@@ -239,7 +267,6 @@ export default function Pet3D({ anim }: { anim: Anim }) {
         pet.arms[1].rotation.z = THREE.MathUtils.lerp(pet.arms[1].rotation.z, -2.4, 0.25)
       } else if (cur === 'howl') {
         pet.head.rotation.x = THREE.MathUtils.lerp(pet.head.rotation.x, -0.4, 0.2)
-        pet.mouth.scale.set(1.6, 2.4, 1)
         pet.root.position.y = Math.sin(t * 3) * 0.02
       }
 
@@ -269,5 +296,5 @@ export default function Pet3D({ anim }: { anim: Anim }) {
     }
   }, [])
 
-  return <div ref={holder} className="pet3d-holder" />
+  return <div ref={holder} className="pet3d-holder" style={{ width: 260, height: 300 }} />
 }
