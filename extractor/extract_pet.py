@@ -299,36 +299,49 @@ def collect_textures(go_world, cabs, asb_dir, procs, v=False):
         for hdr in iter_bundles(data):
             if not any(n is None for n in wanted.values()):
                 break
+            # 打开整包（含 .resS 流文件）
             try:
-                cabs_iter = list(iter_bundle_cabs(data, hdr))
+                ex = extract_bundle(data, hdr)
             except Exception:
                 continue
-            for p, b in cabs_iter:
-                if p.endswith(".resS") or not b:
-                    continue
-                if PET_MODEL_PREFIX.encode() not in b:
+            files = {p: b for p, b in ex["files"].items() if b}
+            # 先探：非流文件里是否含 Complainer 字样（不含则跳过，省内存）
+            if not any(PET_MODEL_PREFIX.encode() in b
+                       for p, b in files.items() if not p.endswith(".resS")):
+                del files
+                continue
+            # 关键：.resS 也要设 name 并一起 load，否则 Texture2D.image 报
+            # "Resource file CAB-xxx.resS not found"
+            streams = []
+            for p, b in files.items():
+                s = io.BytesIO(b)
+                s.name = p
+                streams.append(s)
+            del files
+            if not streams:
+                continue
+            try:
+                env = UnityPy.load(*streams)
+            except Exception:
+                del streams
+                continue
+            for o in env.objects:
+                if o.type.name != "Texture2D":
                     continue
                 try:
-                    env = UnityPy.load(io.BytesIO(b))
+                    d = o.read()
                 except Exception:
                     continue
-                for o in env.objects:
-                    if o.type.name != "Texture2D":
-                        continue
-                    try:
-                        d = o.read()
-                    except Exception:
-                        continue
-                    nm = getattr(d, "m_Name", "") or ""
-                    for key, _out in TEXTURE_EXPORTS:
-                        if wanted.get(key) is None and nm.endswith(key):
-                            try:
-                                wanted[key] = d.image
-                            except Exception as e:
-                                log(v, f"    贴图 {nm} 解码失败: {e}")
-                            log(v, f"    [tex] {nm}")
-                del env
-                gc.collect()
+                nm = getattr(d, "m_Name", "") or ""
+                for key, _out in TEXTURE_EXPORTS:
+                    if wanted.get(key) is None and nm.endswith(key):
+                        try:
+                            wanted[key] = d.image
+                        except Exception as e:
+                            log(v, f"    贴图 {nm} 解码失败: {e}")
+                        log(v, f"    [tex] {nm}")
+            del env, streams
+            gc.collect()
         del data
         gc.collect()
     return wanted
