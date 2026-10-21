@@ -20,12 +20,12 @@ export default function PetOfficial({ anim }: { anim: Anim }) {
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    renderer.setSize(260, 300)
+    renderer.setSize(176, 212)
     renderer.setClearColor(0x000000, 0)
     el.appendChild(renderer.domElement)
 
     const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(36, 260 / 300, 0.01, 100)
+    const camera = new THREE.PerspectiveCamera(36, 176 / 212, 0.01, 100)
     camera.position.set(0, 0.05, 3.4)
     camera.lookAt(0, 0, 0)
 
@@ -125,5 +125,5 @@ export default function PetOfficial({ anim }: { anim: Anim }) {
     }
   }, [])
 
-  return <div ref={holder} className="pet3d-holder" style={{ width: 260, height: 300 }} />
+  return <div ref={holder} className="pet3d-holder" style={{ width: 176, height: 212 }} />
 }

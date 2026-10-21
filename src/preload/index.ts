@@ -18,6 +18,7 @@ const api: PetApi = {
   sprite: () => ipcRenderer.invoke('pet:sprite'),
   officialModel: () => ipcRenderer.invoke('pet:officialModel'),
   panelToggle: () => ipcRenderer.send('panel:toggle'),
+  petShape: (mode) => ipcRenderer.send('pet:shape', mode),
   settingsOpen: () => ipcRenderer.send('settings:open'),
   petDrag: (action) => ipcRenderer.send('pet:drag', action),
   quit: () => ipcRenderer.send('app:quit')

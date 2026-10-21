@@ -12,6 +12,21 @@ let repo: Repository
 let settings: AppSettings
 let recordStartedAt: number | null = null
 let dragTimer: ReturnType<typeof setInterval> | null = null
+let petShapeMode: 'full' | 'pet' = 'pet'
+
+// 桌宠命中形状（176×212 窗口，窗口相对坐标）：
+// 'pet' 只让本体可见区接收鼠标，透明角落全部点穿到下层窗口；'full' 放开整窗（叠加层显示时）
+function applyPetShape(): void {
+  if (!petWindow || typeof petWindow.setShape !== 'function') return
+  if (petShapeMode === 'full') {
+    petWindow.setShape([{ x: 0, y: 0, width: 176, height: 212 }])
+    return
+  }
+  petWindow.setShape([
+    { x: 24, y: 34, width: 128, height: 148 },
+    { x: 116, y: 146, width: 46, height: 46 }
+  ])
+}
 
 function preloadPath(): string {
   return path.join(__dirname, '../preload/index.js')
@@ -32,8 +47,8 @@ function isOnScreen(x: number, y: number): boolean {
 
 function createPetWindow(): void {
   petWindow = new BrowserWindow({
-    width: 260,
-    height: 300,
+    width: 176,
+    height: 212,
     transparent: true,
     frame: false,
     resizable: false,
@@ -52,7 +67,10 @@ function createPetWindow(): void {
   }
   loadPage(petWindow, 'pet')
   // 透明窗口的 ready-to-show 不保证触发（已知 Electron 坑）：双保险立即显示 + 渲染诊断日志
-  const show = () => petWindow?.showInactive()
+  const show = () => {
+    petWindow?.showInactive()
+    applyPetShape()
+  }
   petWindow.once('ready-to-show', show)
   setTimeout(show, 800)
   petWindow.webContents.on('did-fail-load', (_e, code, desc) => console.error('[renderer-load]', code, desc))
@@ -209,6 +227,13 @@ function setupIpc(): void {
   ipcMain.on('panel:toggle', () => togglePanel())
   ipcMain.on('settings:open', () => createSettingsWindow())
   ipcMain.on('app:quit', () => app.quit())
+
+  // 穿透优化：默认只让桌宠本体区域接收鼠标（其余透明区可点穿到下层窗口）；
+  // 气泡/计时/菜单等叠加层可见时由渲染层切到 'full' 放开整窗
+  ipcMain.on('pet:shape', (_e, mode: 'full' | 'pet') => {
+    petShapeMode = mode
+    applyPetShape()
+  })
 
   // 自定义拖动：渲染层只报开始/结束，主进程轮询光标移动窗口（保留点击能力）
   ipcMain.on('pet:drag', (_e, action: 'start' | 'end') => {

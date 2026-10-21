@@ -29,7 +29,7 @@ body { margin: 0; background: transparent; }
   pointer-events: none;
 }
 .bubble {
-  max-width: 210px;
+  max-width: 160px;
   background: #fff8ea;
   border: 2.5px solid var(--ink);
   border-radius: 14px;
@@ -83,10 +83,10 @@ body { margin: 0; background: transparent; }
 }
 .pet-hitbox:active { cursor: grabbing; }
 
-/* 3D 官方模型容器：铺满桌宠窗口（260×300），画布透明 */
+/* 3D 官方模型容器：铺满桌宠窗口（176×212），画布透明 */
 .pet3d-holder {
-  width: 260px;
-  height: 300px;
+  width: 176px;
+  height: 212px;
 }
 .pet3d-holder canvas { display: block; }
 
@@ -108,8 +108,8 @@ body { margin: 0; background: transparent; }
 
 /* —— 未提取占位 —— */
 .pet-placeholder {
-  width: 260px;
-  height: 300px;
+  width: 176px;
+  height: 212px;
   display: flex;
   flex-direction: column;
   align-items: center;

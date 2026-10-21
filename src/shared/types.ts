@@ -84,6 +84,7 @@ export interface PetApi {
   sprite(): Promise<string | null>
   officialModel(): Promise<{ obj: string; tex: string; cool: string; warm: string } | null>
   panelToggle(): void
+  petShape(mode: 'full' | 'pet'): void
   settingsOpen(): void
   petDrag(action: 'start' | 'end'): void
   quit(): void

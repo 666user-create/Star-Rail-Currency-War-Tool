@@ -138,6 +138,10 @@ export default function App() {
     e.preventDefault()
     setMenu({ x: e.clientX, y: e.clientY })
   }
+  // 叠加层（气泡/计时徽章/菜单）可见时放开整窗命中，否则只命中桌宠本体区域
+  useEffect(() => {
+    window.api.petShape(bubble || recording || menu ? 'full' : 'pet')
+  }, [bubble, recording, menu])
   useEffect(() => {
     if (!menu) return
     const close = () => setMenu(null)
