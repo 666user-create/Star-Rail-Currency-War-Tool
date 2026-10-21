@@ -99,7 +99,15 @@ export default function App() {
   const onPointerMove = (e: React.PointerEvent) => {
     const p = pointer.current
     if (!p.down) return
+    if (e.buttons === 0) {
+      // 按键已在窗口外释放、pointerup 丢失 → 补发结束，防止 p.down 卡死复活幽灵拖动
+      p.down = false
+      window.api.petDrag('end')
+      return
+    }
     if (Math.abs(e.screenX - p.x) > 6 || Math.abs(e.screenY - p.y) > 6) p.moved = true
+    // 心跳：主进程据此判定拖动是否还活着（pointerup 丢失时超时自停）
+    window.api.petDrag('move')
   }
   const onPetPointerUp = () => {
     const wasClick = pointer.current.down && !pointer.current.moved

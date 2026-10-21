@@ -45,6 +45,25 @@ function isOnScreen(x: number, y: number): boolean {
   })
 }
 
+// 夹紧到任一显示器工作区内，保证桌宠始终至少有一部分可见（防"拖出屏外消失"）
+function clampToScreens(x: number, y: number, w: number, h: number): { x: number; y: number } {
+  const displays = screen.getAllDisplays()
+  let best: { x: number; y: number } | null = null
+  let bestDist = Infinity
+  for (const d of displays) {
+    const a = d.workArea
+    if (x >= a.x - w + 80 && x <= a.x + a.width - 80 &&
+        y >= a.y - h + 100 && y <= a.y + a.height - 60) {
+      return { x, y } // 已合法
+    }
+    const cx = Math.min(Math.max(x, a.x - w + 80), a.x + a.width - 80)
+    const cy = Math.min(Math.max(y, a.y - h + 100), a.y + a.height - 60)
+    const dist = (cx - x) * (cx - x) + (cy - y) * (cy - y)
+    if (dist < bestDist) { bestDist = dist; best = { x: cx, y: cy } }
+  }
+  return best ?? { x, y }
+}
+
 function createPetWindow(): void {
   petWindow = new BrowserWindow({
     width: 176,
@@ -59,8 +78,10 @@ function createPetWindow(): void {
     show: false,
     webPreferences: { preload: preloadPath(), contextIsolation: true, nodeIntegration: false, sandbox: false }
   })
-  if (settings.petX != null && settings.petY != null && isOnScreen(settings.petX, settings.petY)) {
-    petWindow.setPosition(settings.petX, settings.petY)
+  if (settings.petX != null && settings.petY != null) {
+    // 恢复位置也过夹紧：旧版本若存过屏外坐标，直接拉回可见区
+    const p = clampToScreens(settings.petX, settings.petY, 176, 212)
+    petWindow.setPosition(Math.round(p.x), Math.round(p.y))
   } else {
     const { workArea } = screen.getPrimaryDisplay()
     petWindow.setPosition(workArea.x + workArea.width - 320, workArea.y + workArea.height - 340)
@@ -235,26 +256,42 @@ function setupIpc(): void {
     applyPetShape()
   })
 
-  // 自定义拖动：渲染层只报开始/结束，主进程轮询光标移动窗口（保留点击能力）
-  ipcMain.on('pet:drag', (_e, action: 'start' | 'end') => {
+  // 自定义拖动：渲染层报 start/move/end，主进程轮询光标移动窗口（保留点击能力）
+  // 防"消失"三件套：①每帧夹紧在屏内 ②move 心跳超时终止幽灵拖动（pointerup 丢失时）③保存位置先校验
+  let lastDragMove = 0
+  const endDrag = (): void => {
+    if (!dragTimer || !petWindow) return
+    clearInterval(dragTimer)
+    dragTimer = null
+    const b = petWindow.getBounds()
+    if (isOnScreen(b.x, b.y)) {
+      settings.petX = b.x
+      settings.petY = b.y
+      saveSettings(settings)
+    }
+  }
+  ipcMain.on('pet:drag', (_e, action: 'start' | 'move' | 'end') => {
     if (!petWindow) return
-    if (action === 'start' && !dragTimer) {
+    // 'start'，或拖动中 cursor 暂离窗口超时被停、心跳恢复（'move' 且无计时器）→ 按当前光标重启轮询
+    if ((action === 'start' || (action === 'move' && !dragTimer)) && !dragTimer) {
       const cursor = screen.getCursorScreenPoint()
       const b = petWindow.getBounds()
       const offX = cursor.x - b.x
       const offY = cursor.y - b.y
+      lastDragMove = Date.now()
       dragTimer = setInterval(() => {
-        if (!petWindow) return
+        if (!petWindow) { dragTimer = null; return }
+        // 心跳超时：鼠标移出小窗口后释放 → pointerup 丢失 → 幽灵拖动自动终止
+        if (Date.now() - lastDragMove > 1200) { endDrag(); return }
         const c = screen.getCursorScreenPoint()
-        petWindow.setPosition(c.x - offX, c.y - offY)
+        const nb = petWindow.getBounds()
+        const p = clampToScreens(c.x - offX, c.y - offY, nb.width, nb.height)
+        petWindow.setPosition(Math.round(p.x), Math.round(p.y))
       }, 16)
-    } else if (action === 'end' && dragTimer) {
-      clearInterval(dragTimer)
-      dragTimer = null
-      const b = petWindow.getBounds()
-      settings.petX = b.x
-      settings.petY = b.y
-      saveSettings(settings)
+    } else if (action === 'move') {
+      lastDragMove = Date.now()
+    } else if (action === 'end') {
+      endDrag()
     }
   })
 }

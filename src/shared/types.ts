@@ -86,6 +86,6 @@ export interface PetApi {
   panelToggle(): void
   petShape(mode: 'full' | 'pet'): void
   settingsOpen(): void
-  petDrag(action: 'start' | 'end'): void
+  petDrag(action: 'start' | 'move' | 'end'): void
   quit(): void
 }
