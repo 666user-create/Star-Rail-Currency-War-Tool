@@ -1,0 +1,46 @@
+/* —— 官方素材形象：静态图 + 代码动效 —— */
+.sprite-wrap {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 236px;
+  height: 256px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+}
+.sprite-pet {
+  max-width: 100%;
+  max-height: 100%;
+  transform-origin: bottom center;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.4));
+  image-rendering: auto;
+}
+
+.sprite-idle { animation: spriteBreathe 3.2s ease-in-out infinite; }
+.sprite-bounce { animation: spriteBounce 0.55s ease-in-out 2; }
+.sprite-cheer { animation: spriteHop 0.45s ease-in-out 2; }
+.sprite-howl { animation: spriteTilt 1.2s ease-in-out; }
+
+@keyframes spriteBreathe {
+  0%, 100% { transform: scaleY(1) scaleX(1); }
+  50% { transform: scaleY(1.02) scaleX(0.99) translateY(-2px); }
+}
+@keyframes spriteBounce {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  35% { transform: translateY(-26px) scale(0.97, 1.05); }
+  60% { transform: translateY(0) scale(1.04, 0.95); }
+  80% { transform: translateY(0) scale(1, 1); }
+}
+@keyframes spriteHop {
+  0%, 100% { transform: translateY(0); }
+  45% { transform: translateY(-16px) rotate(-3deg); }
+  70% { transform: translateY(0) rotate(2deg); }
+}
+@keyframes spriteTilt {
+  0%, 100% { transform: rotate(0) scale(1); }
+  30% { transform: rotate(-5deg) scale(1.03); }
+  60% { transform: rotate(3deg) scale(1.02); }
+}

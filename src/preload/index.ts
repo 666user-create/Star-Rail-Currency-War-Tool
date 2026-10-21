@@ -15,6 +15,7 @@ const api: PetApi = {
   launchGame: () => ipcRenderer.invoke('game:launch'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('settings:set', patch),
+  sprite: () => ipcRenderer.invoke('pet:sprite'),
   panelToggle: () => ipcRenderer.send('panel:toggle'),
   settingsOpen: () => ipcRenderer.send('settings:open'),
   petDrag: (action) => ipcRenderer.send('pet:drag', action),

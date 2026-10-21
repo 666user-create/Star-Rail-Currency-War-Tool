@@ -64,7 +64,7 @@ export interface AppSettings {
   gamePath: string
   petX?: number
   petY?: number
-  petStyle?: 'svg' | '3d'
+  petStyle?: 'sprite' | 'svg' | '3d'
 }
 
 export interface PetApi {
@@ -81,6 +81,7 @@ export interface PetApi {
   launchGame(): Promise<boolean>
   getSettings(): Promise<AppSettings>
   setSettings(patch: Partial<AppSettings>): Promise<AppSettings>
+  sprite(): Promise<string | null>
   panelToggle(): void
   settingsOpen(): void
   petDrag(action: 'start' | 'end'): void

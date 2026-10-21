@@ -1,7 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import PetArt from './PetArt'
 import Pet3D from './Pet3D'
+import PetSprite from './PetSprite'
 import { line } from '@shared/dialogue'
+import './sprite.css'
+
+type PetStyle = 'sprite' | 'svg' | '3d'
+const STYLE_LABEL: Record<PetStyle, string> = { sprite: '官方素材', svg: '2D 手绘', '3d': '3D 手办' }
 
 type Anim = '' | 'bounce' | 'howl' | 'cheer'
 
@@ -11,10 +16,17 @@ export default function App() {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const [recording, setRecording] = useState(false)
   const [elapsed, setElapsed] = useState(0)
-  const [style, setStyle] = useState<'svg' | '3d'>('svg')
+  const [style, setStyle] = useState<PetStyle>('svg')
+  const [spriteUrl, setSpriteUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    void window.api.getSettings().then((s) => setStyle(s.petStyle ?? 'svg'))
+    void Promise.all([window.api.getSettings(), window.api.sprite()]).then(([s, url]) => {
+      setSpriteUrl(url)
+      let eff = (s.petStyle as PetStyle | undefined) ?? (url ? 'sprite' : 'svg')
+      if (url && eff === '3d') eff = 'sprite' // 3D 实验已被否，素材在则优先官方素材
+      if (!url && eff === 'sprite') eff = 'svg'
+      setStyle(eff)
+    })
   }, [])
 
   const bubbleTimer = useRef<ReturnType<typeof setTimeout>>()
@@ -26,7 +38,7 @@ export default function App() {
     { key: 'panel', label: () => '打开战绩面板' },
     { key: 'launch', label: () => '货币战争启动!' },
     { key: 'settings', label: () => '设置' },
-    { key: 'style', label: () => (style === '3d' ? '切换 2D 形象' : '切换 3D 形象') },
+    { key: 'style', label: () => `切换形象 · 当前:${STYLE_LABEL[style]}` },
     { key: 'sep', label: () => '' },
     { key: 'quit', label: () => '退出' }
   ] as const
@@ -132,10 +144,11 @@ export default function App() {
     }
     if (key === 'settings') window.api.settingsOpen()
     if (key === 'style') {
-      const ns = style === '3d' ? 'svg' : '3d'
+      const order: PetStyle[] = spriteUrl ? ['sprite', 'svg', '3d'] : ['svg', '3d']
+      const ns = order[(order.indexOf(style) + 1) % order.length]
       setStyle(ns)
       await window.api.setSettings({ petStyle: ns })
-      say(ns === '3d' ? '换上新皮肤啦，老板~（3D版）' : '还是这身舒服，老板~（2D版）')
+      say(`换装完毕~现在是「${STYLE_LABEL[ns]}」，老板觉得如何？`)
     }
     if (key === 'quit') window.api.quit()
   }
@@ -163,7 +176,13 @@ export default function App() {
         onPointerDown={onPetPointerDown}
         onClick={() => { /* 点击由 pointerup 统一处理，避免拖动误触发点击 */ }}
       >
-        {style === '3d' ? <Pet3D anim={anim} /> : <PetArt anim={anim} />}
+        {style === 'sprite' && spriteUrl ? (
+          <PetSprite src={spriteUrl} anim={anim} />
+        ) : style === '3d' ? (
+          <Pet3D anim={anim} />
+        ) : (
+          <PetArt anim={anim} />
+        )}
         {/* 秒表道具：单独热区，点击切换记录 */}
         <div
           className={`prop-hotzone ${recording ? 'recording' : ''}`}

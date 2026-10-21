@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, screen, shell } from 'electron'
+import fs from 'fs'
 import path from 'path'
 import { Repository } from './repository'
 import { loadSettings, saveSettings } from './config'
@@ -163,6 +164,21 @@ function setupIpc(): void {
     settings = { ...settings, ...patch }
     saveSettings(settings)
     return settings
+  })
+
+  // 官方素材形象：assets/pet/sprite.png（不入 git，release/本地分发），存在即返回 data URL
+  let spriteCache: string | null | undefined
+  ipcMain.handle('pet:sprite', () => {
+    if (spriteCache !== undefined) return spriteCache
+    const p = path.join(app.getAppPath(), 'assets', 'pet', 'sprite.png')
+    try {
+      spriteCache = fs.existsSync(p)
+        ? 'data:image/png;base64,' + fs.readFileSync(p).toString('base64')
+        : null
+    } catch {
+      spriteCache = null
+    }
+    return spriteCache
   })
 
   ipcMain.on('panel:toggle', () => togglePanel())

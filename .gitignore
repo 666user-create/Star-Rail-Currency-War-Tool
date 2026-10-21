@@ -3,3 +3,6 @@ node_modules/
 dist/
 out/
 *.log
+# 官方素材形象：本地/release 分发，不进仓库（非商业同人使用条款）
+assets/pet/*.png
+assets/pet/*.webp
