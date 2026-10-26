@@ -15,3 +15,5 @@ scripts/*.py
 assets/_extract/_tools/
 # 官方解包模型（说怪话 pet03）：本地素材，永不入库
 assets/official_pet/
+
+docs/refs/
