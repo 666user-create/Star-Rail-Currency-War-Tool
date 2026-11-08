@@ -456,11 +456,8 @@ function endRecording(): Promise<RecordingDraft | null> {
   recordStartedAt = null
   publishRecording()
   publishRecords()
-  // 自助截图模式：结束计时只冻结时长并开面板，由用户自己截图后粘贴/导入
-  // （不再自动抓屏：避免截到黑帧，也符合"用户自助截图"的产品方向）
-  // 提示文案由桌宠渲染层通过 record:changed 事件统一播报，这里只负责开面板
-  setPetVisible(true)
-  showPanel()
+  // 自助截图模式：结束计时只冻结时长，不自动截屏、不自动弹面板
+  // （自动开面板会打断用户在游戏里的操作，且容易触发截图/焦点问题；改由桌宠提醒后用户自行打开）
   return Promise.resolve(draft)
 }
 
