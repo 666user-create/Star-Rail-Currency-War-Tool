@@ -112,7 +112,9 @@ export class RecordingStore {
     if (!validTime(now)) throw new Error('结束时间无效。')
     const draft = this.makeDraft(Math.max(startedAt, now), startedAt)
     draft.fields.season = season.trim().slice(0, 80)
-    draft.status = 'capturing'
+    // 自助截图模式：不自动截屏，直接进入待粘贴/待填写的核对状态
+    draft.status = 'review'
+    draft.warnings.push('计时已冻结；请截图后粘贴（Ctrl+V）或导入，也可直接手动填写。')
     // 冻结时间、生成草稿及停止秒表是一次原子变更；失败仍保持原计时。
     this.save({ ...this.state, startedAt: null, drafts: [...this.state.drafts, draft] })
     return clone(draft)

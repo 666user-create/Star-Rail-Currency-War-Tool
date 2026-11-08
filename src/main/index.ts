@@ -415,23 +415,50 @@ async function captureDraft(id: string, display: Electron.Display): Promise<Reco
 function startRecording(): number {
   if (endPending || captureInProgress) throw new Error('上一局截图正在处理，请稍候再开始计时')
   recordStartedAt = recordingStore.start()
+  lastLongRunReminderAt = 0
   publishRecording()
   return recordStartedAt
 }
 
+/** 长局提醒：只读本地起始时间戳，不碰屏幕。到阈值提醒一次，每 30 分钟再提醒一次。 */
+const LONG_RUN_FIRST_SEC = 60 * 60
+const LONG_RUN_REPEAT_SEC = 30 * 60
+let lastLongRunReminderAt = 0
+function checkLongRun(): void {
+  if (recordStartedAt === null) { lastLongRunReminderAt = 0; return }
+  const elapsedSec = (Date.now() - recordStartedAt) / 1000
+  if (elapsedSec < LONG_RUN_FIRST_SEC) return
+  if (lastLongRunReminderAt && (Date.now() - lastLongRunReminderAt) / 1000 < LONG_RUN_REPEAT_SEC) return
+  lastLongRunReminderAt = Date.now()
+  if (settings.quietMode) return
+  petBubble?.update({ text: `老板~这局记了 ${formatDuration(elapsedSec)} 了，是忘了收工，还是真在肝？` })
+  setTimeout(() => petBubble?.update(null), 6000)
+}
+
+function formatDuration(seconds: number | null): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return '未知时长'
+  const total = Math.round(seconds)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  if (h > 0) return `${h}小时${m}分`
+  if (m > 0) return `${m}分${s}秒`
+  return `${s}秒`
+}
+
 function endRecording(): Promise<RecordingDraft | null> {
   if (endPending) return endPending
-  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   const draft = recordingStore.end(Date.now(), settings.recordSeason ?? '')
   if (!draft) return Promise.resolve(null)
   recordStartedAt = null
   publishRecording()
   publishRecords()
-  endPending = runDraftJob(draft.id, () => captureDraft(draft.id, display)).finally(() => {
-    endPending = null
-    showPanel()
-  })
-  return endPending
+  // 自助截图模式：结束计时只冻结时长并开面板，由用户自己截图后粘贴/导入
+  // （不再自动抓屏：避免截到黑帧，也符合"用户自助截图"的产品方向）
+  // 提示文案由桌宠渲染层通过 record:changed 事件统一播报，这里只负责开面板
+  setPetVisible(true)
+  showPanel()
+  return Promise.resolve(draft)
 }
 
 async function chooseScreenshot(): Promise<string | null> {
@@ -684,6 +711,18 @@ if (ownsData) app.whenReady().then(async () => {
   createPetWindow()
   createTray()
   createPanelWindow() // 预创建，保证面板秒开；用时再 show
+  // 长局提醒巡检：纯本地时间戳，5 分钟一次（不截屏、不读游戏）
+  setInterval(() => { try { checkLongRun() } catch (error) { console.error('[long-run]', error) } }, 5 * 60 * 1000)
+  // 跨重启恢复：上一局没点结束（含中途退出）→ 计时继续累计，并明确告知
+  if (recordStartedAt !== null) {
+    const elapsed = (Date.now() - recordStartedAt) / 1000
+    setTimeout(() => {
+      try {
+        petBubble?.update({ text: `上一局还在记着（已 ${formatDuration(elapsed)}），老板~按结束收工，或者接着打~` })
+        setTimeout(() => petBubble?.update(null), 6000)
+      } catch (error) { console.error('[resume-recording]', error) }
+    }, 3000)
+  }
   // 全屏时可停留在结算页主动结束；注册失败仍可使用秒表和右键。
   if (!globalShortcut.register('CommandOrControl+Shift+F8', () => {
     if (endPending) return

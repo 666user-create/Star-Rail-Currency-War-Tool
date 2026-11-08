@@ -248,7 +248,7 @@ export default function App() {
         say(line('start'))
       } else {
         playAnim('bounce')
-        say('计时停好了，老板~核对截图后再存进本子。')
+        say('计时停了~截图后到面板里粘贴，老板~')
       }
     })
     void window.api.isRecording().then((startedAt) => {
