@@ -238,7 +238,6 @@ export default function App() {
                 <span className={`m-badge b-${m.result}`}>{RESULT_LABEL[m.result]}</span>
                 <span className="m-dur">{fmtDur(m.durationSec)}</span>
                 <span className="m-lineup">{[...m.lineup, ...m.bonds].join('·') || '阵容未填写'}</span>
-                <span className="m-src">{m.source === 'ocr' ? '截图' : '手动'}</span>
               </button>
             ))}
             {!matches.length && <div className="list-empty"><strong>{loading ? '正在读取记录…' : '还没有正式记录'}</strong><p>结算截图先存为草稿，核对后确认保存。</p>{!loading && <button className="tb-btn" disabled={importing} onClick={() => void importScreenshot()}>导入第一张截图</button>}</div>}
