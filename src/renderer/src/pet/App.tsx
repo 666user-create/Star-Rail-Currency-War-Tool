@@ -29,7 +29,7 @@ export default function App() {
   const [anim, setAnim] = useState<Anim>('')
   const [animationId, setAnimationId] = useState(0)
   const [bubble, setBubble] = useState('')
-  const [menu, setMenu] = useState<{ x: number; y: number; page: 'main' | 'actions' | 'companion' } | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number; page: 'main' | 'companion' } | null>(null)
   const menuOpen = menu !== null
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
@@ -118,21 +118,13 @@ export default function App() {
     { key: 'launch', label: () => '货币战争启动!' },
     { key: 'settings', label: () => '设置' },
     { key: 'companion', label: () => '陪伴设置 ›' },
-    { key: 'actions', label: () => '选择动作 ›' },
     { key: 'sep', label: () => '' },
     { key: 'quit', label: () => '退出' }
   ] as const
-  const ACTION_ITEMS = [
-    { key: 'back', label: () => '‹ 返回' },
-    ...PET_ACTIONS.map((action) => ({ key: action.key, label: () => action.label })),
-    { key: 'sep', label: () => '' },
-    { key: 'demo', label: () => '演示三个动作' }
-  ]
   const COMPANION_ITEMS = [
     { key: 'back', label: () => '‹ 返回' },
     { key: 'quiet', label: () => `安静模式：${preferences.quietMode ? '开' : '关'}` },
-    { key: 'hide', label: () => '暂时收起桌宠' },
-    { key: 'style', label: () => `形象·${STYLE_LABEL[style]}` }
+    { key: 'hide', label: () => '暂时收起桌宠' }
   ]
 
   // —— 台词气泡 ——
@@ -196,17 +188,6 @@ export default function App() {
       setBubble('')
     }
   }, [preferences.quietMode, preferences.idleAnimations, preferences.idleTalk])
-
-  // 三个动作都可直接验收，不必反复开关记录或等待随机待机动作。
-  const demonstrate = () => {
-    stopDemo()
-    let delay = 0
-    for (const { key, text } of PET_ACTIONS) {
-      demoTimers.current.push(setTimeout(() => { playAnim(key, true); say(text, PET_ANIMATION_MS[key]) }, delay))
-      delay += PET_ANIMATION_MS[key] + 450
-    }
-    demoTimers.current.push(setTimeout(() => { demoTimers.current = [] }, delay))
-  }
 
   useEffect(() => () => {
     clearTimeout(bubbleTimer.current)
@@ -343,8 +324,8 @@ export default function App() {
   }, [menu])
 
   const onMenuClick = async (key: string) => {
-    if (key === 'actions' || key === 'companion' || key === 'back') {
-      setMenu((current) => current && { ...current, page: key === 'back' ? 'main' : key })
+    if (key === 'companion' || key === 'back') {
+      setMenu((current) => current && { ...current, page: key === 'back' ? 'main' : 'companion' })
       return
     }
     setMenu(null)
@@ -362,26 +343,12 @@ export default function App() {
     }
     if (key === 'record') void toggleRecord()
     if (key === 'panel') window.api.panelToggle()
-    if (key === 'demo') demonstrate()
     if (key === 'launch') {
       const ok = await window.api.launchGame()
       if (ok) { playAnim('cheer'); say(line('launch')) }
       else say(line('needGamePath'), 5000)
     }
     if (key === 'settings') window.api.settingsOpen()
-    if (key === 'style') {
-      const order: PetStyle[] = [
-        ...(hasOfficial ? (['official'] as PetStyle[]) : []),
-        ...(spriteUrl ? (['sprite'] as PetStyle[]) : [])
-      ]
-      if (order.length === 0) order.push('none')
-      const ns = order[(order.indexOf(style) + 1) % order.length]
-      if (ns !== style && ns !== 'none') {
-        setStyle(ns)
-        await window.api.setSettings({ petStyle: ns })
-        say(`换装完毕~现在是「${STYLE_LABEL[ns]}」，老板觉得如何？`)
-      }
-    }
     if (key === 'quit') window.api.quit()
   }
 
@@ -419,8 +386,8 @@ export default function App() {
 
       {/* 右键菜单：打开后按实测尺寸夹进 176×212 视口（否则超出窗口底/右边被裁） */}
       {menu && (
-        <div className="ctx-menu" ref={menuRef} role="menu" aria-label={menu.page === 'actions' ? '选择动作' : menu.page === 'companion' ? '陪伴设置' : '桌宠菜单'} style={{ left: menuPos.x, top: menuPos.y }}>
-          {(menu.page === 'actions' ? ACTION_ITEMS : menu.page === 'companion' ? COMPANION_ITEMS : MENU_ITEMS).map((item) =>
+        <div className="ctx-menu" ref={menuRef} role="menu" aria-label={menu.page === 'companion' ? '陪伴设置' : '桌宠菜单'} style={{ left: menuPos.x, top: menuPos.y }}>
+          {(menu.page === 'companion' ? COMPANION_ITEMS : MENU_ITEMS).map((item) =>
             item.key === 'sep' ? (
               <div key="sep" className="ctx-sep" />
             ) : (
