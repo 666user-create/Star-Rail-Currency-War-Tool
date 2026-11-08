@@ -210,4 +210,11 @@ export interface PetApi {
   settingsOpen(): void
   petDrag(action: 'start' | 'move' | 'end'): void
   quit(): void
+  // —— 首次设置向导 ——
+  detectGamePath(): Promise<{ path: string | null; message: string }>
+  pickGamePath(): Promise<string | null>
+  /** 运行模型提取；进度通过 onWizardProgress 推送 */
+  runExtraction(gamePath: string): Promise<void>
+  onWizardProgress(listener: (event: { line: string; percent: number }) => void): () => void
+  completeWizard(config: { gamePath: string; screenshotDir: string }): Promise<void>
 }

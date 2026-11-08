@@ -63,7 +63,12 @@ EXCLUDE_PARTS = {"swimring", "sphere", "cube", "quad", "capsule"}
 
 
 def log(v, msg):
-    if v:
+    """输出进度。GUI 模式（环境变量 HSR_GUI=1）下每行带 @@PROGRESS@@ 前缀，方便前端解析。"""
+    if not v:
+        return
+    if os.environ.get("HSR_GUI") == "1":
+        print("@@PROGRESS@@" + msg.replace("\n", " "), flush=True)
+    else:
         print(msg, flush=True)
 
 

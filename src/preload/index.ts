@@ -77,7 +77,17 @@ const api: PetApi = {
   timerShape: (rect, startedAt) => ipcRenderer.send('timer:shape', rect, startedAt),
   settingsOpen: () => ipcRenderer.send('settings:open'),
   petDrag: (action) => ipcRenderer.send('pet:drag', action),
-  quit: () => ipcRenderer.send('app:quit')
+  quit: () => ipcRenderer.send('app:quit'),
+  // 首次设置向导
+  detectGamePath: () => ipcRenderer.invoke('wizard:detect-game'),
+  pickGamePath: () => ipcRenderer.invoke('wizard:pick-game'),
+  runExtraction: (gamePath) => ipcRenderer.invoke('wizard:extract', gamePath),
+  onWizardProgress: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: { line: string; percent: number }): void => listener(payload)
+    ipcRenderer.on('wizard:progress', handler)
+    return () => ipcRenderer.removeListener('wizard:progress', handler)
+  },
+  completeWizard: (config) => ipcRenderer.invoke('wizard:complete', config)
 }
 
 contextBridge.exposeInMainWorld('api', api)

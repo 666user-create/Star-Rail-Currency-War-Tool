@@ -6,6 +6,7 @@ import { loadSettings, saveSettings } from './config'
 import { PetBubbleController } from './petBubble'
 import { PetTimerController } from './petTimer'
 import { createTrayIcon } from './trayIcon'
+import { createWizardWindow, hasCompletedWizard, setupWizardIpc } from './wizard'
 import { defaultSeason } from '../shared/seasons'
 import { normalizeSettings } from '../shared/petPreferences'
 import { validateDraftInput } from '../shared/recordingValidation'
@@ -717,28 +718,30 @@ function setupIpc(): void {
     return spriteCache
   })
 
-  // 官方解包模型：assets/official_pet/（本地素材，永不入 git）+ Cool/Warm Ramp 色带
+  // 官方解包模型：优先读可写的 data/official_pet（向导提取到这里），回落到 assets/official_pet（旧位置）
   let officialCache: { obj: string; tex: string; cool: string; warm: string } | null | undefined
   ipcMain.handle('pet:officialModel', () => {
     if (officialCache !== undefined) return officialCache
-    const dir = path.join(app.getAppPath(), 'assets', 'official_pet')
-    try {
-      const objPath = path.join(dir, 'pet03.obj')
-      const texPath = path.join(dir, 'pet03_color.png')
-      const coolPath = path.join(dir, 'pet03_cool.png')
-      const warmPath = path.join(dir, 'pet03_warm.png')
-      officialCache =
-        fs.existsSync(objPath) && fs.existsSync(texPath)
-          ? {
-              obj: fs.readFileSync(objPath, 'utf8'),
-              tex: fs.readFileSync(texPath).toString('base64'),
-              cool: fs.existsSync(coolPath) ? fs.readFileSync(coolPath).toString('base64') : '',
-              warm: fs.existsSync(warmPath) ? fs.readFileSync(warmPath).toString('base64') : ''
-            }
-          : null
-    } catch {
-      officialCache = null
+    const candidates = app.getAppPath().includes('.asar')
+      ? [path.join(app.getPath('userData'), 'assets', 'official_pet')]
+      : [path.join(app.getAppPath(), 'data', 'official_pet'), path.join(app.getAppPath(), 'assets', 'official_pet')]
+    for (const dir of candidates) {
+      try {
+        const objPath = path.join(dir, 'pet03.obj')
+        const texPath = path.join(dir, 'pet03_color.png')
+        if (!fs.existsSync(objPath) || !fs.existsSync(texPath)) continue
+        const coolPath = path.join(dir, 'pet03_cool.png')
+        const warmPath = path.join(dir, 'pet03_warm.png')
+        officialCache = {
+          obj: fs.readFileSync(objPath, 'utf8'),
+          tex: fs.readFileSync(texPath).toString('base64'),
+          cool: fs.existsSync(coolPath) ? fs.readFileSync(coolPath).toString('base64') : '',
+          warm: fs.existsSync(warmPath) ? fs.readFileSync(warmPath).toString('base64') : ''
+        }
+        return officialCache
+      } catch { /* 尝试下一个候选目录 */ }
     }
+    officialCache = null
     return officialCache
   })
 
@@ -811,9 +814,33 @@ function setupIpc(): void {
   })
 }
 
+// 最早期启动追踪：写文件而非 stdout（打包后 stdout 不可见）
+const bootTrace = (msg: string): void => {
+  try {
+    const dir = path.join(process.env.APPDATA ?? '', 'currency-war-pet')
+    fs.mkdirSync(dir, { recursive: true })
+    fs.appendFileSync(path.join(dir, 'boot.log'), `[${new Date().toISOString()}] ${msg}\n`, 'utf8')
+  } catch { /* 追踪失败不影响启动 */ }
+}
+bootTrace('module loaded')
+
+// 固定 userData 路径：productName 含中文时 Electron 会用中文目录名，避免由此引发的路径问题；
+// 同时保证 dev 与打包版共用同一份数据。必须在 requestSingleInstanceLock 前设置。
+try {
+  app.setPath('userData', path.join(process.env.APPDATA ?? app.getPath('appData'), 'currency-war-pet'))
+} catch (error) {
+  console.error('[user-data]', error)
+}
+bootTrace('userData set')
+
 // sql.js与草稿均由单进程持有，阻止两个实例用旧快照互相覆盖用户文件。
 const ownsData = app.requestSingleInstanceLock()
-if (!ownsData) app.quit()
+bootTrace(`singleInstanceLock = ${ownsData}`)
+if (!ownsData) {
+  // 已有实例在运行：聚焦它并退出（正常行为，不是崩溃）
+  bootTrace('quit: another instance owns the data')
+  app.quit()
+}
 app.on('second-instance', () => {
   if (!petWindow) return
   setPetVisible(true)
@@ -821,6 +848,16 @@ app.on('second-instance', () => {
 })
 
 if (ownsData) app.whenReady().then(async () => {
+  bootTrace('whenReady fired')
+  const crashLog = (stage: string, error: unknown) => {
+    try {
+      const line = `[${new Date().toISOString()}] ${stage} ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`
+      fs.appendFileSync(path.join(app.getPath('userData'), 'startup-error.log'), line, 'utf8')
+    } catch { /* 日志写入失败不阻断 */ }
+  }
+  process.on('uncaughtException', (error) => { crashLog('uncaughtException', error); console.error(error) })
+  process.on('unhandledRejection', (error) => { crashLog('unhandledRejection', error); console.error(error) })
+  try {
   settings = loadSettings()
   repo = await Repository.create()
   recordingStore = new RecordingStore(path.join(app.getPath('userData'), 'recording-state.json'))
@@ -843,6 +880,22 @@ if (ownsData) app.whenReady().then(async () => {
   } catch (error) { console.error('[screenshot-migrate] 路径重写失败', error) }
   recordStartedAt = recordingStore.getStartedAt()
   setupIpc()
+  // 首次启动：先走向导（选游戏路径/截图目录/解包模型），完成后才创建桌宠
+  setupWizardIpc({
+    getSettings: () => settings,
+    applyConfig: (config) => {
+      updateSettings({ gamePath: config.gamePath, screenshotDir: config.screenshotDir })
+    }
+  })
+  if (!hasCompletedWizard()) {
+    createWizardWindow(() => {
+      // 向导完成后再拉起桌宠与托盘
+      createPetWindow()
+      createTray()
+      createPanelWindow()
+    })
+    return
+  }
   createPetWindow()
   createTray()
   createPanelWindow() // 预创建，保证面板秒开；用时再 show
@@ -870,6 +923,12 @@ if (ownsData) app.whenReady().then(async () => {
   screen.on('display-added', recoverPetPosition)
   screen.on('display-metrics-changed', recoverPetPosition)
   powerMonitor.on('resume', () => setTimeout(recoverPetPosition, 250))
+  } catch (error) {
+    crashLog('startup', error)
+    console.error('[startup]', error)
+    dialog.showErrorBox('启动失败', `应用初始化失败：\n${error instanceof Error ? error.message : String(error)}\n\n详细信息已写入 startup-error.log`)
+    app.quit()
+  }
 })
 
 app.on('before-quit', () => { globalShortcut.unregisterAll(); petTray?.destroy(); petTray = null })

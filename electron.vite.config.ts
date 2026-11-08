@@ -44,7 +44,8 @@ export default defineConfig({
           bubble: resolve('src/renderer/bubble.html'),
           timer: resolve('src/renderer/timer.html'),
           panel: resolve('src/renderer/panel.html'),
-          settings: resolve('src/renderer/settings.html')
+          settings: resolve('src/renderer/settings.html'),
+          wizard: resolve('src/renderer/wizard.html')
         }
       }
     }

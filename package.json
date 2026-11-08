@@ -15,16 +15,16 @@
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/pet-animation.test.mjs tests/shot-logger.test.cjs tests/bubble-placement.test.mjs tests/timer-placement.test.mjs tests/pet-preferences.test.mjs tests/pet-render-scheduler.test.mjs tests/ocr-parser.test.mjs tests/recording-store.test.mjs tests/repository.test.mjs tests/recording-validation.test.mjs tests/bond-recognition.test.mjs tests/portrait-matcher.test.mjs tests/atomic-replace.test.mjs"
   },
   "dependencies": {
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@types/three": "^0.186.0",
-    "@vitejs/plugin-react": "^6.1.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "sql.js": "^1.15.1",
     "three": "^0.186.1"
   },
   "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.186.0",
+    "@vitejs/plugin-react": "^6.1.2",
     "electron": "^44.9.2",
     "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
@@ -40,28 +40,28 @@
     "files": [
       "out/**/*",
       "!out/**/*.map",
-      "package.json",
-      "extractor/**/*",
-      "assets/pet/.gitkeep",
-      "node_modules/sql.js/**/*"
+      "package.json"
     ],
     "extraResources": [
       {
         "from": "extractor",
         "to": "extractor",
+        "filter": ["**/*", "!**/__pycache__/**"]
+      },
+      {
+        "from": "python-embed",
+        "to": "python-embed",
         "filter": ["**/*"]
       }
     ],
     "win": {
       "target": [
-        { "target": "portable", "arch": ["x64"] }
+        { "target": "zip", "arch": ["x64"] }
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "verifyUpdateCodeSignature": false
     },
-    "compression": "store",
-    "portable": {
-      "artifactName": "货币战争桌宠-${version}-portable.exe"
-    },
+    "compression": "normal",
     "asar": true
   }
 }
