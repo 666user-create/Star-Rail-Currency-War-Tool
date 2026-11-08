@@ -145,6 +145,24 @@ export class Repository {
     return row ? Repository.toMatch(row) : null
   }
 
+  /** 截图目录迁移后，重写指向旧目录的记录；返回更新条数。 */
+  rewriteScreenshotPaths(fromDirectory: string, toDirectory: string): number {
+    const rows = this.rows('SELECT id,screenshot_path FROM matches WHERE screenshot_path IS NOT NULL')
+    const updates: Array<{ id: number; next: string }> = []
+    for (const row of rows) {
+      const current = String(row.screenshot_path)
+      if (!path.isAbsolute(current)) continue
+      const directory = path.dirname(current)
+      if (path.resolve(directory) !== path.resolve(fromDirectory)) continue
+      updates.push({ id: row.id as number, next: path.join(toDirectory, path.basename(current)) })
+    }
+    if (!updates.length) return 0
+    this.commit((database) => {
+      for (const item of updates) database.run('UPDATE matches SET screenshot_path=? WHERE id=?', [item.next, item.id])
+    })
+    return updates.length
+  }
+
   insert(match: Omit<Match, 'id'>, draftId?: string): Match {
     if (draftId !== undefined) {
       if (!draftId) throw new Error('草稿标识不能为空。')

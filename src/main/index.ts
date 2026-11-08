@@ -33,7 +33,34 @@ let recordingStore: RecordingStore
 let captureInProgress = false
 let endPending: Promise<RecordingDraft | null> | null = null
 const draftJobs = new Map<string, Promise<RecordingDraft>>()
-const screenshotDirectory = (): string => path.join(app.getPath('userData'), 'screenshots')
+/**
+ * 截图存放目录：优先放在项目文件夹下的 data/screenshots（防误删/重装丢失，用户可直接找到）。
+ * 打包后 app.getAppPath() 位于 asar 内部只读，退回 userData。
+ */
+const screenshotDirectory = (): string => {
+  const appPath = app.getAppPath()
+  if (appPath.includes('.asar')) return path.join(app.getPath('userData'), 'screenshots')
+  return path.join(appPath, 'data', 'screenshots')
+}
+
+/** 把旧位置（userData/screenshots）的历史截图迁到项目目录，一次性；失败不阻断启动。 */
+function migrateScreenshots(): void {
+  const target = screenshotDirectory()
+  const legacy = path.join(app.getPath('userData'), 'screenshots')
+  if (path.resolve(target) === path.resolve(legacy)) return
+  try {
+    if (!fs.existsSync(legacy)) return
+    fs.mkdirSync(target, { recursive: true })
+    let moved = 0
+    for (const name of fs.readdirSync(legacy)) {
+      const from = path.join(legacy, name)
+      const to = path.join(target, name)
+      if (!fs.statSync(from).isFile() || fs.existsSync(to)) continue
+      try { fs.copyFileSync(from, to); moved++ } catch (error) { console.error('[screenshot-migrate]', name, error) }
+    }
+    if (moved) console.log(`[screenshot-migrate] 已迁移 ${moved} 张历史截图到 ${target}`)
+  } catch (error) { console.error('[screenshot-migrate]', error) }
+}
 
 // 默认区域只覆盖本体；可见秒表使用独立窗口，透明角落点穿到下层窗口。
 const DEFAULT_SHAPE = [
@@ -747,6 +774,23 @@ if (ownsData) app.whenReady().then(async () => {
   settings = loadSettings()
   repo = await Repository.create()
   recordingStore = new RecordingStore(path.join(app.getPath('userData'), 'recording-state.json'))
+  migrateScreenshots()
+  // 迁移后把已保存记录里的旧绝对路径改到新目录，否则详情页读不到原图
+  try {
+    const legacyDir = path.join(app.getPath('userData'), 'screenshots')
+    const targetDir = screenshotDirectory()
+    const updated = repo.rewriteScreenshotPaths(legacyDir, targetDir)
+    if (updated) console.log(`[screenshot-migrate] 已更新 ${updated} 条记录的原图路径`)
+    // 待确认草稿的原图路径同样要改，否则核对页读不到
+    let draftUpdated = 0
+    for (const draft of recordingStore.list()) {
+      if (!draft.screenshotPath || !path.isAbsolute(draft.screenshotPath)) continue
+      if (path.resolve(path.dirname(draft.screenshotPath)) !== path.resolve(legacyDir)) continue
+      recordingStore.update(draft.id, { screenshotPath: path.join(targetDir, path.basename(draft.screenshotPath)) })
+      draftUpdated++
+    }
+    if (draftUpdated) console.log(`[screenshot-migrate] 已更新 ${draftUpdated} 份草稿的原图路径`)
+  } catch (error) { console.error('[screenshot-migrate] 路径重写失败', error) }
   recordStartedAt = recordingStore.getStartedAt()
   setupIpc()
   createPetWindow()
