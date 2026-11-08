@@ -456,8 +456,16 @@ function endRecording(): Promise<RecordingDraft | null> {
   recordStartedAt = null
   publishRecording()
   publishRecords()
-  // 自助截图模式：结束计时只冻结时长，不自动截屏、不自动弹面板
-  // （自动开面板会打断用户在游戏里的操作，且容易触发截图/焦点问题；改由桌宠提醒后用户自行打开）
+  // 自助截图模式：结束只冻结时长，不自动截屏（全屏下抓屏会黑）。
+  // 但面板照常自动打开，落在"等你导入/粘贴截图"的核对状态。
+  setPetVisible(true)
+  showPanel()
+  // 面板打开后自动选中这条新草稿，用户可直接导入/粘贴截图
+  setTimeout(() => {
+    if (panelWindow && !panelWindow.isDestroyed() && !panelWindow.webContents.isDestroyed()) {
+      panelWindow.webContents.send('draft:focus', draft.id)
+    }
+  }, 260)
   return Promise.resolve(draft)
 }
 
@@ -535,6 +543,14 @@ function setupIpc(): void {
     requireDraft(id)
     const screenshotPath = await chooseScreenshot()
     if (!screenshotPath) return requireDraft(id)
+    recordingStore.update(id, { screenshotPath, fields: blankRecordFields(requireDraft(id)), ocrText: '', pageKind: 'unknown', warnings: [], error: null })
+    return recognizeDraft(id)
+  }))
+  // 核对页内粘贴：用剪贴板图片替换这份草稿的截图并重新识别
+  panelHandle('draft:replace-paste', (id: string) => runDraftJob(id, async () => {
+    requireDraft(id)
+    const screenshotPath = await readClipboardImage()
+    if (!screenshotPath) throw new Error('剪贴板里没有图片。请先用截图工具截下结算画面。')
     recordingStore.update(id, { screenshotPath, fields: blankRecordFields(requireDraft(id)), ocrText: '', pageKind: 'unknown', warnings: [], error: null })
     return recognizeDraft(id)
   }))

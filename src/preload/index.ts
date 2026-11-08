@@ -19,6 +19,7 @@ const api: PetApi = {
   canPasteImage: () => ipcRenderer.invoke('draft:can-paste'),
   recognizeDraft: (id: string) => ipcRenderer.invoke('draft:recognize', id),
   replaceDraftScreenshot: (id: string) => ipcRenderer.invoke('draft:replace', id),
+  replaceDraftWithClipboard: (id: string) => ipcRenderer.invoke('draft:replace-paste', id),
   captureDraft: (id: string) => ipcRenderer.invoke('draft:capture', id),
   confirmDraft: (id: string, input: DraftInput) => ipcRenderer.invoke('draft:confirm', id, input),
   discardDraft: (id: string) => ipcRenderer.invoke('draft:discard', id),
@@ -28,6 +29,11 @@ const api: PetApi = {
     const handler = (): void => listener()
     ipcRenderer.on('records:changed', handler)
     return () => ipcRenderer.removeListener('records:changed', handler)
+  },
+  onDraftFocus: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, id: string): void => listener(id)
+    ipcRenderer.on('draft:focus', handler)
+    return () => ipcRenderer.removeListener('draft:focus', handler)
   },
   onRecordingChange: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, change: RecordingChange): void => listener(change)

@@ -30,7 +30,7 @@ export function ScreenshotPreview({ draftId, matchId, revision }: { draftId?: st
       {image && <button className="tb-btn" type="button" aria-pressed={zoomed} onClick={() => setZoomed((value) => !value)}>{zoomed ? '适应窗口' : '放大原图'}</button>}
     </div>
     <div className={`image-frame ${zoomed ? 'zoomed' : ''}`}>
-      {image ? <img src={image} alt="本局保存的结算截图" onError={() => { setImage(null); setError('图片无法显示，请重新截图或更换图片。') }} /> : <div className="image-empty">{loading ? '正在读取截图…' : error || (draftId ? '还没有截图，可选择一张本地结算截图。' : '这条记录未保存原图。')}</div>}
+      {image ? <img src={image} alt="本局保存的结算截图" onError={() => { setImage(null); setError('图片无法显示，请重新截图或更换图片。') }} /> : <div className="image-empty">{loading ? '正在读取截图…' : error || (draftId ? '还没有截图。用截图工具截下结算画面后，按 Ctrl+V 粘贴，或点「换一张图」选择本地文件。' : '这条记录未保存原图。')}</div>}
     </div>
   </div>
 }
@@ -57,8 +57,8 @@ const initialForm = (draft: RecordingDraft) => ({
   note: draft.fields.note ?? ''
 })
 
-type DraftAction = 'close' | 'recognize' | 'replace' | 'capture'
-const ACTION_LABEL: Record<DraftAction, string> = { close: '稍后确认', recognize: '重新识别', replace: '换图', capture: '重新截图' }
+type DraftAction = 'close' | 'recognize' | 'replace' | 'paste'
+const ACTION_LABEL: Record<DraftAction, string> = { close: '稍后确认', recognize: '重新识别', replace: '换图', paste: '粘贴截图' }
 
 export default function ReviewDraft({ draft, onClose, onUpdate, onSaved, onDiscarded }: {
   draft: RecordingDraft
@@ -68,7 +68,7 @@ export default function ReviewDraft({ draft, onClose, onUpdate, onSaved, onDisca
   onDiscarded: () => Promise<void>
 }) {
   const [form, setForm] = useState(() => initialForm(draft))
-  const [operation, setOperation] = useState<'save' | 'recognize' | 'replace' | 'capture' | 'discard' | null>(null)
+  const [operation, setOperation] = useState<'save' | 'recognize' | 'replace' | 'paste' | 'discard' | null>(null)
   const [error, setError] = useState('')
   const [imageRevision, setImageRevision] = useState(0)
   const [pendingAction, setPendingAction] = useState<DraftAction | null>(null)
@@ -87,17 +87,17 @@ export default function ReviewDraft({ draft, onClose, onUpdate, onSaved, onDisca
   ].filter(Boolean) as string[]
   const edit = <K extends keyof typeof form>(key: K, value: typeof form[K]) => setForm((previous) => ({ ...previous, [key]: value }))
 
-  const reviseScreenshot = async (kind: 'recognize' | 'replace' | 'capture') => {
+  const reviseScreenshot = async (kind: 'recognize' | 'replace' | 'paste') => {
     if (busy) return
     setError('')
     setOperation(kind)
     try {
-      const next = kind === 'recognize' ? await window.api.recognizeDraft(draft.id) : kind === 'capture' ? await window.api.captureDraft(draft.id) : await window.api.replaceDraftScreenshot(draft.id)
+      const next = kind === 'recognize' ? await window.api.recognizeDraft(draft.id) : kind === 'paste' ? await window.api.replaceDraftWithClipboard(draft.id) : await window.api.replaceDraftScreenshot(draft.id)
       onUpdate(next)
       setForm(initialForm(next))
       setImageRevision((revision) => revision + 1)
     } catch (reason) {
-      setError(errorText(reason, kind === 'recognize' ? '重新识别失败，可手动填写。' : kind === 'capture' ? '重新截图失败，请重试或选择本地图片。' : '更换截图失败，请重试。'))
+      setError(errorText(reason, kind === 'recognize' ? '重新识别失败，可手动填写。' : kind === 'paste' ? '粘贴失败：剪贴板里可能没有图片，请先截图。' : '更换截图失败，请重试。'))
     } finally { setOperation(null) }
   }
 
@@ -155,9 +155,9 @@ export default function ReviewDraft({ draft, onClose, onUpdate, onSaved, onDisca
       <div className="modal-title"><div><h2 id="review-title">核对本局记录</h2><p className="muted">草稿不会计入统计，确认保存后才成为正式记录。</p></div><button className="tb-btn" type="button" disabled={!!operation || !!pendingAction} onClick={() => requestAction('close')}>稍后确认</button></div>
       <div className="review-body">
         <div className="review-original"><ScreenshotPreview key={`${draft.id}:${draft.screenshotPath}`} draftId={draft.id} revision={`${draft.status}:${imageRevision}`} />
-          <div className="image-actions"><button className="tb-btn" type="button" disabled={locked} onClick={() => requestAction('capture')}>{operation === 'capture' ? '正在截图…' : '重新截图'}</button><button className="tb-btn" type="button" disabled={locked} onClick={() => requestAction('replace')}>{operation === 'replace' ? '正在选图…' : '换一张图'}</button><button className="tb-btn" type="button" disabled={locked || !draft.screenshotPath} onClick={() => requestAction('recognize')}>{operation === 'recognize' ? '识别中…' : '重新识别'}</button></div>
+          <div className="image-actions"><button className="tb-btn" type="button" disabled={locked} onClick={() => requestAction('paste')}>{operation === 'paste' ? '正在粘贴…' : '粘贴截图'}</button><button className="tb-btn" type="button" disabled={locked} onClick={() => requestAction('replace')}>{operation === 'replace' ? '正在选图…' : '换一张图'}</button><button className="tb-btn" type="button" disabled={locked || !draft.screenshotPath} onClick={() => requestAction('recognize')}>{operation === 'recognize' ? '识别中…' : '重新识别'}</button></div>
           <p className="field-hint">重新截图前请停留在结算界面；只截鼠标所在屏幕一帧，截图时暂时隐藏本工具，不会持续监屏。</p>
-          <p className="field-hint">重新截图、换图或重新识别会替换未保存的字段修改；请先完成操作，再手动校正。</p>
+          <p className="field-hint">粘贴截图、换图或重新识别会替换未保存的字段修改；请先完成操作，再手动校正。</p>
           {draft.ocrText && <details className="ocr-text"><summary>查看识别文字</summary><pre>{draft.ocrText}</pre></details>}
         </div>
         <form id="review-form" className="review-form" onSubmit={(event) => void confirm(event)}>

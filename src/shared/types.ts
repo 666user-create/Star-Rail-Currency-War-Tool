@@ -169,12 +169,16 @@ export interface PetApi {
   canPasteImage(): Promise<boolean>
   recognizeDraft(id: string): Promise<RecordingDraft>
   replaceDraftScreenshot(id: string): Promise<RecordingDraft>
+  /** 用剪贴板图片替换草稿截图并重新识别 */
+  replaceDraftWithClipboard(id: string): Promise<RecordingDraft>
   captureDraft(id: string): Promise<RecordingDraft>
   confirmDraft(id: string, input: DraftInput): Promise<Match>
   discardDraft(id: string): Promise<void>
   draftScreenshot(id: string): Promise<string | null>
   matchScreenshot(id: number): Promise<string | null>
   onRecordsChanged(listener: () => void): () => void
+  /** 面板打开时自动选中指定的待确认草稿（结束计时后触发） */
+  onDraftFocus(listener: (id: string) => void): () => void
   onRecordingChange(listener: (change: RecordingChange) => void): () => void
   launchGame(): Promise<boolean>
   getSettings(): Promise<AppSettings>

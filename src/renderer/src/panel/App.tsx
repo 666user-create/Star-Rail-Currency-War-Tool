@@ -113,10 +113,14 @@ export default function App() {
   }, [])
   useEffect(() => {
     const unsubscribe = window.api.onRecordsChanged(() => { void reload() })
+    // 结束计时后主进程会打开面板并指定草稿：自动选中，直接进入导入/粘贴
+    const unsubscribeFocus = window.api.onDraftFocus((id) => {
+      void reload().then(() => setSelectedDraftId(id))
+    })
     const focus = () => { void reload() }
     window.addEventListener('focus', focus)
     void reload()
-    return () => { unsubscribe(); window.removeEventListener('focus', focus) }
+    return () => { unsubscribe(); unsubscribeFocus(); window.removeEventListener('focus', focus) }
   }, [reload])
 
   const updateDraft = (draft: RecordingDraft) => setDrafts((current) => [draft, ...current.filter((item) => item.id !== draft.id)])
