@@ -13,7 +13,7 @@ export function ScreenshotPreview({ draftId, matchId, revision }: { draftId?: st
   const [image, setImage] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-  const [zoomed, setZoomed] = useState(false)
+  const [openError, setOpenError] = useState('')
   useEffect(() => {
     let alive = true
     setLoading(true)
@@ -25,12 +25,17 @@ export function ScreenshotPreview({ draftId, matchId, revision }: { draftId?: st
     }).finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [draftId, matchId, revision])
+  const openOriginal = async () => {
+    setOpenError('')
+    try {
+      await (draftId ? window.api.openDraftImage(draftId) : window.api.openMatchImage(matchId!))
+    } catch (reason) { setOpenError(errorText(reason, '无法打开原图。')) }
+  }
   return <div className="screenshot-preview">
-    <div className="screenshot-heading"><span>结算原图</span>
-      {image && <button className="tb-btn" type="button" aria-pressed={zoomed} onClick={() => setZoomed((value) => !value)}>{zoomed ? '适应窗口' : '放大原图'}</button>}
-    </div>
-    <div className={`image-frame ${zoomed ? 'zoomed' : ''}`}>
-      {image ? <img src={image} alt="本局保存的结算截图" onError={() => { setImage(null); setError('图片无法显示，请重新截图或更换图片。') }} /> : <div className="image-empty">{loading ? '正在读取截图…' : error || (draftId ? '还没有截图。用截图工具截下结算画面后，按 Ctrl+V 粘贴，或点「换一张图」选择本地文件。' : '这条记录未保存原图。')}</div>}
+    <div className="screenshot-heading"><span>结算原图{image ? '（点击用看图器打开）' : ''}</span></div>
+    <div className="image-frame">
+      {image ? <img src={image} alt="本局保存的结算截图" title="点击用系统看图器打开原图" style={{ cursor: 'zoom-in' }} onClick={() => void openOriginal()} onError={() => { setImage(null); setError('图片无法显示，请重新截图或更换图片。') }} /> : <div className="image-empty">{loading ? '正在读取截图…' : error || (draftId ? '还没有截图。用截图工具截下结算画面后，按 Ctrl+V 粘贴，或点「换一张图」选择本地文件。' : '这条记录未保存原图。')}</div>}
+      {openError && <div className="inline-error">{openError}</div>}
     </div>
   </div>
 }

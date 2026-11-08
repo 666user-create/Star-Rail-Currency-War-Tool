@@ -26,6 +26,8 @@ const api: PetApi = {
   discardDraft: (id: string) => ipcRenderer.invoke('draft:discard', id),
   draftScreenshot: (id: string) => ipcRenderer.invoke('draft:image', id),
   matchScreenshot: (id: number) => ipcRenderer.invoke('record:image', id),
+  openDraftImage: (id: string) => ipcRenderer.invoke('draft:open-image', id),
+  openMatchImage: (id: number) => ipcRenderer.invoke('record:open-image', id),
   onRecordsChanged: (listener) => {
     const handler = (): void => listener()
     ipcRenderer.on('records:changed', handler)

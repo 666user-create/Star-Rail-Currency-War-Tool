@@ -516,6 +516,21 @@ function setupIpc(): void {
   panelHandle('draft:list', () => recordingStore.list().filter(draft => !repo.byDraftId(draft.id)))
   panelHandle('draft:image', (id: string) => screenshotDataUrl(requireDraft(id).screenshotPath, screenshotDirectory()))
   panelHandle('record:image', (id: number) => screenshotDataUrl(repo.byId(id)?.screenshotPath ?? null, screenshotDirectory()))
+  // 用系统默认看图器打开原图（文件已在本机，点开即可放大细看，无需应用内缩放）
+  panelHandle('draft:open-image', async (id: string) => {
+    const file = requireDraft(id).screenshotPath
+    if (!file) throw new Error('这份草稿还没有截图。')
+    const failure = await shell.openPath(file)
+    if (failure) throw new Error('无法打开图片：' + failure)
+    return true
+  })
+  panelHandle('record:open-image', async (id: number) => {
+    const file = repo.byId(id)?.screenshotPath
+    if (!file) throw new Error('这条记录没有保存原图。')
+    const failure = await shell.openPath(file)
+    if (failure) throw new Error('无法打开图片：' + failure)
+    return true
+  })
   panelHandle('draft:import', async () => {
     const screenshotPath = await chooseScreenshot()
     if (!screenshotPath) return null

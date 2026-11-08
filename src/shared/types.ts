@@ -175,6 +175,9 @@ export interface PetApi {
   discardDraft(id: string): Promise<void>
   draftScreenshot(id: string): Promise<string | null>
   matchScreenshot(id: number): Promise<string | null>
+  /** 用系统看图器打开草稿/战绩的原图 */
+  openDraftImage(id: string): Promise<boolean>
+  openMatchImage(id: number): Promise<boolean>
   onRecordsChanged(listener: () => void): () => void
   /** 面板打开时自动选中指定的待确认草稿（结束计时后触发） */
   onDraftFocus(listener: (id: string) => void): () => void
