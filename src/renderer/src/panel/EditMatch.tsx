@@ -99,7 +99,7 @@ export default function EditMatch({ match, onCancel, onSaved }: {
         <label>队伍生命<input type="number" min="0" step="1" value={form.squadHp} onChange={(event) => edit('squadHp', event.target.value)} placeholder="未知可留空" /></label>
         <label>赛季<input value={form.season} onChange={(event) => edit('season', event.target.value)} placeholder="未标注" title="一般用面板顶部赛季按钮切换" /></label>
         <label className="span2">阵容（角色）<input value={form.lineup} onChange={(event) => edit('lineup', event.target.value)} placeholder="多个用顿号或逗号分隔" /></label>
-        <label className="span2">羁绊<input value={form.bonds} onChange={(event) => edit('bonds', event.target.value)} placeholder="可带 ×数量，多个用顿号分隔" /></label>
+        <label className="span2">羁绊<input value={form.bonds} onChange={(event) => edit('bonds', event.target.value)} placeholder="羁绊名称，多个用顿号分隔（数量自己补，如 减益×2）" /></label>
         <label className="span2">备注<textarea rows={2} value={form.note} onChange={(event) => edit('note', event.target.value)} placeholder="可记录需要补充的信息" /></label>
       </fieldset>
       {error && <div className="inline-error" role="alert">{error}</div>}

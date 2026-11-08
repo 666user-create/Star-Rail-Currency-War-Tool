@@ -9,7 +9,7 @@ export interface Match {
   result: MatchResult
   /** 阵容：角色名列表 */
   lineup: string[]
-  /** 羁绊：名称（可选带 ×数量） */
+  /** 羁绊：名称列表。数量不做自动识别，用户可自行写成「减益×2」 */
   bonds: string[]
   rankChange: number | null
   season: string

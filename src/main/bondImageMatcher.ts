@@ -182,7 +182,7 @@ export function matchBondIcons(image: BondBitmap, templates: BondTemplate[], reg
     const best = scores[0], runner = scores[1]?.score ?? 0
     if (best.score < 0.76 || best.score - runner < 0.045) continue
     const rect = { x: crop.x / width, y: crop.y / height, width: crop.width / width, height: crop.height / height }
-    possible.push({ id: best.template.id, name: best.template.name, score: Number(best.score.toFixed(4)), rect, count: bondCountFromWords(rect, regions.counts) })
+    possible.push({ id: best.template.id, name: best.template.name, score: Number(best.score.toFixed(4)), rect, count: null })
   }
   // 同行的多个菱形徽章才构成羁绊栏，避免把装备、正文字符或策略图标当成羁绊。
   const groups = possible.map((anchor) => possible.filter((candidate) => Math.abs((candidate.rect.y + candidate.rect.height / 2) - (anchor.rect.y + anchor.rect.height / 2)) < Math.max(anchor.rect.height, candidate.rect.height) * 0.42))
@@ -220,7 +220,7 @@ export function matchBondIcons(image: BondBitmap, templates: BondTemplate[], reg
         const best = scores[0]
         if (best.score < 0.79 || best.score - (scores[1]?.score ?? 0) < 0.06 || (found && found.score >= best.score)) continue
         const rect = { x: (left + crop.x) / width, y: (top + crop.y) / height, width: crop.width / width, height: crop.height / height }
-        found = { id: best.template.id, name: best.template.name, score: Number(best.score.toFixed(4)), rect, count: bondCountFromWords(rect, regions.counts) }
+        found = { id: best.template.id, name: best.template.name, score: Number(best.score.toFixed(4)), rect, count: null }
       }
       if (found) group.push(found)
     }

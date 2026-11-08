@@ -245,7 +245,8 @@ test('有锚点才提供归一化视觉区域，数字只是带位置证据', ()
     assert(region.x >= 0 && region.y >= 0 && region.width > 0 && region.height > 0)
     assert(region.x + region.width <= 1 && region.y + region.height <= 1)
   }
-  assert(result.vision.counts.some((entry) => entry.text === '10'))
+  // 羁绊数量识别已移除，不再收集数字词区域
+  assert.equal(result.vision.counts, undefined)
   assert.equal(result.fields.lineup, undefined)
   const withoutBottom = { ...input, lines: input.lines.filter((entry) => entry.text !== '投资环境') }
   assert.equal(parseOcrResult(withoutBottom).vision.lineup, undefined)

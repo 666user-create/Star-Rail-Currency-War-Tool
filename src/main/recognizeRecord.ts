@@ -40,11 +40,11 @@ export async function recognizeRecord(imagePath: string, cacheDir: string): Prom
   } else warnings.push('角色图标库暂不可用，文字结果已保留，可稍后重试或手动补充角色。')
   const bonds = results[1]
   if (bonds.status === 'fulfilled') {
-    bondLabels.push(...bonds.value.bonds.map(bond => `${bond.name}${bond.count == null ? '' : `×${bond.count}`}`))
+    // 只取羁绊名称；数量不做识别，由用户按原图手填
+    bondLabels.push(...bonds.value.bonds.map(bond => bond.name))
     warnings.push(...bonds.value.warnings)
-    if (!bonds.value.bonds.length) warnings.push('未能可靠识别羁绊图标，请按原图补充羁绊。')
-    else if (bonds.value.complete === false) warnings.push('羁绊识别可能不完整，请核对名称和数量。')
-    if (bonds.value.bonds.some(bond => bond.count == null)) warnings.push('部分羁绊数量未读出，已保留名称，请核对原图。')
+    if (!bonds.value.bonds.length) warnings.push('未能可靠识别羁绊图标，请按原图补充羁绊名称。')
+    else warnings.push('羁绊只识别了名称，数量请按原图手动补充。')
   } else warnings.push('羁绊图标库暂不可用，文字结果已保留，可稍后重试或手动补充羁绊。')
   return { ...analysis, fields: { ...analysis.fields, lineup: [...new Set(labels)], bonds: [...new Set(bondLabels)] }, warnings: [...new Set(warnings)] }
 }

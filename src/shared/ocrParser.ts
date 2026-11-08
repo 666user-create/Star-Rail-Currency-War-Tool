@@ -172,19 +172,7 @@ function visionRegions(document: OcrDocument, lines: ParsedLine[]): VisionRegion
     vision.bonds = region(bonds.x - document.width * 0.005, bonds.y + bonds.height + document.height * 0.006,
       right, lineup.y - document.height * 0.008)
   }
-  const countWords = [...document.lines, ...(document.regions ?? []).flatMap((entry) => entry.lines)]
-    .flatMap((line) => Array.isArray(line.words) ? line.words : [])
-    .filter((word) => word && /^\d{1,2}$/.test(compact(word.text))
-      && [word.x, word.y, word.width, word.height].every(Number.isFinite) && word.width > 0 && word.height > 0)
-  const counts = new Map<string, ImageRegion & { text: string }>()
-  for (const word of countWords) {
-    const bounds = region(word.x, word.y, word.x + word.width, word.y + word.height)
-    if (!bounds) continue
-    const text = compact(word.text)
-    const key = `${text}:${Math.round((word.x + word.width / 2) / (document.width * 0.004))}:${Math.round((word.y + word.height / 2) / (document.height * 0.004))}`
-    counts.set(key, { ...bounds, text })
-  }
-  if (counts.size > 0) vision.counts = [...counts.values()]
+  // 羁绊数量不做识别（已移除），不再收集数字词区域。
   return Object.values(vision).some(Boolean) ? vision : undefined
 }
 
