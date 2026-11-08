@@ -561,6 +561,37 @@ async function readClipboardImage(): Promise<string | null> {
   return null
 }
 
+/**
+ * 把用户选的路径解析成用于「启动游戏」的可执行文件。
+ * 优先 launcher.exe（官方启动器，asInvoker 普通权限，无需 UAC，会负责更新与进入游戏）；
+ * 没有启动器时退回 Game\StarRail.exe（requireAdministrator，会弹 UAC）。
+ * 支持用户填：游戏根目录 / Game 目录 / 任意一个 exe 的完整路径。
+ */
+function resolveGameLauncher(input: string): { exe: string; viaLauncher: boolean } | null {
+  const raw = (input ?? '').trim().replace(/^"|"$/g, '')
+  if (!raw) return null
+  // 用户在设置里可能填的是 exe 本身：取其所在目录作为根
+  const roots: string[] = [raw]
+  try {
+    if (fs.statSync(raw).isFile()) roots.unshift(path.dirname(path.dirname(raw)), path.dirname(raw))
+  } catch { /* 路径不可访问时按目录处理 */ }
+
+  for (const root of roots) {
+    // 1) 官方启动器：根目录下的 launcher.exe（不需要管理员权限，体验最好）
+    const launcher = path.join(root, 'launcher.exe')
+    try {
+      if (fs.statSync(launcher).isFile()) return { exe: launcher, viaLauncher: true }
+    } catch { /* 继续 */ }
+    // 2) 退回游戏主程序
+    for (const gameExe of [path.join(root, 'Game', 'StarRail.exe'), path.join(root, 'StarRail.exe')]) {
+      try {
+        if (fs.statSync(gameExe).isFile()) return { exe: gameExe, viaLauncher: false }
+      } catch { /* 继续 */ }
+    }
+  }
+  return null
+}
+
 function setupIpc(): void {
   ipcMain.handle('record:list', (_e, limit?: number) => repo.list(limit))
   ipcMain.handle('record:get', (_e, id: number) => repo.byId(id))
@@ -677,12 +708,20 @@ function setupIpc(): void {
     return match
   })
 
-  ipcMain.handle('game:launch', () => {
-    if (!settings.gamePath) return false
+  // 「货币战争启动!」：解析游戏启动器并启动（不是打开文件夹）
+  // 优先 launcher.exe：普通权限、无 UAC、由官方启动器处理更新与登录。
+  // 仅当没有启动器时才用 Game\StarRail.exe —— 它 manifest 要求管理员，必须走 ShellExecute 弹 UAC。
+  ipcMain.handle('game:launch', async () => {
+    const target = resolveGameLauncher(settings.gamePath)
+    if (!target) return false
     try {
-      shell.openPath(settings.gamePath)
+      // shell.openPath 走 ShellExecute：既能启动 exe，也会在需要时正确触发 UAC 提权
+      const failure = await shell.openPath(target.exe)
+      if (failure) { console.error('[game-launch]', failure); return false }
+      console.log(`[game-launch] ${target.viaLauncher ? 'launcher' : 'game exe'}: ${target.exe}`)
       return true
-    } catch {
+    } catch (error) {
+      console.error('[game-launch]', error)
       return false
     }
   })
