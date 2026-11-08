@@ -6,6 +6,7 @@ const api: PetApi = {
   getMatch: (id: number) => ipcRenderer.invoke('record:get', id),
   overview: () => ipcRenderer.invoke('stats:overview'),
   lineupStats: () => ipcRenderer.invoke('stats:lineups'),
+  bondStats: () => ipcRenderer.invoke('stats:bonds'),
   rankCurve: () => ipcRenderer.invoke('stats:rankCurve'),
   durationHistogram: () => ipcRenderer.invoke('stats:durationHist'),
   hourHistogram: () => ipcRenderer.invoke('stats:hourHist'),

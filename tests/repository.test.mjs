@@ -13,7 +13,7 @@ function fixture(t) {
 }
 
 const match = (patch = {}) => ({
-  startedAt: 1000, endedAt: 601000, durationSec: 600, result: 'win', lineup: ['追击'],
+  startedAt: 1000, endedAt: 601000, durationSec: 600, result: 'win', lineup: ['追击'], bonds: ['燃血×2'],
   rankChange: 1, season: '零和博弈', source: 'manual', screenshotPath: 'original.png',
   confidence: null, note: null, mode: 'standard', rankBefore: '财富造物主19',
   rankAfter: '财富造物主20', rating: 'B', squadHp: 21, ...patch

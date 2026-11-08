@@ -341,7 +341,7 @@ function requireDraft(id: string): RecordingDraft {
 
 function blankRecordFields(draft?: RecordingDraft): RecordFields {
   const season = draft?.startedAt != null ? draft.fields.season : ''
-  return { result: 'suspected', lineup: [], rankChange: null, season, note: null, mode: null, rankBefore: null, rankAfter: null, rating: null, squadHp: null }
+  return { result: 'suspected', lineup: [], bonds: [], rankChange: null, season, note: null, mode: null, rankBefore: null, rankAfter: null, rating: null, squadHp: null }
 }
 
 function runDraftJob(id: string, work: () => Promise<RecordingDraft>): Promise<RecordingDraft> {
@@ -420,15 +420,18 @@ function startRecording(): number {
   return recordStartedAt
 }
 
-/** 长局提醒：只读本地起始时间戳，不碰屏幕。到阈值提醒一次，每 30 分钟再提醒一次。 */
-const LONG_RUN_FIRST_SEC = 60 * 60
-const LONG_RUN_REPEAT_SEC = 30 * 60
+/** 长局提醒：只读本地起始时间戳，不碰屏幕。30分、40分各提醒一次；40分之后每 10 分钟提醒。 */
+const LONG_RUN_FIRST_SEC = 30 * 60
+const LONG_RUN_SECOND_SEC = 40 * 60
+const LONG_RUN_REPEAT_SEC = 10 * 60
 let lastLongRunReminderAt = 0
 function checkLongRun(): void {
   if (recordStartedAt === null) { lastLongRunReminderAt = 0; return }
   const elapsedSec = (Date.now() - recordStartedAt) / 1000
   if (elapsedSec < LONG_RUN_FIRST_SEC) return
-  if (lastLongRunReminderAt && (Date.now() - lastLongRunReminderAt) / 1000 < LONG_RUN_REPEAT_SEC) return
+  // 30→40 分钟之间只提醒一次；40 分钟后按 10 分钟间隔反复提醒
+  const interval = elapsedSec >= LONG_RUN_SECOND_SEC ? LONG_RUN_REPEAT_SEC : LONG_RUN_SECOND_SEC - LONG_RUN_FIRST_SEC
+  if (lastLongRunReminderAt && (Date.now() - lastLongRunReminderAt) / 1000 < interval) return
   lastLongRunReminderAt = Date.now()
   if (settings.quietMode) return
   petBubble?.update({ text: `老板~这局记了 ${formatDuration(elapsedSec)} 了，是忘了收工，还是真在肝？` })
@@ -489,6 +492,7 @@ function setupIpc(): void {
   ipcMain.handle('record:get', (_e, id: number) => repo.byId(id))
   ipcMain.handle('stats:overview', () => repo.overview())
   ipcMain.handle('stats:lineups', () => repo.lineupStats())
+  ipcMain.handle('stats:bonds', () => repo.bondStats())
   ipcMain.handle('stats:rankCurve', () => repo.rankCurve())
   ipcMain.handle('stats:durationHist', () => repo.durationHistogram())
   ipcMain.handle('stats:hourHist', () => repo.hourHistogram())
@@ -711,8 +715,8 @@ if (ownsData) app.whenReady().then(async () => {
   createPetWindow()
   createTray()
   createPanelWindow() // 预创建，保证面板秒开；用时再 show
-  // 长局提醒巡检：纯本地时间戳，5 分钟一次（不截屏、不读游戏）
-  setInterval(() => { try { checkLongRun() } catch (error) { console.error('[long-run]', error) } }, 5 * 60 * 1000)
+  // 长局提醒巡检：纯本地时间戳，1 分钟一次（不截屏、不读游戏；40 分后需 10 分钟粒度提醒）
+  setInterval(() => { try { checkLongRun() } catch (error) { console.error('[long-run]', error) } }, 60 * 1000)
   // 跨重启恢复：上一局没点结束（含中途退出）→ 计时继续累计，并明确告知
   if (recordStartedAt !== null) {
     const elapsed = (Date.now() - recordStartedAt) / 1000

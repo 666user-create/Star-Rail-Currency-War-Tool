@@ -16,11 +16,13 @@ export function validateDraftInput(value: unknown): DraftInput {
   if (!['win', 'loss', 'interrupted', 'suspected'].includes(input.result)) throw new Error('请选择本局结果')
   if (!Number.isSafeInteger(input.endedAt) || input.endedAt < 0 || input.endedAt > Date.now() + 86400000) throw new Error('请检查结束时间')
   const durationSec = nullableInteger(input.durationSec, '对局时长', 0, Math.floor(input.endedAt / 1000))
-  if (!Array.isArray(input.lineup) || input.lineup.length > 40 || input.lineup.some(item => typeof item !== 'string' || item.length > 80)) throw new Error('请检查阵容或羁绊')
+  if (!Array.isArray(input.lineup) || input.lineup.length > 40 || input.lineup.some(item => typeof item !== 'string' || item.length > 80)) throw new Error('请检查阵容')
+  if (!Array.isArray(input.bonds) || input.bonds.length > 40 || input.bonds.some(item => typeof item !== 'string' || item.length > 80)) throw new Error('请检查羁绊')
   if (input.mode !== null && input.mode !== 'standard' && input.mode !== 'overclock') throw new Error('请选择博弈模式，无法确定时留空')
   const fields: RecordFields = {
     result: input.result,
     lineup: [...new Set(input.lineup.map(item => item.trim()).filter(Boolean))],
+    bonds: [...new Set(input.bonds.map(item => item.trim()).filter(Boolean))],
     rankChange: nullableInteger(input.rankChange, '职级变化', -999, 999),
     season: text(input.season, '赛季', 80) ?? '',
     note: text(input.note, '备注', 4000),

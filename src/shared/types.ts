@@ -7,7 +7,10 @@ export interface Match {
   endedAt: number
   durationSec: number | null
   result: MatchResult
+  /** 阵容：角色名列表 */
   lineup: string[]
+  /** 羁绊：名称（可选带 ×数量） */
+  bonds: string[]
   rankChange: number | null
   season: string
   source: MatchSource
@@ -21,7 +24,7 @@ export interface Match {
   squadHp: number | null
 }
 
-export type RecordFields = Pick<Match, 'result' | 'lineup' | 'rankChange' | 'season' | 'note' | 'mode' | 'rankBefore' | 'rankAfter' | 'rating' | 'squadHp'>
+export type RecordFields = Pick<Match, 'result' | 'lineup' | 'bonds' | 'rankChange' | 'season' | 'note' | 'mode' | 'rankBefore' | 'rankAfter' | 'rating' | 'squadHp'>
 export type OcrPageKind = 'settlement' | 'history' | 'unknown'
 /** 截图中的归一化区域坐标，供本地图标匹配使用。 */
 export interface ImageRegion { x: number; y: number; width: number; height: number }
@@ -67,10 +70,22 @@ export interface OverviewStats {
   maxRankGames: number
   knownDurationGames: number
   unknownDurationGames: number
+  /** 平均小队生命值（仅统计已填写血量的对局；无则 null） */
+  avgSquadHp: number | null
+  /** 已知血量的对局数 */
+  knownSquadHpGames: number
 }
 
 export interface LineupStat {
   lineup: string
+  games: number
+  wins: number
+  winRate: number
+}
+
+/** 羁绊统计（与阵容分开） */
+export interface BondStat {
+  bond: string
   games: number
   wins: number
   winRate: number
@@ -141,6 +156,7 @@ export interface PetApi {
   getMatch(id: number): Promise<Match | null>
   overview(): Promise<OverviewStats>
   lineupStats(): Promise<LineupStat[]>
+  bondStats(): Promise<BondStat[]>
   rankCurve(): Promise<RankPoint[]>
   durationHistogram(): Promise<DurationBucket[]>
   hourHistogram(): Promise<HourBucket[]>

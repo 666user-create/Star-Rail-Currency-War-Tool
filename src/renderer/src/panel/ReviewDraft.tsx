@@ -52,6 +52,7 @@ const initialForm = (draft: RecordingDraft) => ({
   rating: draft.fields.rating ?? '',
   squadHp: draft.fields.squadHp == null ? '' : String(draft.fields.squadHp),
   lineup: draft.fields.lineup.join('、'),
+  bonds: draft.fields.bonds.join('、'),
   season: draft.fields.season,
   note: draft.fields.note ?? ''
 })
@@ -81,7 +82,7 @@ export default function ReviewDraft({ draft, onClose, onUpdate, onSaved, onDisca
     form.result === 'suspected' && '胜负', !form.mode && '模式',
     !form.rankBefore.trim() && '结算前职级', !form.rankAfter.trim() && '结算后职级',
     !form.rankChange.trim() && '职级变化', !form.rating.trim() && '评分',
-    !form.squadHp.trim() && '小队生命', !form.lineup.trim() && '阵容/羁绊',
+    !form.squadHp.trim() && '小队生命', !form.lineup.trim() && '阵容', !form.bonds.trim() && '羁绊',
     !form.season.trim() && '赛季', form.durationUnknown && '对局时长'
   ].filter(Boolean) as string[]
   const edit = <K extends keyof typeof form>(key: K, value: typeof form[K]) => setForm((previous) => ({ ...previous, [key]: value }))
@@ -129,6 +130,7 @@ export default function ReviewDraft({ draft, onClose, onUpdate, onSaved, onDisca
       rankBefore: form.rankBefore.trim() || null, rankAfter: form.rankAfter.trim() || null,
       rankChange, rating: form.rating.trim() || null, squadHp,
       lineup: [...new Set(form.lineup.split(/[,，、;；\n]/).map((value) => value.trim()).filter(Boolean))],
+      bonds: [...new Set(form.bonds.split(/[,，、;；\n]/).map((value) => value.trim()).filter(Boolean))],
       season: form.season.trim(), note: form.note.trim() || null
     }
     setOperation('save')
@@ -176,7 +178,8 @@ export default function ReviewDraft({ draft, onClose, onUpdate, onSaved, onDisca
             <label>结算评级<input value={form.rating} onChange={(event) => edit('rating', event.target.value)} placeholder="未知可留空" /></label>
             <label>队伍生命<input type="number" min="0" step="1" value={form.squadHp} onChange={(event) => edit('squadHp', event.target.value)} placeholder="未知可留空" /></label>
             <label>赛季<input value={form.season} onChange={(event) => edit('season', event.target.value)} placeholder="未标注" /></label>
-            <label className="span2">阵容 / 羁绊<input value={form.lineup} onChange={(event) => edit('lineup', event.target.value)} placeholder="可修改识别结果，多个名称用顿号或逗号分隔" /></label>
+            <label className="span2">阵容（角色）<input value={form.lineup} onChange={(event) => edit('lineup', event.target.value)} placeholder="角色名，多个用顿号或逗号分隔" /></label>
+            <label className="span2">羁绊<input value={form.bonds} onChange={(event) => edit('bonds', event.target.value)} placeholder="羁绊名，可带 ×数量，多个用顿号或逗号分隔" /></label>
             <label className="span2">备注<textarea rows={2} value={form.note} onChange={(event) => edit('note', event.target.value)} placeholder="可记录需要补充核实的信息" /></label>
           </fieldset>
           {error && <div className="inline-error" role="alert">{error}</div>}

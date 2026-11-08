@@ -16,7 +16,7 @@ const validTime = (value: unknown): value is number => typeof value === 'number'
 
 function emptyFields(): RecordFields {
   return {
-    result: 'suspected', lineup: [], rankChange: null, season: '', note: null,
+    result: 'suspected', lineup: [], bonds: [], rankChange: null, season: '', note: null,
     mode: null, rankBefore: null, rankAfter: null, rating: null, squadHp: null
   }
 }

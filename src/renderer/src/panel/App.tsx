@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import type { DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint, RecordingDraft } from '@shared/types'
+import type { BondStat, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint, RecordingDraft } from '@shared/types'
 import ReviewDraft, { errorText, RESULT_LABEL, ScreenshotPreview } from './ReviewDraft'
 
 function fmtDur(sec: number | null): string {
@@ -76,10 +76,11 @@ export default function App() {
   const [overview, setOverview] = useState<OverviewStats>()
   const [matches, setMatches] = useState<Match[]>([])
   const [lineups, setLineups] = useState<LineupStat[]>([])
+  const [bonds, setBonds] = useState<BondStat[]>([])
   const [rank, setRank] = useState<RankPoint[]>([])
   const [durations, setDurations] = useState<DurationBucket[]>([])
   const [hours, setHours] = useState<HourBucket[]>([])
-  const [tab, setTab] = useState<'lineup' | 'rank' | 'duration' | 'hour'>('lineup')
+  const [tab, setTab] = useState<'lineup' | 'bond' | 'rank' | 'duration' | 'hour'>('lineup')
   const [detail, setDetail] = useState<Match | null>(null)
   const [drafts, setDrafts] = useState<RecordingDraft[]>([])
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
@@ -92,14 +93,15 @@ export default function App() {
   const reload = useCallback(async () => {
     const version = ++reloadVersion.current
     try {
-      const [nextOverview, nextMatches, nextLineups, nextRank, nextDurations, nextHours, nextDrafts] = await Promise.all([
-        window.api.overview(), window.api.listMatches(300), window.api.lineupStats(), window.api.rankCurve(),
+      const [nextOverview, nextMatches, nextLineups, nextBonds, nextRank, nextDurations, nextHours, nextDrafts] = await Promise.all([
+        window.api.overview(), window.api.listMatches(300), window.api.lineupStats(), window.api.bondStats(), window.api.rankCurve(),
         window.api.durationHistogram(), window.api.hourHistogram(), window.api.listDrafts()
       ])
       if (version !== reloadVersion.current) return
       setOverview(nextOverview)
       setMatches(nextMatches.filter((match) => match.source !== 'demo'))
       setLineups(nextLineups)
+      setBonds(nextBonds)
       setRank(nextRank)
       setDurations(nextDurations)
       setHours(nextHours)
@@ -182,7 +184,8 @@ export default function App() {
         <div className="tile"><div className="tile-num">{overview?.total ?? '—'}</div><div className="tile-label">总局数</div></div>
         <div className="tile"><div className="tile-num gold">{winRate}</div><div className="tile-label">胜率 · 已核实胜负</div></div>
         <div className="tile"><div className="tile-num">{overview?.knownDurationGames ? (overview.totalDurationSec / 3600).toFixed(1) : '—'}</div><div className="tile-label">总时长(小时) · 仅已知</div></div>
-        <div className="tile"><div className="tile-num">{overview?.avgDurationSec != null ? Math.round(overview.avgDurationSec / 60) : '—'}</div><div className="tile-label">平均(分) · 已知胜负局</div></div>
+        <div className="tile"><div className="tile-num">{overview?.avgDurationSec != null ? Math.round(overview.avgDurationSec / 60) : '—'}</div><div className="tile-label">平均时长(分) · 已知胜负局</div></div>
+        <div className="tile"><div className="tile-num">{overview?.avgSquadHp != null ? Math.round(overview.avgSquadHp) : '—'}</div><div className="tile-label">平均血量 · 已知 {overview?.knownSquadHpGames ?? 0} 局</div></div>
         <div className="tile"><div className="tile-num win">{overview?.bestWinStreak ?? '—'}</div><div className="tile-label">最长连胜</div></div>
         <div className="tile"><div className="tile-num loss">{overview?.bestLossStreak ?? '—'}</div><div className="tile-label">最长连败</div></div>
         <div className="tile highlight">
@@ -209,7 +212,7 @@ export default function App() {
                 <span className="m-time">{fmtTime(m.startedAt ?? m.endedAt)}</span>
                 <span className={`m-badge b-${m.result}`}>{RESULT_LABEL[m.result]}</span>
                 <span className="m-dur">{fmtDur(m.durationSec)}</span>
-                <span className="m-lineup">{m.lineup.join('·') || '阵容未填写'}</span>
+                <span className="m-lineup">{[...m.lineup, ...m.bonds].join('·') || '阵容未填写'}</span>
                 <span className="m-src">{m.source === 'ocr' ? '截图' : '手动'}</span>
               </button>
             ))}
@@ -220,13 +223,15 @@ export default function App() {
         {/* 分析页签 */}
         <div className="card analysis-card">
           <div className="tabs">
-            <button className={tab === 'lineup' ? 'on' : ''} onClick={() => setTab('lineup')}>阵容 / 羁绊</button>
+            <button className={tab === 'lineup' ? 'on' : ''} onClick={() => setTab('lineup')}>阵容</button>
+            <button className={tab === 'bond' ? 'on' : ''} onClick={() => setTab('bond')}>羁绊</button>
             <button className={tab === 'rank' ? 'on' : ''} onClick={() => setTab('rank')}>段位走势</button>
             <button className={tab === 'duration' ? 'on' : ''} onClick={() => setTab('duration')}>时长分布</button>
             <button className={tab === 'hour' ? 'on' : ''} onClick={() => setTab('hour')}>活跃时段</button>
           </div>
           <div className="tab-body">
             {tab === 'lineup' && <WinrateBars stats={lineups} />}
+            {tab === 'bond' && <WinrateBars stats={bonds.map((b) => ({ lineup: b.bond, games: b.games, wins: b.wins, winRate: b.winRate }))} />}
             {tab === 'rank' && <LineChart points={rank} />}
             {tab === 'duration' && <VBars buckets={durations} unit="局" />}
             {tab === 'hour' && <VBars buckets={hours} unit="局" />}
@@ -257,7 +262,8 @@ export default function App() {
               <div><label>队伍生命</label>{detail.squadHp ?? '未知'}</div>
               <div><label>赛季</label>{detail.season || '未标注'}</div>
               <div><label>数据来源</label>{detail.source === 'ocr' ? '截图识别后人工确认' : '手动确认'}</div>
-              <div className="span2"><label>阵容/羁绊</label>{detail.lineup.join(' · ') || '—'}</div>
+              <div className="span2"><label>阵容</label>{detail.lineup.join(' · ') || '—'}</div>
+              <div className="span2"><label>羁绊</label>{detail.bonds.join(' · ') || '—'}</div>
               <div className="span2"><label>备注</label>{detail.note ?? '—'}</div>
             </div><ScreenshotPreview key={detail.id} matchId={detail.id} /></div>
           </div>

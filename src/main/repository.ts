@@ -3,16 +3,16 @@ import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { atomicReplace } from './atomicReplace.ts'
 import initSqlJs from 'sql.js'
-import type { DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint } from '@shared/types'
+import type { BondStat, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint } from '@shared/types'
 
 type Database = import('sql.js').Database & { close?: () => void }
 type SqlRuntime = Awaited<ReturnType<typeof initSqlJs>>
-const COLUMNS = ['id', 'started_at', 'ended_at', 'duration_sec', 'result', 'lineup_json', 'rank_change', 'season', 'source', 'screenshot_path', 'confidence', 'note', 'mode', 'rank_before', 'rank_after', 'rating', 'squad_hp', 'draft_id'] as const
+const COLUMNS = ['id', 'started_at', 'ended_at', 'duration_sec', 'result', 'lineup_json', 'bonds_json', 'rank_change', 'season', 'source', 'screenshot_path', 'confidence', 'note', 'mode', 'rank_before', 'rank_after', 'rating', 'squad_hp', 'draft_id'] as const
 
 function schema(table: string): string {
   return `CREATE TABLE ${table} (
     id INTEGER PRIMARY KEY AUTOINCREMENT, started_at INTEGER, ended_at INTEGER NOT NULL,
-    duration_sec INTEGER, result TEXT NOT NULL, lineup_json TEXT, rank_change INTEGER,
+    duration_sec INTEGER, result TEXT NOT NULL, lineup_json TEXT, bonds_json TEXT, rank_change INTEGER,
     season TEXT NOT NULL, source TEXT NOT NULL, screenshot_path TEXT, confidence REAL, note TEXT,
     mode TEXT, rank_before TEXT, rank_after TEXT, rating TEXT, squad_hp INTEGER, draft_id TEXT
   )`
@@ -94,7 +94,9 @@ export class Repository {
       return
     }
     const names = new Set(columns.map((column) => String(column.name)))
-    if (COLUMNS.slice(0, 12).some((name) => !names.has(name))) throw new Error('战绩数据库结构无法识别，原文件未改动。')
+    // 基础列必须存在（bonds_json 是有默认空数组的后续新增列，老库缺它属于可迁移情况）
+    const REQUIRED = COLUMNS.filter((name) => name !== 'bonds_json').slice(0, 12)
+    if (REQUIRED.some((name) => !names.has(name))) throw new Error('战绩数据库结构无法识别，原文件未改动。')
     const rebuild = COLUMNS.some((name) => !names.has(name)) || columns.some((column) => ['started_at', 'duration_sec'].includes(String(column.name)) && column.notnull === 1)
     const indexed = this.rows('PRAGMA index_list(matches)').some((index) => index.name === 'matches_draft_id' && index.unique === 1)
     if (!rebuild && indexed) return
@@ -102,7 +104,7 @@ export class Repository {
       if (rebuild) {
         const sequence = this.rows("SELECT seq FROM sqlite_sequence WHERE name='matches'", [], database)[0]?.seq
         database.run(schema('matches_migrating'))
-        database.run(`INSERT INTO matches_migrating (${COLUMNS.join(',')}) SELECT ${COLUMNS.map((name) => names.has(name) ? name : 'NULL').join(',')} FROM matches`)
+        database.run(`INSERT INTO matches_migrating (${COLUMNS.join(',')}) SELECT ${COLUMNS.map((name) => names.has(name) ? name : (name === 'bonds_json' ? "'[]'" : 'NULL')).join(',')} FROM matches`)
         database.run('DROP TABLE matches')
         database.run('ALTER TABLE matches_migrating RENAME TO matches')
         if (typeof sequence === 'number') database.run("UPDATE sqlite_sequence SET seq=MAX(seq,?) WHERE name='matches'", [sequence])
@@ -115,7 +117,8 @@ export class Repository {
     return {
       id: r.id as number, startedAt: (r.started_at as number) ?? null, endedAt: r.ended_at as number,
       durationSec: (r.duration_sec as number) ?? null, result: r.result as Match['result'],
-      lineup: JSON.parse((r.lineup_json as string) ?? '[]'), rankChange: (r.rank_change as number) ?? null,
+      lineup: JSON.parse((r.lineup_json as string) ?? '[]'), bonds: JSON.parse((r.bonds_json as string) ?? '[]'),
+      rankChange: (r.rank_change as number) ?? null,
       season: r.season as string, source: r.source as Match['source'], screenshotPath: (r.screenshot_path as string) ?? null,
       confidence: (r.confidence as number) ?? null, note: (r.note as string) ?? null,
       mode: (r.mode as Match['mode']) ?? null, rankBefore: (r.rank_before as string) ?? null,
@@ -152,12 +155,12 @@ export class Repository {
       (match.durationSec !== null && (!Number.isFinite(match.durationSec) || match.durationSec < 0))) throw new Error('记录时间无效。')
     return this.commit((database) => {
       database.run(`INSERT INTO matches (${COLUMNS.slice(1).join(',')}) VALUES (${COLUMNS.slice(1).map(() => '?').join(',')})`, [
-        match.startedAt, match.endedAt, match.durationSec, match.result, JSON.stringify(match.lineup), match.rankChange,
+        match.startedAt, match.endedAt, match.durationSec, match.result, JSON.stringify(match.lineup), JSON.stringify(match.bonds), match.rankChange,
         match.season, match.source, match.screenshotPath, match.confidence, match.note, match.mode, match.rankBefore,
         match.rankAfter, match.rating, match.squadHp, draftId ?? null
       ])
       const id = this.rows('SELECT last_insert_rowid() AS id', [], database)[0].id as number
-      return { ...match, lineup: [...match.lineup], id }
+      return { ...match, lineup: [...match.lineup], bonds: [...match.bonds], id }
     })
   }
 
@@ -172,7 +175,9 @@ export class Repository {
       COALESCE(SUM(CASE WHEN rank_change>0 THEN duration_sec END),0) AS rankDur,
       SUM(CASE WHEN rank_change>0 THEN 1 ELSE 0 END) AS rankGames,
       SUM(CASE WHEN duration_sec IS NOT NULL THEN 1 ELSE 0 END) AS knownDurationGames,
-      SUM(CASE WHEN duration_sec IS NULL THEN 1 ELSE 0 END) AS unknownDurationGames
+      SUM(CASE WHEN duration_sec IS NULL THEN 1 ELSE 0 END) AS unknownDurationGames,
+      SUM(CASE WHEN squad_hp IS NOT NULL THEN squad_hp END) AS hpSum,
+      SUM(CASE WHEN squad_hp IS NOT NULL THEN 1 ELSE 0 END) AS hpN
       FROM matches WHERE source!='demo'`)[0]
     const sequence = this.rows("SELECT result FROM matches WHERE source!='demo' ORDER BY ended_at ASC,id ASC")
     let win = 0, loss = 0, bestWin = 0, bestLoss = 0
@@ -188,8 +193,26 @@ export class Repository {
       avgDurationSec: (r.validN as number) > 0 ? (r.validDur as number) / (r.validN as number) : null,
       bestWinStreak: bestWin, bestLossStreak: bestLoss, maxRankHours: ((r.rankDur as number) ?? 0) / 3600,
       maxRankGames: (r.rankGames as number) ?? 0, knownDurationGames: (r.knownDurationGames as number) ?? 0,
-      unknownDurationGames: (r.unknownDurationGames as number) ?? 0
+      unknownDurationGames: (r.unknownDurationGames as number) ?? 0,
+      avgSquadHp: (r.hpN as number) > 0 ? (r.hpSum as number) / (r.hpN as number) : null,
+      knownSquadHpGames: (r.hpN as number) ?? 0
     }
+  }
+
+  /** 羁绊统计：与阵容分开计数。 */
+  bondStats(): BondStat[] {
+    const totals = new Map<string, BondStat>()
+    for (const row of this.rows("SELECT bonds_json,result FROM matches WHERE source!='demo' AND result IN ('win','loss')")) {
+      const bonds: string[] = JSON.parse((row.bonds_json as string) ?? '[]')
+      for (const name of new Set(bonds)) {
+        const stat = totals.get(name) ?? { bond: name, games: 0, wins: 0, winRate: 0 }
+        stat.games += 1
+        if (row.result === 'win') stat.wins += 1
+        totals.set(name, stat)
+      }
+    }
+    return [...totals.values()].map((stat) => ({ ...stat, winRate: stat.games > 0 ? stat.wins / stat.games : 0 }))
+      .sort((a, b) => b.games - a.games)
   }
 
   lineupStats(): LineupStat[] {
