@@ -29,7 +29,7 @@ export default function App() {
   const [anim, setAnim] = useState<Anim>('')
   const [animationId, setAnimationId] = useState(0)
   const [bubble, setBubble] = useState('')
-  const [menu, setMenu] = useState<{ x: number; y: number; page: 'main' | 'companion' } | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number; page: 'main' | 'actions' | 'companion' } | null>(null)
   const menuOpen = menu !== null
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
@@ -118,9 +118,14 @@ export default function App() {
     { key: 'launch', label: () => '货币战争启动!' },
     { key: 'settings', label: () => '设置' },
     { key: 'companion', label: () => '陪伴设置 ›' },
+    { key: 'actions', label: () => '选择动作 ›' },
     { key: 'sep', label: () => '' },
     { key: 'quit', label: () => '退出' }
   ] as const
+  const ACTION_ITEMS = [
+    { key: 'back', label: () => '‹ 返回' },
+    ...PET_ACTIONS.map((action) => ({ key: action.key, label: () => action.label }))
+  ]
   const COMPANION_ITEMS = [
     { key: 'back', label: () => '‹ 返回' },
     { key: 'quiet', label: () => `安静模式：${preferences.quietMode ? '开' : '关'}` },
@@ -324,8 +329,8 @@ export default function App() {
   }, [menu])
 
   const onMenuClick = async (key: string) => {
-    if (key === 'companion' || key === 'back') {
-      setMenu((current) => current && { ...current, page: key === 'back' ? 'main' : 'companion' })
+    if (key === 'actions' || key === 'companion' || key === 'back') {
+      setMenu((current) => current && { ...current, page: key === 'back' ? 'main' : key })
       return
     }
     setMenu(null)
@@ -386,8 +391,8 @@ export default function App() {
 
       {/* 右键菜单：打开后按实测尺寸夹进 176×212 视口（否则超出窗口底/右边被裁） */}
       {menu && (
-        <div className="ctx-menu" ref={menuRef} role="menu" aria-label={menu.page === 'companion' ? '陪伴设置' : '桌宠菜单'} style={{ left: menuPos.x, top: menuPos.y }}>
-          {(menu.page === 'companion' ? COMPANION_ITEMS : MENU_ITEMS).map((item) =>
+        <div className="ctx-menu" ref={menuRef} role="menu" aria-label={menu.page === 'actions' ? '选择动作' : menu.page === 'companion' ? '陪伴设置' : '桌宠菜单'} style={{ left: menuPos.x, top: menuPos.y }}>
+          {(menu.page === 'actions' ? ACTION_ITEMS : menu.page === 'companion' ? COMPANION_ITEMS : MENU_ITEMS).map((item) =>
             item.key === 'sep' ? (
               <div key="sep" className="ctx-sep" />
             ) : (
