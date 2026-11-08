@@ -6,6 +6,7 @@ import { loadSettings, saveSettings } from './config'
 import { PetBubbleController } from './petBubble'
 import { PetTimerController } from './petTimer'
 import { createTrayIcon } from './trayIcon'
+import { defaultSeason } from '../shared/seasons'
 import { normalizeSettings } from '../shared/petPreferences'
 import { validateDraftInput } from '../shared/recordingValidation'
 import { RecordingStore } from './recordingStore'
@@ -451,7 +452,7 @@ function formatDuration(seconds: number | null): string {
 
 function endRecording(): Promise<RecordingDraft | null> {
   if (endPending) return endPending
-  const draft = recordingStore.end(Date.now(), settings.recordSeason ?? '')
+  const draft = recordingStore.end(Date.now(), settings.recordSeason || defaultSeason())
   if (!draft) return Promise.resolve(null)
   recordStartedAt = null
   publishRecording()

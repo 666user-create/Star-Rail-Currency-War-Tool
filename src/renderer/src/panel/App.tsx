@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { BondStat, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint, RecordingDraft } from '@shared/types'
 import ReviewDraft, { errorText, RESULT_LABEL, ScreenshotPreview } from './ReviewDraft'
+import { SEASONS, defaultSeason } from '@shared/seasons'
 import EditMatch from './EditMatch'
 
 function fmtDur(sec: number | null): string {
@@ -84,6 +85,7 @@ export default function App() {
   const [tab, setTab] = useState<'lineup' | 'bond' | 'rank' | 'duration' | 'hour'>('lineup')
   const [detail, setDetail] = useState<Match | null>(null)
   const [editing, setEditing] = useState(false)
+  const [currentSeason, setCurrentSeason] = useState<string>(() => defaultSeason())
   const [drafts, setDrafts] = useState<RecordingDraft[]>([])
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
@@ -108,6 +110,8 @@ export default function App() {
       setDurations(nextDurations)
       setHours(nextHours)
       setDrafts(nextDrafts)
+      // 赛季：优先用设置里保存的，否则按时间推测
+      void window.api.getSettings().then((s) => { if (s.recordSeason) setCurrentSeason(s.recordSeason) }).catch(() => {})
       setError('')
     } catch (reason) {
       if (version === reloadVersion.current) setError(errorText(reason, '读取记录失败，请重试。'))
@@ -126,6 +130,10 @@ export default function App() {
   }, [reload])
 
   const updateDraft = (draft: RecordingDraft) => setDrafts((current) => [draft, ...current.filter((item) => item.id !== draft.id)])
+  const switchSeason = async (season: string) => {
+    setCurrentSeason(season)
+    try { await window.api.setSettings({ recordSeason: season }) } catch { /* 设置写失败不影响当前会话内切换 */ }
+  }
   const importScreenshot = async () => {
     if (importing) return
     setImporting(true)
@@ -172,6 +180,21 @@ export default function App() {
         <div className="title">
           货币战争作战记录
           <span className="season-chip">本地记录</span>
+        </div>
+        {/* 赛季切换：顶部按钮，不用在表单里手填 */}
+        <div className="season-switch" role="group" aria-label="当前赛季">
+          <span className="season-switch-label">赛季</span>
+          {SEASONS.map((season) => (
+            <button
+              key={season.id}
+              type="button"
+              className={`season-btn ${currentSeason === season.id ? 'on' : ''}`}
+              title={season.startAt
+                ? `${new Date(season.startAt).toLocaleDateString()} 起${season.endAt ? ` · ${new Date(season.endAt).toLocaleDateString()} 结束` : ' · 进行中'}`
+                : '官方已公布名称，开始日期待定'}
+              onClick={() => void switchSeason(season.id)}
+            >{season.label}</button>
+          ))}
         </div>
         <div className="title-actions">
           <button className="primary-btn" disabled={importing} onClick={() => void importScreenshot()}>{importing ? '正在导入…' : '导入结算截图'}</button>

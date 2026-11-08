@@ -286,3 +286,35 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 4px; }
+
+/* ¡ª¡ª ¶¥À¸Èü¼¾ÇÐ»» ¡ª¡ª */
+.season-switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  margin-right: 10px;
+}
+.season-switch-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.season-btn {
+  padding: 3px 10px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(232, 196, 118, 0.28);
+  background: transparent;
+  color: #cfc9dd;
+  cursor: pointer;
+}
+.season-btn:hover {
+  border-color: rgba(232, 196, 118, 0.6);
+  color: var(--gold);
+}
+.season-btn.on {
+  background: rgba(232, 196, 118, 0.16);
+  border-color: var(--gold);
+  color: var(--gold);
+  font-weight: 700;
+}
