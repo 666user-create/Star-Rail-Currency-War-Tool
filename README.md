@@ -10,11 +10,18 @@
 
 ## 安装使用
 
-### 方式一：便携版（推荐给普通用户）
+### 方式一：绿色包（推荐给普通用户）
 
-下载 Releases 里的 `货币战争桌宠-x.x.x-portable.exe`，双击即用，无需安装 Node.js。
+下载 Releases 里的 `货币战争桌宠-x.x.x-win.zip`，解压到一个**不含空格的英文路径**（例如 `D:\StarRailPet`），双击 `货币战争桌宠.exe` 即可。
 
-首次使用仍需**自己提取模型**（见下节），提取后重启应用即可看到随宠。
+> ⚠️ **重要**：解压路径**不能包含空格**（例如 `D:\Star Rail Currency War Tool\` 这种会启动失败且无任何提示）。这是 Electron 打包应用的已知限制，请务必解压到 `D:\StarRailPet`、`C:\Games\StarRailPet` 这类路径。
+
+首次启动会进入**设置向导**（约 1 分钟）：
+1. **游戏路径** — 自动探测你本机的《崩坏：星穹铁道》，也可手动选择
+2. **截图位置** — 结算截图存放位置，默认在应用目录的 `data\screenshots`
+3. **提取模型** — 一键从游戏文件中提取随宠模型，带实时进度
+
+安装包**已内置 Python 运行环境与提取依赖**，不需要你另外安装 Python。
 
 ### 方式二：源码运行
 
@@ -23,11 +30,14 @@ npm install
 npm run dev
 ```
 
-开发命令：`npm run check`（类型检查）、`npm test`（单元测试）、`npm run build`（编译）、`npm run dist`（打 Windows 便携包）。
+开发命令：`npm run check`（类型检查）、`npm test`（单元测试）、`npm run build`（编译）、`npm run dist`（打 Windows 包）。
 
 ## 获取随宠模型（extractor）
 
-仓库与安装包**都不包含任何游戏模型或贴图**。请在**你已安装《崩坏：星穹铁道》的本机**上运行提取器：
+绿色包与源码版**都不包含任何游戏模型或贴图**。两种方式获取模型：
+
+- **绿色包**：首次启动向导第 3 步自动完成（推荐）
+- **手动运行**（源码版或想重新提取时）：
 
 ```bash
 pip install UnityPy lz4
@@ -35,7 +45,7 @@ python extractor/extract_pet.py            # 自动探测游戏路径
 python extractor/extract_pet.py --game "D:\Star Rail\Game"   # 或手动指定
 ```
 
-提取成功后生成 `assets/official_pet/`（本机生成、已被 git 忽略），重启应用即可看到随宠模型。
+提取产物会写入 `data/official_pet/`（绿色包为 userData 目录），重启应用即可看到随宠模型。
 
 > 提取器仅在**本机只读**打开你已安装的游戏数据文件；产物请勿传播或上传。
 
