@@ -45,7 +45,8 @@ export default defineConfig({
           timer: resolve('src/renderer/timer.html'),
           panel: resolve('src/renderer/panel.html'),
           settings: resolve('src/renderer/settings.html'),
-          wizard: resolve('src/renderer/wizard.html')
+          wizard: resolve('src/renderer/wizard.html'),
+          'tray-menu': resolve('src/renderer/tray-menu.html')
         }
       }
     }

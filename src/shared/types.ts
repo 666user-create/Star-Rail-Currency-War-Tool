@@ -150,6 +150,14 @@ export interface PetBubbleView {
   revision: number
 }
 
+/** 自定义托盘菜单的状态与动作 */
+export interface TrayMenuState {
+  petHidden: boolean
+  quietMode: boolean
+  recording: boolean
+}
+export type TrayMenuAction = 'toggle-pet' | 'toggle-quiet' | 'open-panel' | 'open-settings' | 'quit'
+
 export interface PetApi {
   listMatches(limit?: number): Promise<Match[]>
   getMatch(id: number): Promise<Match | null>
@@ -217,4 +225,9 @@ export interface PetApi {
   runExtraction(gamePath: string): Promise<void>
   onWizardProgress(listener: (event: { line: string; percent: number }) => void): () => void
   completeWizard(config: { gamePath: string; screenshotDir: string }): Promise<void>
+  // —— 自定义托盘菜单 ——
+  trayMenuState(): Promise<TrayMenuState>
+  onTrayMenuState(listener: (state: TrayMenuState) => void): () => void
+  trayMenuAction(action: TrayMenuAction): void
+  trayMenuClose(): void
 }

@@ -87,7 +87,16 @@ const api: PetApi = {
     ipcRenderer.on('wizard:progress', handler)
     return () => ipcRenderer.removeListener('wizard:progress', handler)
   },
-  completeWizard: (config) => ipcRenderer.invoke('wizard:complete', config)
+  completeWizard: (config) => ipcRenderer.invoke('wizard:complete', config),
+  // 自定义托盘菜单
+  trayMenuState: () => ipcRenderer.invoke('tray:state'),
+  onTrayMenuState: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: import('@shared/types').TrayMenuState): void => listener(state)
+    ipcRenderer.on('tray:state', handler)
+    return () => ipcRenderer.removeListener('tray:state', handler)
+  },
+  trayMenuAction: (action) => ipcRenderer.send('tray:action', action),
+  trayMenuClose: () => ipcRenderer.send('tray:action', 'close')
 }
 
 contextBridge.exposeInMainWorld('api', api)

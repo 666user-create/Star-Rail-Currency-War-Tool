@@ -6,6 +6,7 @@ import { loadSettings, saveSettings } from './config'
 import { PetBubbleController } from './petBubble'
 import { PetTimerController } from './petTimer'
 import { createTrayIcon } from './trayIcon'
+import { TrayMenuController } from './trayMenu'
 import { createWizardWindow, hasCompletedWizard, setupWizardIpc } from './wizard'
 import { defaultSeason } from '../shared/seasons'
 import { normalizeSettings } from '../shared/petPreferences'
@@ -27,6 +28,7 @@ let lastHealAt = 0
 let petBubble: PetBubbleController | null = null
 let petTimer: PetTimerController | null = null
 let petTray: Tray | null = null
+let trayMenu: TrayMenuController | null = null
 let petHidden = false
 let lastVisible: boolean | null = null
 let finishPetDrag: (() => void) | null = null
@@ -246,22 +248,31 @@ function migrateScreenshotsTo(fromDir: string, toDir: string): void {
 function updateTrayMenu(): void {
   if (!petTray || petTray.isDestroyed()) return
   petTray.setToolTip(`货币战争桌宠${settings.quietMode ? ' · 安静模式' : ''}${recordStartedAt !== null ? ' · 记录中' : ''}`)
-  petTray.setContextMenu(Menu.buildFromTemplate([
-    { label: petHidden ? '显示桌宠' : '暂时收起桌宠', click: () => setPetVisible(petHidden) },
-    { label: '安静模式', type: 'checkbox', checked: settings.quietMode, click: (item) => {
-      try { updateSettings({ quietMode: item.checked }) } catch (error) { console.error('[settings-save]', error); updateTrayMenu() }
-    } },
-    { label: '设置', click: () => createSettingsWindow() },
-    { label: '战绩与待确认记录', click: () => showPanel() },
-    { type: 'separator' },
-    { label: '退出', click: () => app.quit() }
-  ]))
+  // 改用自绘菜单（深蓝金风格），不再使用 Windows 原生白底菜单
+  trayMenu?.update({ petHidden, quietMode: settings.quietMode, recording: recordStartedAt !== null })
 }
 
 function createTray(): void {
   petTray = new Tray(createTrayIcon())
+  // 自绘托盘菜单（替代 Windows 原生白底菜单）
+  trayMenu = new TrayMenuController(preloadPath(), loadPage, onTrayMenuAction)
   petTray.on('double-click', () => setPetVisible(true))
+  // 左键/右键都弹出菜单（原生菜单被替换为自绘窗口）
+  petTray.on('click', () => trayMenu?.show(petTray!))
+  petTray.on('right-click', () => trayMenu?.show(petTray!))
   updateTrayMenu()
+}
+
+/** 处理自绘托盘菜单发出的动作。 */
+function onTrayMenuAction(action: string): void {
+  if (action === 'toggle-pet') { setPetVisible(petHidden); return }
+  if (action === 'toggle-quiet') {
+    try { updateSettings({ quietMode: !settings.quietMode }) } catch (error) { console.error('[tray]', error); updateTrayMenu() }
+    return
+  }
+  if (action === 'open-panel') { showPanel(); return }
+  if (action === 'open-settings') { createSettingsWindow(); return }
+  if (action === 'quit') { app.quit() }
 }
 
 function createPetWindow(): void {
@@ -727,6 +738,15 @@ function setupIpc(): void {
   })
 
   ipcMain.handle('settings:get', () => settings)
+  // —— 自定义托盘菜单 ——
+  ipcMain.handle('tray:state', () => trayMenu?.getState() ?? { petHidden, quietMode: settings.quietMode, recording: recordStartedAt !== null })
+  ipcMain.on('tray:action', (event, action: string) => {
+    // 只接受托盘菜单窗口自己的消息
+    const sender = event.sender
+    if (!sender || sender.isDestroyed() || sender.getURL().includes('tray-menu') === false) return
+    if (action !== 'close') onTrayMenuAction(action)
+    else trayMenu?.hide()
+  })
   ipcMain.handle('settings:set', (_e, patch: Partial<AppSettings>) => updateSettings(patch))
   // 选择截图目录（设置页用）：返回选中路径，用户取消返回 null
   ipcMain.handle('settings:pick-screenshot-dir', async () => {
