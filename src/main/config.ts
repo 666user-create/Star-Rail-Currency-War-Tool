@@ -2,8 +2,7 @@ import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import type { AppSettings } from '@shared/types'
-
-const defaults: AppSettings = { gamePath: '' }
+import { normalizeSettings } from '../shared/petPreferences'
 
 function file(): string {
   return path.join(app.getPath('userData'), 'config.json')
@@ -11,9 +10,9 @@ function file(): string {
 
 export function loadSettings(): AppSettings {
   try {
-    return { ...defaults, ...JSON.parse(fs.readFileSync(file(), 'utf8')) }
+    return normalizeSettings(JSON.parse(fs.readFileSync(file(), 'utf8')))
   } catch {
-    return { ...defaults }
+    return normalizeSettings(null)
   }
 }
 

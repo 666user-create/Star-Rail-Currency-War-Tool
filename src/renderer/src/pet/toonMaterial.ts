@@ -22,13 +22,22 @@ export function createHsrToon(
       warmRamp: { value: warmRamp ?? map },
       hasRamp: { value: hasRamp },
       gain: { value: 1.08 },
+      mouthOpen: { value: 0 },
+      mouthSkinUv: { value: new THREE.Vector2(0.06, 0.90) },
       lightDir: { value: new THREE.Vector3(2, 3.2, 2.4).normalize() }
     },
     vertexShader: `
       varying vec3 vN;
       varying vec2 vUv;
       varying vec3 vV;
+      // 局部绑定层保留静止坐标，口型跟随头部而不随骨架变形漂移。
+      attribute vec3 petRestPosition;
+      attribute float petHeadMask;
+      varying vec3 vPetRest;
+      varying float vPetHead;
       void main() {
+        vPetRest = petRestPosition;
+        vPetHead = petHeadMask;
         vN = normalize(normalMatrix * normal);
         vUv = uv;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
@@ -42,12 +51,33 @@ export function createHsrToon(
       uniform sampler2D warmRamp;
       uniform float hasRamp;
       uniform float gain;
+      uniform float mouthOpen;
+      uniform vec2 mouthSkinUv;
       uniform vec3 lightDir;
       varying vec3 vN;
       varying vec2 vUv;
       varying vec3 vV;
+      varying vec3 vPetRest;
+      varying float vPetHead;
       void main() {
         vec3 base = texture2D(map, vUv).rgb;
+        // 简化嗷呜口型：只替换嘴部的小区域，不复刻眼神、脸颊或原版表情曲线。
+        // 皮肤颜色从本机贴图取样，源码不包含贴图/模型数据。范围位于鼻子下方。
+        if (mouthOpen > 0.001 && vPetHead > 0.5 && vPetRest.z > 0.78) {
+          vec2 lip = vPetRest.xy - vec2(0.0, 0.837);
+          float erase = (1.0 - smoothstep(0.88, 1.0,
+            length(lip / vec2(0.127, 0.030)))) * smoothstep(0.0, 0.22, mouthOpen);
+          base = mix(base, texture2D(map, mouthSkinUv).rgb, erase);
+          vec2 q = lip + vec2(0.0, 0.025 * mouthOpen);
+          vec2 radius = vec2(0.105 - 0.022 * mouthOpen, 0.004 + 0.075 * mouthOpen);
+          float hole = (1.0 - smoothstep(0.90, 1.0, length(q / radius)))
+            * smoothstep(0.0, 0.18, mouthOpen);
+          vec3 inside = vec3(0.105, 0.028, 0.037);
+          float tongue = 1.0 - smoothstep(0.8, 1.0,
+            length((q - vec2(0.0, -radius.y * 0.55)) / (radius * vec2(0.69, 0.38))));
+          inside = mix(inside, vec3(0.76, 0.29, 0.35), tongue * mouthOpen);
+          base = mix(base, inside, hole);
+        }
         vec3 n = normalize(vN);
         vec3 v = normalize(vV);
         // OBJ 重建法线可能朝内：保证法线朝向相机一侧

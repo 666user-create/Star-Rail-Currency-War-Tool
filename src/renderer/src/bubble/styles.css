@@ -1,0 +1,15 @@
+:root { --ink: #3b2f42; font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif; }
+html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; user-select: none; pointer-events: none; }
+.bubble-stack { box-sizing: border-box; width: 100%; padding: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.bubble {
+  position: relative; box-sizing: border-box; max-width: 100%;
+  background: #fff8ea; border: 2px solid var(--ink); border-radius: 14px;
+  padding: 8px 11px; font-size: 13px; line-height: 1.5; color: #2c2434;
+  overflow-wrap: anywhere; box-shadow: 3px 4px 0 rgba(59, 47, 66, 0.25);
+}
+.bubble::after { content: ''; position: absolute; width: 10px; height: 10px; background: #fff8ea; transform: rotate(45deg); }
+.side-right .bubble::after { left: -7px; top: 14px; border-left: 2px solid var(--ink); border-bottom: 2px solid var(--ink); }
+.side-left { align-items: flex-end; }
+.side-left .bubble::after { right: -7px; top: 14px; border-right: 2px solid var(--ink); border-top: 2px solid var(--ink); }
+.side-above .bubble::after { bottom: -7px; left: calc(50% - 6px); border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); }
+.side-below .bubble::after { top: -7px; left: calc(50% - 6px); border-left: 2px solid var(--ink); border-top: 2px solid var(--ink); }

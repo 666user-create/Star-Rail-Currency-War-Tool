@@ -2,10 +2,29 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <title>官方模型预览</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>说怪话动作预览</title>
     <style>
-      html, body { margin: 0; padding: 0; background: #0d1226; overflow: hidden; }
-      #root { width: 300px; height: 340px; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; background: #101522; color: #ece8df; font: 14px/1.6 "Microsoft YaHei UI", sans-serif; }
+      main { max-width: 850px; margin: 30px auto; padding: 0 24px; }
+      header, .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+      header { justify-content: space-between; margin-bottom: 22px; }
+      h1 { font-size: 25px; margin: 0; font-weight: 600; } h2 { font-size: 23px; margin: 0 0 6px; }
+      p { margin: 0; } .eyebrow { color: #b6a078; font-size: 11px; letter-spacing: 2px; margin-bottom: 5px; }
+      .status, .subtle, footer { color: #8e98ac; font-size: 12px; } .status.ready { color: #9fc6a8; }
+      button, input { font: inherit; } button { border: 1px solid #343d50; background: #202939; color: #c6cfdf; border-radius: 8px; padding: 7px 15px; cursor: pointer; }
+      button:hover { border-color: #b9a476; } button.selected, button.primary { background: #d6bd88; border-color: #d6bd88; color: #20212a; } button:disabled { opacity: .4; cursor: wait; }
+      .action-tabs { display: flex; gap: 9px; margin-bottom: 17px; }
+      .viewer { display: flex; gap: 20px; background: #151e2e; border: 1px solid #293348; border-radius: 15px; padding: 12px 20px; justify-content: center; }
+      .stage { position: relative; width: 352px; flex: 0 0 352px; } .stage-label { position: absolute; top: 7px; left: 0; font-size: 11px; color: #748199; }
+      .side { padding: 28px 0 15px; width: 230px; } .side p { color: #a3afc2; font-size: 13px; max-width: 220px; min-height: 65px; } .actual { width: 176px; height: 212px; }
+      .pet3d-holder { position: relative; } canvas { display: block; } .ph-text { position: absolute; left: 10px; right: 10px; top: 40%; padding: 12px; background: #332326; color: #ffc7c2; border-radius: 8px; }
+      .controls { padding: 20px 0 5px; } output { margin-left: auto; color: #bcc5d7; font-variant-numeric: tabular-nums; }
+      .timeline { display: flex; gap: 15px; align-items: center; color: #8e98ac; font-size: 12px; margin: 16px 0; } .timeline input { flex: 1; accent-color: #d6bd88; }
+      input[type=number] { width: 85px; margin-left: 10px; padding: 4px 7px; color: #ece8df; background: #202939; border: 1px solid #343d50; border-radius: 6px; }
+      footer { padding-top: 22px; font-size: 11px; }
+      @media(max-width: 650px) { main { padding: 0 12px; margin: 15px auto; } .viewer { flex-direction: column; align-items: center; padding: 10px 0; } .side { width: 100%; padding: 10px 15px; } .actual, .side>.subtle { display: none; } .side p { min-height: 0; max-width: none; } h1 { font-size: 21px; } }
     </style>
   </head>
   <body>

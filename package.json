@@ -8,7 +8,9 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "preview": "electron-vite preview"
+    "preview": "electron-vite preview",
+    "check": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/pet-animation.test.mjs tests/shot-logger.test.cjs tests/bubble-placement.test.mjs tests/timer-placement.test.mjs tests/pet-preferences.test.mjs tests/pet-render-scheduler.test.mjs tests/ocr-parser.test.mjs tests/recording-store.test.mjs tests/repository.test.mjs tests/recording-validation.test.mjs tests/bond-recognition.test.mjs tests/portrait-matcher.test.mjs tests/atomic-replace.test.mjs"
   },
   "dependencies": {
     "@types/react": "^19.3.0",

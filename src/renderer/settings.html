@@ -7,51 +7,180 @@
     <style>
       * { box-sizing: border-box; }
       body {
-        margin: 0; padding: 20px;
+        margin: 0; padding: 16px; overflow-y: auto;
         background: #0d1226; color: #e8e6f0;
         font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
         font-size: 13px;
       }
-      h3 { margin: 0 0 14px; font-size: 15px; }
-      label { display: block; color: #8b8fa8; font-size: 11.5px; margin-bottom: 4px; }
-      .row { display: flex; gap: 8px; margin-bottom: 14px; }
-      input {
-        flex: 1; background: #1b2240; color: #e8e6f0;
+      h3 { margin: 0 0 12px; font-size: 15px; }
+      fieldset { display: grid; gap: 12px; padding: 0; margin: 0; border: 0; min-width: 0; }
+      .field-label { display: block; color: #a8acc1; font-size: 11.5px; margin-bottom: 6px; }
+      input[type="text"], select {
+        width: 100%; background: #1b2240; color: #e8e6f0;
         border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
         padding: 7px 10px; font-size: 12.5px;
+        font-family: inherit;
       }
+      input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: #e8c476; flex: 0 0 auto; }
+      .check { display: flex; align-items: center; gap: 8px; line-height: 1.5; cursor: pointer; }
+      .quiet { padding: 10px; background: #151c35; border: 1px solid rgba(232,196,118,0.25); border-radius: 9px; }
+      .quiet .hint { margin: 4px 0 0 23px; }
+      .preferences { display: flex; gap: 22px; flex-wrap: wrap; }
+      .frequency { display: flex; align-items: center; gap: 12px; }
+      .frequency label { flex: 0 0 72px; }
+      .frequency select { flex: 1; min-width: 0; }
+      input:disabled, select:disabled { opacity: 0.5; cursor: default; }
       button {
         background: #e8c476; color: #0d1226; font-weight: 700;
         border: none; border-radius: 8px; padding: 7px 16px;
         font-size: 12.5px; cursor: pointer;
       }
-      button.ghost { background: #1b2240; color: #e8e6f0; border: 1px solid rgba(255,255,255,0.12); }
+      button:disabled { opacity: 0.5; cursor: default; }
+      button.ghost { background: #1b2240; color: #e8e6f0; border: 1px solid rgba(255,255,255,0.12); padding: 5px 10px; }
+      .save-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 14px 0 12px; }
       .hint { color: #8b8fa8; font-size: 11px; line-height: 1.6; }
-      .ok { color: #6fcf97; font-size: 12px; margin-left: 8px; }
+      .status { color: #a8acc1; font-size: 12px; line-height: 1.5; }
+      .status.ok { color: #6fcf97; }
+      .status.error { color: #ff9292; }
     </style>
   </head>
   <body>
-    <h3>设置</h3>
-    <label>游戏本体路径（用于「货币战争启动!」按钮）</label>
-    <div class="row">
-      <input id="path" placeholder="例如 D:\Games\Star Rail\StarRail.exe" />
-      <button class="ghost" id="save">保存</button>
-    </div>
+    <h3>桌宠设置</h3>
+    <form id="settings-form">
+      <fieldset id="settings-fields" disabled>
+        <div>
+          <label class="field-label" for="path">游戏本体路径（用于「货币战争启动!」按钮）</label>
+          <input type="text" id="path" placeholder="例如 D:\Games\Star Rail\StarRail.exe" autocomplete="off" />
+        </div>
+        <div class="quiet">
+          <label class="check"><input type="checkbox" id="quiet" />安静模式</label>
+          <div class="hint">暂停主动动作和台词，仍回应点击和记录操作</div>
+        </div>
+        <div>
+          <label class="field-label" for="record-season">新对局的默认赛季（可留空）</label>
+          <input type="text" id="record-season" maxlength="80" placeholder="例如 零和博弈" autocomplete="off" />
+          <div class="hint">仅用于秒表新记录；导入历史截图时单独核对赛季。</div>
+        </div>
+        <div class="preferences">
+          <label class="check"><input type="checkbox" id="idle-animations" checked />待机自动动作</label>
+          <label class="check"><input type="checkbox" id="idle-talk" checked />主动说话</label>
+        </div>
+        <div class="frequency">
+          <label for="activity">活跃频率</label>
+          <select id="activity">
+            <option value="low">低（90–180秒）</option>
+            <option value="normal" selected>适中（40–90秒）</option>
+            <option value="high">高（20–45秒）</option>
+          </select>
+        </div>
+      </fieldset>
+      <div class="save-row">
+        <button id="save" type="submit" disabled>保存设置</button>
+        <span id="status" class="status" role="status" aria-live="polite">正在读取设置…</span>
+        <button id="retry" class="ghost" type="button" hidden>重试</button>
+      </div>
+    </form>
     <div class="hint">
       仅用于启动你本地已安装的游戏；本工具不做任何自动操作。<br />
       © 米哈游版权所有 · 非官方同人作品
     </div>
     <script type="module">
+      const form = document.getElementById('settings-form')
+      const fields = document.getElementById('settings-fields')
       const input = document.getElementById('path')
+      const quiet = document.getElementById('quiet')
+      const recordSeason = document.getElementById('record-season')
+      const idleAnimations = document.getElementById('idle-animations')
+      const idleTalk = document.getElementById('idle-talk')
+      const activity = document.getElementById('activity')
       const save = document.getElementById('save')
-      window.api.getSettings().then((s) => { input.value = s.gamePath || '' })
-      save.addEventListener('click', async () => {
-        await window.api.setSettings({ gamePath: input.value.trim() })
-        const tag = document.createElement('span')
-        tag.className = 'ok'
-        tag.textContent = '已保存 ✓'
-        save.after(tag)
-        setTimeout(() => tag.remove(), 1500)
+      const status = document.getElementById('status')
+      const retry = document.getElementById('retry')
+      let settingsVersion = 0
+      let loaded = false
+      let saving = false
+      let statusTimer
+
+      const showStatus = (text, kind = '') => {
+        clearTimeout(statusTimer)
+        status.textContent = text
+        status.className = `status ${kind}`
+      }
+      const updateControls = () => {
+        fields.disabled = !loaded || saving
+        save.disabled = !loaded || saving
+        idleAnimations.disabled = quiet.checked
+        idleTalk.disabled = quiet.checked
+        activity.disabled = quiet.checked
+      }
+      const applySettings = (settings) => {
+        input.value = settings.gamePath || ''
+        quiet.checked = settings.quietMode === true
+        recordSeason.value = settings.recordSeason || ''
+        idleAnimations.checked = settings.idleAnimations !== false
+        idleTalk.checked = settings.idleTalk !== false
+        activity.value = ['low', 'normal', 'high'].includes(settings.activity) ? settings.activity : 'normal'
+        loaded = true
+        retry.hidden = true
+        updateControls()
+      }
+
+      // 先订阅，再读取：如果读取期间收到了更新，就丢弃旧的读取结果。
+      const unsubscribe = window.api.onSettingsChanged((settings) => {
+        settingsVersion += 1
+        applySettings(settings)
+        if (!saving) showStatus('')
+      })
+      const loadSettings = async () => {
+        const version = settingsVersion
+        retry.hidden = true
+        showStatus('正在读取设置…')
+        try {
+          const settings = await window.api.getSettings()
+          if (version !== settingsVersion) return
+          applySettings(settings)
+          showStatus('')
+        } catch {
+          if (version !== settingsVersion) return
+          showStatus('读取失败，请重试。', 'error')
+          retry.hidden = false
+        }
+      }
+      void loadSettings()
+      retry.addEventListener('click', () => { void loadSettings() })
+      quiet.addEventListener('change', updateControls)
+      form.addEventListener('input', () => {
+        if (loaded && !saving) showStatus('')
+      })
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault()
+        if (!loaded || saving) return
+        saving = true
+        updateControls()
+        showStatus('正在保存…')
+        const version = settingsVersion
+        try {
+          const settings = await window.api.setSettings({
+            gamePath: input.value.trim(),
+            recordSeason: recordSeason.value.trim(),
+            quietMode: quiet.checked,
+            idleAnimations: idleAnimations.checked,
+            idleTalk: idleTalk.checked,
+            activity: activity.value
+          })
+          if (version === settingsVersion) applySettings(settings)
+          showStatus('已保存 ✓', 'ok')
+          statusTimer = setTimeout(() => showStatus(''), 2200)
+        } catch {
+          showStatus('保存失败，请重试。', 'error')
+        } finally {
+          saving = false
+          updateControls()
+        }
+      })
+      window.addEventListener('beforeunload', () => {
+        clearTimeout(statusTimer)
+        unsubscribe()
       })
     </script>
   </body>
