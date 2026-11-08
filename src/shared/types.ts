@@ -31,7 +31,6 @@ export interface ImageRegion { x: number; y: number; width: number; height: numb
 export interface VisionRegions {
   lineup?: ImageRegion
   bonds?: ImageRegion
-  counts?: Array<ImageRegion & { text: string }>
 }
 export interface OcrAnalysis {
   text: string

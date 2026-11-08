@@ -9,7 +9,7 @@ const MAX_ICON_BYTES = 512 * 1024
 interface CachedBond { id: string; name: string; file: string; url: string }
 interface PreparedBonds { templates: CachedBond[]; warnings: string[] }
 export interface BondRecognitionResult {
-  bonds: Array<{ id: string; name: string; count: number | null; score: number }>
+  bonds: Array<{ id: string; name: string; score: number }>
   warnings: string[]
   complete: boolean
 }
@@ -154,5 +154,5 @@ export async function recognizeBonds(imagePath: string, cacheDir: string, region
   // 已移除，改由用户按原图在核对页手填，避免"有的带×有的不带"的困惑。
   const warnings = [...prepared.warnings]
   if (!matches.length) warnings.push('未能可靠识别羁绊图标，请按原图补充羁绊名称。')
-  return { bonds: matches.map(({ id, name, score }) => ({ id, name, count: null, score })), warnings, complete: false }
+  return { bonds: matches.map(({ id, name, score }) => ({ id, name, score })), warnings, complete: false }
 }

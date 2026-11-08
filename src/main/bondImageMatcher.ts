@@ -4,15 +4,13 @@ export interface BondRect { x: number; y: number; width: number; height: number 
 export interface BondRegions {
   bonds?: BondRect
   lineup?: BondRect
-  counts?: Array<BondRect & { text: string }>
 }
 export interface BondTemplate {
   id: string
   name: string
   mask: Float32Array
 }
-export interface BondIconMatch { id: string; name: string; count: number | null; score: number; rect: BondRect }
-export interface BondCountGlyph { width: number; height: number; pixels: string; rect: BondRect }
+export interface BondIconMatch { id: string; name: string; score: number; rect: BondRect }
 
 interface Component extends BondRect { area: number }
 const SIZE = 32
@@ -98,57 +96,7 @@ function normalizedRegion(region: BondRect | undefined, width: number, height: n
   return right > x && bottom > y ? { x, y, width: right - x, height: bottom - y } : null
 }
 
-/** 数量仅接纳图标右下独立数字词；不以角色数量、羁绊层数或文件名推测。 */
-export function bondCountFromWords(rect: BondRect, words: BondRegions['counts']): number | null {
-  if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) || rect.width <= 0 || rect.height <= 0) return null
-  const candidates = (words ?? []).flatMap((word) => {
-    const text = word.text.replace(/\s/g, '')
-    if (!/^\d{1,2}$/.test(text) || ![word.x, word.y, word.width, word.height].every(Number.isFinite) || word.width <= 0 || word.height <= 0) return []
-    const x = word.x + word.width / 2, y = word.y + word.height / 2
-    const dx = (x - rect.x) / rect.width, dy = (y - rect.y) / rect.height
-    if (dx < 0.65 || dx > 1.65 || dy < 0.8 || dy > 1.7 || word.height > rect.height * 0.9) return []
-    const count = Number(text)
-    if (count <= 0 || count > 99) return []
-    return [{ count, distance: (dx - 1.05) ** 2 + (dy - 1.18) ** 2 }]
-  }).sort((a, b) => a.distance - b.distance)
-  if (!candidates.length || (candidates.length > 1 && Math.abs(candidates[1].distance - candidates[0].distance) < 0.03 && candidates[1].count !== candidates[0].count)) return null
-  return candidates[0].count
-}
-
-/** 提取真实图案右下圆圈内的白色数字笔画，不绘制或推测数字。 */
-export function extractBondCountGlyph(image: BondBitmap, rect: BondRect): BondCountGlyph | null {
-  const { width, height, data } = image
-  if (width <= 0 || height <= 0 || data.length !== width * height * 4 || ![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) || rect.width <= 0 || rect.height <= 0) return null
-  const x = rect.x * width, y = rect.y * height, w = rect.width * width, h = rect.height * height
-  const left = Math.max(0, Math.round(x + w * 0.6)), top = Math.max(0, Math.round(y + h * 0.7))
-  const right = Math.min(width, Math.round(x + w * 1.7)), bottom = Math.min(height, Math.round(y + h * 1.75))
-  const cw = right - left, ch = bottom - top
-  if (cw < 5 || ch < 8 || cw > 180 || ch > 180) return null
-  const mask = new Uint8Array(cw * ch)
-  for (let py = 0; py < ch; py++) for (let px = 0; px < cw; px++) {
-    const i = ((top + py) * width + left + px) * 4
-    if (Math.min(data[i], data[i + 1], data[i + 2]) > 185 && data[i + 3] > 128) mask[py * cw + px] = 1
-  }
-  const parts = components(mask, cw, ch, { x: 0, y: 0, width: cw, height: ch }).filter((part) => {
-    const centerY = top + part.y + part.height / 2
-    return part.height >= Math.max(8, h * 0.23) && part.height <= h * 0.8 && part.width <= h * 0.9 && centerY > y + h * 0.87 && centerY < y + h * 1.65
-  }).map((part) => ({ ...part, distance: ((left + part.x + part.width / 2 - x - w * 1.05) / h) ** 2 + ((top + part.y + part.height / 2 - y - h * 1.18) / h) ** 2 })).sort((a, b) => a.distance - b.distance)
-  const seed = parts[0]
-  if (!seed || seed.distance > 0.25) return null
-  const picked = parts.filter((part) => Math.abs(part.y + part.height - seed.y - seed.height) < h * 0.16 && part.height > seed.height * 0.65 && part.height < seed.height * 1.4 && Math.abs(part.x + part.width / 2 - seed.x - seed.width / 2) < h * 0.7)
-  if (!picked.length || picked.length > 2) return null
-  const bx = Math.min(...picked.map((part) => part.x)), by = Math.min(...picked.map((part) => part.y))
-  const br = Math.max(...picked.map((part) => part.x + part.width)), bb = Math.max(...picked.map((part) => part.y + part.height))
-  const glyphWidth = br - bx, glyphHeight = bb - by
-  if (glyphHeight < 8 || glyphWidth / glyphHeight < 0.1 || glyphWidth / glyphHeight > 1.7) return null
-  let pixels = '', ink = 0
-  for (let py = by; py < bb; py++) for (let px = bx; px < br; px++) {
-    const on = mask[py * cw + px] && picked.some((part) => px >= part.x && py >= part.y && px < part.x + part.width && py < part.y + part.height)
-    pixels += on ? '1' : '0'; if (on) ink++
-  }
-  if (ink < 12 || ink / pixels.length < 0.12 || ink / pixels.length > 0.85) return null
-  return { width: glyphWidth, height: glyphHeight, pixels, rect: { x: (left + bx) / width, y: (top + by) / height, width: glyphWidth / width, height: glyphHeight / height } }
-}
+/** 数量识别已移除：羁绊只输出名称，数量由用户按原图手填。 */
 
 export function matchBondIcons(image: BondBitmap, templates: BondTemplate[], regions: BondRegions = {}): BondIconMatch[] {
   const { width, height, data } = image
@@ -182,7 +130,7 @@ export function matchBondIcons(image: BondBitmap, templates: BondTemplate[], reg
     const best = scores[0], runner = scores[1]?.score ?? 0
     if (best.score < 0.76 || best.score - runner < 0.045) continue
     const rect = { x: crop.x / width, y: crop.y / height, width: crop.width / width, height: crop.height / height }
-    possible.push({ id: best.template.id, name: best.template.name, score: Number(best.score.toFixed(4)), rect, count: null })
+    possible.push({ id: best.template.id, name: best.template.name, score: Number(best.score.toFixed(4)), rect })
   }
   // 同行的多个菱形徽章才构成羁绊栏，避免把装备、正文字符或策略图标当成羁绊。
   const groups = possible.map((anchor) => possible.filter((candidate) => Math.abs((candidate.rect.y + candidate.rect.height / 2) - (anchor.rect.y + anchor.rect.height / 2)) < Math.max(anchor.rect.height, candidate.rect.height) * 0.42))
@@ -220,7 +168,7 @@ export function matchBondIcons(image: BondBitmap, templates: BondTemplate[], reg
         const best = scores[0]
         if (best.score < 0.79 || best.score - (scores[1]?.score ?? 0) < 0.06 || (found && found.score >= best.score)) continue
         const rect = { x: (left + crop.x) / width, y: (top + crop.y) / height, width: crop.width / width, height: crop.height / height }
-        found = { id: best.template.id, name: best.template.name, score: Number(best.score.toFixed(4)), rect, count: null }
+        found = { id: best.template.id, name: best.template.name, score: Number(best.score.toFixed(4)), rect }
       }
       if (found) group.push(found)
     }
