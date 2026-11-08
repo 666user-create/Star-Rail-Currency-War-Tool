@@ -20,3 +20,5 @@ docs/refs/
 
 # 本机数据（截图等），不入库
 data/
+release/
+build/icon-256.png
