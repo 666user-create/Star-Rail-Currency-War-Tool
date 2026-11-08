@@ -217,10 +217,6 @@ export default function App() {
         <div className="tile"><div className="tile-num">{overview?.avgSquadHp != null ? Math.round(overview.avgSquadHp) : '—'}</div><div className="tile-label">平均血量 · 已知 {overview?.knownSquadHpGames ?? 0} 局</div></div>
         <div className="tile"><div className="tile-num win">{overview?.bestWinStreak ?? '—'}</div><div className="tile-label">最长连胜</div></div>
         <div className="tile"><div className="tile-num loss">{overview?.bestLossStreak ?? '—'}</div><div className="tile-label">最长连败</div></div>
-        <div className="tile highlight">
-          <div className="tile-num gold">{overview?.maxRankGames && overview.knownDurationGames ? overview.maxRankHours.toFixed(1) : '—'}<small>时 / {overview?.maxRankGames ?? '—'}局</small></div>
-          <div className="tile-label">有职级提升的对局 · 仅已知时长</div>
-        </div>
       </div>
       <div className="duration-note">已知时长 {overview?.knownDurationGames ?? 0} 局，未知 {overview?.unknownDurationGames ?? 0} 局；总时长仅计已知，平均仅计有时长的已确认胜负局。「待核实」不计胜负。</div>
       {error && <div className="inline-error panel-message" role="alert">{error}<button className="tb-btn" onClick={() => void reload()}>重试</button></div>}

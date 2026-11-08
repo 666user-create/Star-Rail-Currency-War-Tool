@@ -90,8 +90,6 @@ test('所有统计排除演示，未知时长不当0计平均/直方图，未知
   assert.equal(overview.unknownDurationGames, 1)
   assert.equal(overview.bestWinStreak, 1)
   assert.equal(overview.bestLossStreak, 1)
-  assert.equal(overview.maxRankGames, 1)
-  assert.equal(overview.maxRankHours, 1 / 6)
   assert.deepEqual(repository.lineupStats(), [{ lineup: '追击', games: 2, wins: 1, winRate: 0.5 }])
   assert.deepEqual(repository.rankCurve(), [{ time: 601000, cumulative: 3 }])
   assert.deepEqual(repository.durationHistogram().map((bucket) => bucket.count), [0, 1, 0, 0, 0, 0])

@@ -65,8 +65,6 @@ export interface OverviewStats {
   avgDurationSec: number | null
   bestWinStreak: number
   bestLossStreak: number
-  maxRankHours: number
-  maxRankGames: number
   knownDurationGames: number
   unknownDurationGames: number
   /** 平均小队生命值（仅统计已填写血量的对局；无则 null） */
