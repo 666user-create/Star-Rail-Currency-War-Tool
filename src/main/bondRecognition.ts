@@ -2,9 +2,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { execFile } from 'node:child_process'
-import bondCountsAsset from '../../scripts/bond-counts.ps1?asset'
-import { createBondTemplate, extractBondCountGlyph, matchBondIcons, type BondBitmap, type BondRegions, type BondTemplate, type BondIconMatch } from './bondImageMatcher'
+import { createBondTemplate, matchBondIcons, type BondBitmap, type BondRegions, type BondTemplate } from './bondImageMatcher'
 
 const CONFIG_URL = 'https://sg-act-public-api.hoyolab.com/event/rpgcurrencywar/game/config?game=hkrpg'
 const MAX_ICON_BYTES = 512 * 1024
@@ -16,48 +14,6 @@ export interface BondRecognitionResult {
   complete: boolean
 }
 const preparing = new Map<string, Promise<PreparedBonds>>()
-const countHelpers = new Map<string, Promise<string>>()
-
-function countHelper(directory: string): Promise<string> {
-  const previous = countHelpers.get(directory)
-  if (previous) return previous
-  const pending = (async () => {
-    await fs.mkdir(directory, { recursive: true })
-    const helper = path.join(directory, 'bond-counts.ps1')
-    const source = await fs.readFile(bondCountsAsset, 'utf8')
-    await atomicFile(helper, '\uFEFF' + source.replace(/^\uFEFF/, ''))
-    return helper
-  })().catch((error) => { countHelpers.delete(directory); throw error })
-  countHelpers.set(directory, pending)
-  return pending
-}
-
-async function readCountGlyphs(bitmap: BondBitmap, matches: BondIconMatch[], cacheDir: string): Promise<Map<string, number>> {
-  if (process.platform !== 'win32') return new Map()
-  const glyphs = matches.slice(0, 24).flatMap((match) => {
-    const glyph = extractBondCountGlyph(bitmap, match.rect)
-    return glyph ? [{ id: match.id, width: glyph.width, height: glyph.height, pixels: glyph.pixels }] : []
-  })
-  if (!glyphs.length) return new Map()
-  const directory = path.join(path.resolve(cacheDir), 'count-helper')
-  const helper = await countHelper(directory)
-  const input = path.join(directory, `${randomUUID()}.json`)
-  try {
-    await fs.writeFile(input, JSON.stringify(glyphs), { flag: 'wx' })
-    const executable = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-    const stdout = await new Promise<string>((resolve, reject) => {
-      execFile(executable, ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', helper, '-InputPath', input],
-        { windowsHide: true, timeout: 12_000, encoding: 'utf8', maxBuffer: 128 * 1024 }, (error, output) => error ? reject(error) : resolve(output))
-    })
-    const result: unknown = JSON.parse(stdout.replace(/^\uFEFF/, '').trim())
-    if (!result || typeof result !== 'object' || !('ok' in result) || result.ok !== true || !('counts' in result) || !Array.isArray(result.counts)) throw new Error('本地羁绊数字增强未完成')
-    const allowed = new Set(glyphs.map((glyph) => glyph.id)), counts = new Map<string, number>()
-    for (const item of result.counts) {
-      if (item && typeof item.id === 'string' && allowed.has(item.id) && Number.isInteger(item.count) && item.count > 0 && item.count <= 99) counts.set(item.id, item.count)
-    }
-    return counts
-  } finally { await fs.unlink(input).catch(() => {}) }
-}
 
 function safeIconUrl(value: unknown): value is string {
   if (typeof value !== 'string') return false
@@ -194,17 +150,9 @@ export async function recognizeBonds(imagePath: string, cacheDir: string, region
   }
   const bitmap: BondBitmap = { ...size, data: screenshot.toBitmap() }
   const matches = matchBondIcons(bitmap, templates, regions)
+  // 只输出羁绊名称：数量识别（图标角落小数字）成功率低且需额外 PowerShell 链路，
+  // 已移除，改由用户按原图在核对页手填，避免"有的带×有的不带"的困惑。
   const warnings = [...prepared.warnings]
-  if (matches.length) {
-    try {
-      const counts = await readCountGlyphs(bitmap, matches, cacheDir)
-      for (const match of matches) {
-        const enhanced = counts.get(match.id)
-        if (enhanced == null) continue
-        if (match.count != null && match.count !== enhanced) { match.count = null; warnings.push('部分羁绊数量的识别结果不一致，已留空，请对照原图核对。') }
-        else match.count = enhanced
-      }
-    } catch { warnings.push('羁绊数字增强未完成，图标名称已保留，可手动补充数量。') }
-  }
-  return { bonds: matches.map(({ id, name, count, score }) => ({ id, name, count, score })), warnings, complete: false }
+  if (!matches.length) warnings.push('未能可靠识别羁绊图标，请按原图补充羁绊名称。')
+  return { bonds: matches.map(({ id, name, score }) => ({ id, name, count: null, score })), warnings, complete: false }
 }
