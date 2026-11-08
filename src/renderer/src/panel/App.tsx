@@ -178,6 +178,11 @@ export default function App() {
       {/* 标题栏（可拖动窗口） */}
       <div className="titlebar">
         <div className="title">
+          {/* 统一图标：金色圆角方框 + 中心菱形 */}
+          <svg className="title-logo" viewBox="0 0 100 100" role="img" aria-label="货币战争桌宠">
+            <rect x="8" y="8" width="84" height="84" rx="22" fill="none" stroke="currentColor" strokeWidth="8" />
+            <path d="M50 28 L66 50 L50 72 L34 50 Z" fill="currentColor" />
+          </svg>
           货币战争作战记录
           <span className="season-chip">本地记录</span>
         </div>

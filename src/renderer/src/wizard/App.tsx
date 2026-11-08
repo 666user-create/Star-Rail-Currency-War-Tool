@@ -3,10 +3,14 @@ import React, { useEffect, useState } from 'react'
 type ProgressEvent = { line: string; percent: number }
 
 export default function App() {
+  // 浏览器直接打开预览页时没有 preload，用演示状态渲染，便于视觉自查
+  const hasApi = typeof window !== 'undefined' && !!window.api
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
-  const [gamePath, setGamePath] = useState('')
-  const [screenshotDir, setScreenshotDir] = useState('')
-  const [detected, setDetected] = useState<{ path: string | null; message: string } | null>(null)
+  const [gamePath, setGamePath] = useState(hasApi ? '' : 'D:\\Star Rail')
+  const [screenshotDir, setScreenshotDir] = useState(hasApi ? '' : 'D:\\Star Rail Currency War Tool\\data\\screenshots')
+  const [detected, setDetected] = useState<{ path: string | null; message: string } | null>(
+    hasApi ? null : { path: 'D:\\Star Rail', message: '已找到：D:\\Star Rail' }
+  )
   const [detecting, setDetecting] = useState(false)
   const [extracting, setExtracting] = useState(false)
   const [percent, setPercent] = useState(0)
@@ -16,20 +20,23 @@ export default function App() {
 
   // 打开时自动探测游戏路径
   useEffect(() => {
+    if (!hasApi) return
     void detect()
     void window.api.currentScreenshotDir().then(setScreenshotDir).catch(() => {})
-  }, [])
+  }, [hasApi])
 
   // 订阅解包进度
   useEffect(() => {
+    if (!hasApi) return
     const off = window.api.onWizardProgress((event: ProgressEvent) => {
       setPercent(event.percent)
       setLogLines((prev) => [...prev.slice(-120), event.line])
     })
     return off
-  }, [])
+  }, [hasApi])
 
   const detect = async () => {
+    if (!hasApi) return
     setDetecting(true)
     setError('')
     try {
@@ -42,17 +49,20 @@ export default function App() {
   }
 
   const pickGame = async () => {
+    if (!hasApi) return
     const picked = await window.api.pickGamePath()
     if (picked) setGamePath(picked)
   }
 
   const pickScreenshot = async () => {
+    if (!hasApi) return
     const picked = await window.api.pickScreenshotDir()
     if (picked) setScreenshotDir(picked)
   }
 
   const startExtract = async () => {
     setStep(3)
+    if (!hasApi) { setPercent(55); setLogLines(['[game] D:\\Star Rail', '[asb ] ...Asb\\Windows', '[mesh] 定位 21 个 CAB']); return }
     setExtracting(true)
     setError('')
     setLogLines([])
@@ -67,7 +77,7 @@ export default function App() {
   }
 
   const finish = async () => {
-    await window.api.completeWizard({ gamePath, screenshotDir })
+    if (hasApi) await window.api.completeWizard({ gamePath, screenshotDir })
     window.close()
   }
 
@@ -77,7 +87,11 @@ export default function App() {
     <div className="wizard">
       <header className="wizard-head">
         <div className="brand">
-          <span className="logo">◆</span>
+          {/* 统一图标：金色圆角方框 + 中心菱形 */}
+          <svg className="logo" viewBox="0 0 100 100" role="img" aria-label="货币战争桌宠">
+            <rect x="8" y="8" width="84" height="84" rx="22" fill="none" stroke="currentColor" strokeWidth="8" />
+            <path d="M50 28 L66 50 L50 72 L34 50 Z" fill="currentColor" />
+          </svg>
           <div>
             <h1>货币战争桌宠</h1>
             <p>首次设置 · 大约 1 分钟</p>

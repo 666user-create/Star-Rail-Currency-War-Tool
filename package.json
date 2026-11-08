@@ -52,6 +52,11 @@
         "from": "python-embed",
         "to": "python-embed",
         "filter": ["**/*"]
+      },
+      {
+        "from": "assets/tray",
+        "to": "tray",
+        "filter": ["**/*"]
       }
     ],
     "win": {

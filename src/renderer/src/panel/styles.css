@@ -42,7 +42,8 @@ body {
   margin-bottom: 12px;
   flex-shrink: 0;
 }
-.title { font-size: 17px; font-weight: 700; letter-spacing: 1px; }
+.title { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 700; letter-spacing: 1px; }
+.title-logo { width: 22px; height: 22px; flex: 0 0 auto; color: var(--gold); }
 .season-chip {
   margin-left: 10px;
   font-size: 11px;

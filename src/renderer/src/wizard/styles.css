@@ -26,9 +26,8 @@ body {
 }
 .brand { display: flex; align-items: center; gap: 12px; }
 .logo {
-  width: 38px; height: 38px; display: grid; place-items: center;
-  border: 2px solid var(--gold); border-radius: 8px;
-  color: var(--gold); font-size: 18px;
+  width: 38px; height: 38px; flex: 0 0 auto;
+  color: var(--gold);
 }
 .brand h1 { margin: 0; font-size: 17px; letter-spacing: 0.5px; }
 .brand p { margin: 2px 0 0; font-size: 11px; color: var(--muted); }
