@@ -129,6 +129,30 @@ export default function App() {
     } catch (reason) { setError(errorText(reason, '导入截图失败，请重试。')) }
     finally { setImporting(false) }
   }
+  // 剪贴板粘贴导入：Win+Shift+S 截好结算图 → 面板 Ctrl+V / 点"粘贴截图"直达草稿
+  const pasteClipboard = async () => {
+    if (importing) return
+    setImporting(true)
+    setError('')
+    setNotice('')
+    try {
+      const draft = await window.api.importClipboardImage()
+      if (draft) { updateDraft(draft); setSelectedDraftId(draft.id); setNotice('已从剪贴板导入截图，请核对后确认。') }
+      else setError('剪贴板里没有图片。请先用截图工具（如 Win+Shift+S）截好结算画面。')
+    } catch (reason) { setError(errorText(reason, '粘贴导入失败，请重试。')) }
+    finally { setImporting(false) }
+  }
+  useEffect(() => {
+    const onPaste = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
+        if (event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA'].includes(event.target.tagName)) return
+        event.preventDefault()
+        void pasteClipboard()
+      }
+    }
+    window.addEventListener('keydown', onPaste)
+    return () => window.removeEventListener('keydown', onPaste)
+  }, [])
 
   const selectedDraft = drafts.find((draft) => draft.id === selectedDraftId)
   const winRate = overview && overview.wins + overview.losses > 0 ? `${Math.round(overview.winRate * 100)}%` : '—'
@@ -143,11 +167,13 @@ export default function App() {
         </div>
         <div className="title-actions">
           <button className="primary-btn" disabled={importing} onClick={() => void importScreenshot()}>{importing ? '正在导入…' : '导入结算截图'}</button>
+          <button className="tb-btn" disabled={importing} title="从剪贴板粘贴截图（Ctrl+V）" onClick={() => void pasteClipboard()}>粘贴截图</button>
           <button className="tb-btn" onClick={() => void reload()}>刷新</button>
           <button className="tb-btn close" aria-label="关闭面板" onClick={() => window.close()}>✕</button>
         </div>
       </div>
 
+      <p className="capture-hint">自助添加：游戏结算画面用 Win+Shift+S 截图，回到面板 Ctrl+V（或点「粘贴截图」）即进入核对。</p>
       <p className="capture-hint">Ctrl+Shift+F8 开始/结束计时（若快捷键未被占用）。结束后截图会进入待确认草稿。</p>
       <p className="capture-hint">首次识别会缓存公开角色与羁绊图标，后续在本机比对，截图不上传。</p>
 

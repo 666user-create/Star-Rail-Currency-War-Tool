@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, powerMonitor, screen, shell, Tray } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, powerMonitor, screen, shell, Tray } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { Repository } from './repository'
@@ -10,7 +10,7 @@ import { normalizeSettings } from '../shared/petPreferences'
 import { validateDraftInput } from '../shared/recordingValidation'
 import { RecordingStore } from './recordingStore'
 import { recognizeRecord } from './recognizeRecord'
-import { captureDisplay, importScreenshotFile, screenshotDataUrl } from './recordingCapture'
+import { captureDisplay, importScreenshotBytes, importScreenshotFile, screenshotDataUrl } from './recordingCapture'
 import type { AppSettings, DraftInput, Match, PetBubbleContent, RecordingChange, RecordingDraft, RecordFields } from '@shared/types'
 
 let petWindow: BrowserWindow | null = null
@@ -440,6 +440,23 @@ async function chooseScreenshot(): Promise<string | null> {
   return result.canceled || !result.filePaths[0] ? null : importScreenshotFile(result.filePaths[0], screenshotDirectory())
 }
 
+async function readClipboardImage(): Promise<string | null> {
+  const items = await clipboard.read()
+  for (const item of items) {
+    const imageType = item.types.find((type) => type === 'image/png' || type === 'image/jpeg' || type.startsWith('image/'))
+    if (!imageType) continue
+    try {
+      const blob = await item.getType(imageType)
+      if (blob instanceof Blob) {
+        const bytes = Buffer.from(await blob.arrayBuffer())
+        const extension = imageType === 'image/jpeg' ? '.jpg' : '.png'
+        return importScreenshotBytes(bytes, extension, screenshotDirectory())
+      }
+    } catch { /* 尝试下一个条目 */ }
+  }
+  return null
+}
+
 function setupIpc(): void {
   ipcMain.handle('record:list', (_e, limit?: number) => repo.list(limit))
   ipcMain.handle('record:get', (_e, id: number) => repo.byId(id))
@@ -470,6 +487,20 @@ function setupIpc(): void {
     const draft = recordingStore.createImport()
     recordingStore.update(draft.id, { screenshotPath })
     return runDraftJob(draft.id, () => recognizeDraft(draft.id))
+  })
+  // 剪贴板粘贴导入：Win+Shift+S 截好结算图后，面板里 Ctrl+V 直达草稿核对
+  panelHandle('draft:paste', async () => {
+    const screenshotPath = await readClipboardImage()
+    if (!screenshotPath) return null
+    const existing = recordingStore.list().find(draft => draft.screenshotPath === screenshotPath && !repo.byDraftId(draft.id))
+    if (existing) return existing
+    const draft = recordingStore.createImport()
+    recordingStore.update(draft.id, { screenshotPath })
+    return runDraftJob(draft.id, () => recognizeDraft(draft.id))
+  })
+  panelHandle('draft:can-paste', async () => {
+    const items = await clipboard.read()
+    return items.some((item) => item.types.some((type) => type.startsWith('image/')))
   })
   panelHandle('draft:recognize', (id: string) => runDraftJob(id, () => recognizeDraft(id)))
   panelHandle('draft:replace', (id: string) => runDraftJob(id, async () => {

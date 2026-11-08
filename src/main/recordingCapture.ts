@@ -26,6 +26,11 @@ function storeImage(bytes: Buffer, extension: string, directory: string): string
   return destination
 }
 
+/** 从字节导入截图（剪贴板等来源）；返回入库路径。 */
+export function importScreenshotBytes(bytes: Buffer, extension: string, directory: string): string {
+  return storeImage(bytes, extension, directory)
+}
+
 export async function importScreenshotFile(sourcePath: string, directory: string): Promise<string> {
   const extension = path.extname(sourcePath).toLowerCase()
   if (!['.png', '.jpg', '.jpeg', '.webp'].includes(extension)) throw new Error('请选择PNG、JPG或WebP截图')

@@ -149,6 +149,8 @@ export interface PetApi {
   recordEnd(): Promise<RecordingDraft | null>
   listDrafts(): Promise<RecordingDraft[]>
   importScreenshot(): Promise<RecordingDraft | null>
+  importClipboardImage(): Promise<RecordingDraft | null>
+  canPasteImage(): Promise<boolean>
   recognizeDraft(id: string): Promise<RecordingDraft>
   replaceDraftScreenshot(id: string): Promise<RecordingDraft>
   captureDraft(id: string): Promise<RecordingDraft>
