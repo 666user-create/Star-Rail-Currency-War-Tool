@@ -22,6 +22,7 @@ const api: PetApi = {
   replaceDraftWithClipboard: (id: string) => ipcRenderer.invoke('draft:replace-paste', id),
   captureDraft: (id: string) => ipcRenderer.invoke('draft:capture', id),
   confirmDraft: (id: string, input: DraftInput) => ipcRenderer.invoke('draft:confirm', id, input),
+  updateMatch: (id: number, input: DraftInput) => ipcRenderer.invoke('record:update', id, input),
   discardDraft: (id: string) => ipcRenderer.invoke('draft:discard', id),
   draftScreenshot: (id: string) => ipcRenderer.invoke('draft:image', id),
   matchScreenshot: (id: number) => ipcRenderer.invoke('record:image', id),

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { BondStat, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint, RecordingDraft } from '@shared/types'
 import ReviewDraft, { errorText, RESULT_LABEL, ScreenshotPreview } from './ReviewDraft'
+import EditMatch from './EditMatch'
 
 function fmtDur(sec: number | null): string {
   if (sec == null) return '未知'
@@ -82,6 +83,7 @@ export default function App() {
   const [hours, setHours] = useState<HourBucket[]>([])
   const [tab, setTab] = useState<'lineup' | 'bond' | 'rank' | 'duration' | 'hour'>('lineup')
   const [detail, setDetail] = useState<Match | null>(null)
+  const [editing, setEditing] = useState(false)
   const [drafts, setDrafts] = useState<RecordingDraft[]>([])
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
@@ -212,7 +214,7 @@ export default function App() {
           <div className="card-title">正式记录 <span className="muted">（点行查看详情与原图）</span></div>
           <div className="match-list">
             {matches.map((m) => (
-              <button type="button" key={m.id} className={`match-row r-${m.result}`} onClick={() => setDetail(m)}>
+              <button type="button" key={m.id} className={`match-row r-${m.result}`} onClick={() => { setDetail(m); setEditing(false) }}>
                 <span className="m-time">{fmtTime(m.startedAt ?? m.endedAt)}</span>
                 <span className={`m-badge b-${m.result}`}>{RESULT_LABEL[m.result]}</span>
                 <span className="m-dur">{fmtDur(m.durationSec)}</span>
@@ -249,12 +251,20 @@ export default function App() {
 
       {/* 单局详情 */}
       {detail && (
-        <div className="modal-mask" onClick={() => setDetail(null)}>
+        <div className="modal-mask" onClick={() => { setDetail(null); setEditing(false) }}>
           <div className="modal detail-modal" role="dialog" aria-modal="true" aria-label="对局详情" onClick={(e) => e.stopPropagation()}>
             <div className="modal-title">
               第 {detail.id} 局 · {fmtTime(detail.endedAt)}
-              <button className="tb-btn close" onClick={() => setDetail(null)}>✕</button>
+              <div className="title-actions">
+                <button className="tb-btn" onClick={() => setEditing(true)} disabled={editing}>修改</button>
+                <button className="tb-btn close" onClick={() => setDetail(null)}>✕</button>
+              </div>
             </div>
+            {editing ? (
+              <div className="detail-body">
+                <EditMatch match={detail} onCancel={() => setEditing(false)} onSaved={async (saved) => { setEditing(false); setDetail(saved); setNotice('修改已保存。'); await reload() }} />
+              </div>
+            ) : (
             <div className="detail-body"><div className="modal-grid">
               <div><label>结果</label><span className={`b-${detail.result}`}>{RESULT_LABEL[detail.result]}</span></div>
               <div><label>时长</label>{fmtDur(detail.durationSec)}</div>
@@ -270,6 +280,7 @@ export default function App() {
               <div className="span2"><label>羁绊</label>{detail.bonds.join(' · ') || '—'}</div>
               <div className="span2"><label>备注</label>{detail.note ?? '—'}</div>
             </div><ScreenshotPreview key={detail.id} matchId={detail.id} /></div>
+            )}
           </div>
         </div>
       )}

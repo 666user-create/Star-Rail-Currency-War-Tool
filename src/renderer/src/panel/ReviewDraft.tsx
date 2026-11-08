@@ -44,7 +44,8 @@ const initialForm = (draft: RecordingDraft) => ({
   result: draft.fields.result,
   endedAt: localDateTime(draft.endedAt),
   durationUnknown: draft.durationSec == null,
-  durationSec: draft.durationSec == null ? '' : String(draft.durationSec),
+  // 时长按分钟展示输入（内部仍存秒）；有秒余数时保留小数一位，便于核对
+  durationMin: draft.durationSec == null ? '' : String(Math.round((draft.durationSec / 60) * 10) / 10),
   mode: draft.fields.mode ?? '',
   rankBefore: draft.fields.rankBefore ?? '',
   rankAfter: draft.fields.rankAfter ?? '',
@@ -117,11 +118,13 @@ export default function ReviewDraft({ draft, onClose, onUpdate, onSaved, onDisca
     if (locked) return
     setError('')
     const endedAt = new Date(form.endedAt).getTime()
-    const duration = form.durationUnknown ? null : Number(form.durationSec)
+    const durationMin = form.durationUnknown ? null : Number(form.durationMin)
+    // 内部统一存秒；分钟输入换算成秒（允许一位小数分钟）
+    const duration = durationMin === null ? null : Math.round(durationMin * 60)
     const rankChange = form.rankChange.trim() ? Number(form.rankChange) : null
     const squadHp = form.squadHp.trim() ? Number(form.squadHp) : null
     if (!Number.isFinite(endedAt)) { setError('请填写有效的结束时间。'); return }
-    if (duration !== null && (!form.durationSec.trim() || !Number.isInteger(duration) || duration < 0)) { setError('时长请填写非负整数秒，或勾选「时长未知」。'); return }
+    if (duration !== null && (!form.durationMin.trim() || !Number.isFinite(durationMin as number) || (durationMin as number) < 0)) { setError('时长请填写非负分钟数，或勾选「时长未知」。'); return }
     if (rankChange !== null && !Number.isInteger(rankChange)) { setError('段位变化请填写整数，可为负数；未知时留空。'); return }
     if (squadHp !== null && (!Number.isInteger(squadHp) || squadHp < 0)) { setError('队伍生命请填写非负整数；未知时留空。'); return }
     const input: DraftInput = {
@@ -171,7 +174,7 @@ export default function ReviewDraft({ draft, onClose, onUpdate, onSaved, onDisca
             <label>玩法模式<select value={form.mode} onChange={(event) => edit('mode', event.target.value)}><option value="">未知</option><option value="standard">标准博弈</option><option value="overclock">超频博弈</option></select></label>
             <label className="span2">结束时间<input type="datetime-local" step="1" value={form.endedAt} onChange={(event) => edit('endedAt', event.target.value)} required /></label>
             {draft.startedAt == null && <p className="field-hint span2 imported-time-hint">导入时间已暂填，请按实际对局时间修改。</p>}
-            <div className="span2 duration-field"><label className="check-field"><input type="checkbox" checked={form.durationUnknown} onChange={(event) => edit('durationUnknown', event.target.checked)} />时长未知</label><label>本局时长（秒）<input type="number" min="0" step="1" value={form.durationSec} disabled={form.durationUnknown} onChange={(event) => edit('durationSec', event.target.value)} placeholder="未知时不必估算" /></label><p className="field-hint">导入截图通常无法还原时长，未知时长不参与总时长和平均时长统计。</p></div>
+            <div className="span2 duration-field"><label className="check-field"><input type="checkbox" checked={form.durationUnknown} onChange={(event) => edit('durationUnknown', event.target.checked)} />时长未知</label><label>本局时长（分钟）<input type="number" min="0" step="0.1" value={form.durationMin} disabled={form.durationUnknown} onChange={(event) => edit('durationMin', event.target.value)} placeholder="如 12.5；未知时不必估算" /></label><p className="field-hint">按分钟填写；导入截图通常无法还原时长，未知时长不参与总时长和平均时长统计。</p></div>
             <label>结算前段位<input value={form.rankBefore} onChange={(event) => edit('rankBefore', event.target.value)} placeholder="未知可留空" /></label>
             <label>结算后段位<input value={form.rankAfter} onChange={(event) => edit('rankAfter', event.target.value)} placeholder="未知可留空" /></label>
             <label>段位变化<input type="number" step="1" value={form.rankChange} onChange={(event) => edit('rankChange', event.target.value)} placeholder="例如 +1 / +2 / +3" /></label>

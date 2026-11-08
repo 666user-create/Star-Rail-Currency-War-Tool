@@ -173,6 +173,8 @@ export interface PetApi {
   replaceDraftWithClipboard(id: string): Promise<RecordingDraft>
   captureDraft(id: string): Promise<RecordingDraft>
   confirmDraft(id: string, input: DraftInput): Promise<Match>
+  /** 修改已保存的战绩（落子无悔取消） */
+  updateMatch(id: number, input: DraftInput): Promise<Match>
   discardDraft(id: string): Promise<void>
   draftScreenshot(id: string): Promise<string | null>
   matchScreenshot(id: number): Promise<string | null>

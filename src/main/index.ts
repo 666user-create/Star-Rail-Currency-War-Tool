@@ -585,6 +585,14 @@ function setupIpc(): void {
     return match
   })
 
+  panelHandle('record:update', (id: number, input: DraftInput) => {
+    const { endedAt, durationSec, ...fields } = validateDraftInput(input)
+    const match = repo.update(id, { ...fields, endedAt, durationSec,
+      startedAt: durationSec === null ? null : endedAt - durationSec * 1000 })
+    publishRecords()
+    return match
+  })
+
   ipcMain.handle('game:launch', () => {
     if (!settings.gamePath) return false
     try {

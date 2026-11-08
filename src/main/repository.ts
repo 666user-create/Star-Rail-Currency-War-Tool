@@ -164,6 +164,22 @@ export class Repository {
     })
   }
 
+  /** 更新已有战绩的可编辑字段（不新增、不改 id）。截图与来源保持不变。 */
+  update(id: number, match: Omit<Match, 'id' | 'screenshotPath' | 'source' | 'confidence' | 'draftId'> & { source?: Match['source'] }): Match {
+    const existing = this.byId(id)
+    if (!existing) throw new Error('这条战绩不存在，可能已被删除。')
+    if (!Number.isFinite(match.endedAt) || (match.startedAt !== null && !Number.isFinite(match.startedAt)) ||
+      (match.durationSec !== null && (!Number.isFinite(match.durationSec) || match.durationSec < 0))) throw new Error('记录时间无效。')
+    return this.commit((database) => {
+      database.run(`UPDATE matches SET started_at=?, ended_at=?, duration_sec=?, result=?, lineup_json=?, bonds_json=?,
+        rank_change=?, season=?, note=?, mode=?, rank_before=?, rank_after=?, rating=?, squad_hp=? WHERE id=?`, [
+        match.startedAt, match.endedAt, match.durationSec, match.result, JSON.stringify(match.lineup), JSON.stringify(match.bonds),
+        match.rankChange, match.season, match.note, match.mode, match.rankBefore, match.rankAfter, match.rating, match.squadHp, id
+      ])
+      return { ...existing, ...match, lineup: [...match.lineup], bonds: [...match.bonds], id }
+    })
+  }
+
   overview(): OverviewStats {
     const r = this.rows(`SELECT COUNT(*) AS total,
       SUM(CASE WHEN result='win' THEN 1 ELSE 0 END) AS wins,
