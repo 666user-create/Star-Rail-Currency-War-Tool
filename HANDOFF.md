@@ -1,182 +1,297 @@
-# 交接文档 — 货币战争桌宠助手（Currency War Pet）
+# 货币战争桌宠助手交接文档
 
-> 写给接手的 AI/工程师。生成于 2026-10-26，基于 master @ `c6f1cb1`（工作区干净）。
-> 用户诉求：前任（本 AI）对 3D 模型的运用能力有限，交接后请优先按 §7 的已知局限继续。
-> 阅读顺序建议：§1 定位 → §2 红线 → §3 跑起来 → §6 当前状态 → §7 3D 专题 → §9 下一步。
+更新日期：2026-10-30（北京时间）。供下一位 AI 或工程师接手。
 
----
+当前已经有可用的桌宠和真实记录首版。接下来的主线是用真实游戏场景验收记录流程、补识别缺口、整理发布，不需要重新设计动作系统或重做记录链路。
 
-## 1. 项目是什么
+## 1 项目位置与工作区状态
 
-《崩坏：星穹铁道》常驻玩法"货币战争"的 Windows 桌面助手：一只**话痨阴阳怪气的桌宠**（形象 = 官方随宠"说怪话"，通过本机解包提取渲染）+ **战绩统计面板**。核心价值对准官方短板：官方只留 10 条对战记录、可收藏 20 条、无总时长统计；本工具无限记录 + 自动时长 + 复盘统计。
+- 当前目录：`C:/Users/20715/Desktop/Star Rail Currency War Tool`。
+- 技术栈：Electron 44、electron-vite 6、Vite 8、React 19、TypeScript、Three.js；本地数据库用 sql.js。
+- 当前 Git HEAD：`a2a6036`，该提交仍是早期交接文档。之后的大量功能修改和新增文件尚未提交，**以当前工作区为准，不能只看 Git 历史判断完成度**。
+- 工作区不是干净状态。不要 reset、clean、还原未提交文件，也不要把新增文件当作可删的临时文件。本次交接没有提交或推送。
+- 原设计：[2026-10-21 设计文档](docs/superpowers/specs/2026-10-21-currency-war-pet-design.md)。它保留项目意图；与当前行为有出入时，先看本交接和源码。
+- 本文件已整理掉旧交接里“动作只能整体缩放”“OCR 尚未接入”“结束直接写演示胜负”等过期结论。
 
-- 设计文档（已与用户逐节确认）：[docs/superpowers/specs/2026-10-21-currency-war-pet-design.md](docs/superpowers/specs/2026-10-21-currency-war-pet-design.md)
-- 用户语言：中文。回复、commit message 都用中文。
-- 用户风格：要效率、要直话、讨厌过度迭代（形象问题已说"到此为止"）；验收方式是**他本人实机操作**，所以每轮改动要给出"他怎么测"的指引。
+## 2 用户已确定的方向
 
-## 2. 合规红线（硬约束，违反 = 项目死）
+这是《崩坏：星穹铁道》货币战争的 Windows 桌宠与本地战绩助手。桌宠承担陪伴和操作入口，记录与复盘是实际使用主线。
 
-1. **禁止**：内存读写、DLL 注入、协议抓包、鼠标模拟/自动点击、连续监屏状态机。设计文档 §2 的"②档"（玩家点击按钮时截一帧结算画面做 OCR）是允许上限，③档永远不做。
-2. **仓库零模型字节**：官方模型/贴图**绝不入 git、绝不上传**。发布物只含 `extractor/` 脚本，用户在自己有游戏的机器上跑 `python extractor/extract_pet.py --game "D:/Star Rail"` 自产素材（AssetStudio 模式：工具存活，打包素材会被 DMCA）。
-3. 提交前泄露自查：`git ls-files | Select-String 'assets/|\.obj$|\.png$'` 应只有 `assets/pet/.gitkeep`。`.gitignore` 已排 `assets/official_pet/`、`assets/pet/*.png`、`assets/_extract/`。
-4. **已知灰色地带（需接手者知悉，勿扩大）**：[extractor/mr0k_keys.py](extractor/mr0k_keys.py) 含社区公开的解密表（源自 Escartem/HoyoCooker 等开源项目），`extractor/ooz.dll` 是开源 powzix/ooz。目前按"社区公开信息"处理并随仓库分发；若项目公开化，这两处是首先该过法务/重新审视的点。
-5. App 内固定显示"© 米哈游版权所有，非官方同人作品"；不做"防封"宣传；非商业。
+用户对模型不熟，已授权自行选择实现方法；允许表情、饰物和动作细节简化，但要保留三个经典动作的特征：
 
-## 3. 怎么跑（环境陷阱必读）
+1. 高兴跳。
+2. 嗷呜吼叫。
+3. 类似拜年的作揖动作。
 
-```powershell
-# ⚠️ 关键陷阱：DSH/部分终端环境会设 ELECTRON_RUN_AS_NODE=1，
-# 不清掉的话 Electron 以纯 Node 跑，electron.app undefined 直接崩。
+当前暂不增加新动作。高兴跳已进一步调整，拜年手被铃铛挡住的问题已修。用户后来表示动作保持目前程度即可，接下来做实际记录功能。不要一接手就要求重新验收旧动作或主动投入完整原版动画提取。
+
+其他明确偏好：
+
+- 单击桌宠随机触发三个动作之一；右键列表可以指定动作。
+- 台词气泡放在旁边，避免挡住桌宠。
+- 小计时表优先放在**正上方居中**，贴顶没有空间才换侧。
+- 计时表属于程序界面，不依赖用户解包出的模型。
+- 模型不进仓库，提供本机提取器，由用户自己提取；这个方案用户已经认可。
+- 用户目前拿不到自己的结算截图，已授权用公开网图验证，实际导入和保存链路已试过。
+- 沟通用中文，直接说明做成什么、还缺什么。延续已有决定，不反复询问已授权的普通操作。
+
+## 3 必须保留的边界
+
+- 产品只在用户结束记录或主动重截时截一帧，不做连续监屏识别结算状态。
+- 不读写游戏内存、不注入、不抓游戏协议、不模拟游戏操作，不接账号私有战绩接口。
+- 截图、OCR、头像和羁绊匹配均在本机完成。联网只用于取得公开静态小图标与配置，不上传截图，不带账号 cookie。
+- 官方模型、贴图、公开测试截图和本地模板缓存都不提交、不上传、不随构建分发。当前 `git ls-files assets` 只有 `assets/pet/.gitkeep`。
+- `.superpowers/` 是忽略的本地试验与验收目录，其中有有用的测试脚本和报告，但不应整体加入仓库。
+- 保留用户数据库、草稿与原图。旧演示数据已隔离，不擅自清除；测试使用隔离 userData。
+- 本机提取器含社区解密常量及 `ooz.dll`；公开发布前应核对来源、许可证和分发范围。仅分发提取代码并不等于已经取得游戏资产授权，不承诺“防封”。
+
+## 4 当前已经实现什么
+
+### 桌宠与动作
+
+- 本地提取 OBJ 加载后生成局部绑定，驱动头、胸、四肢等部位。不是恢复原版骨骼动画，也不是通用自动绑骨。
+- 高兴跳约 1.7 秒、吼叫约 2.4 秒、拜年约 3 秒；嘴部是简化着色口型，无完整眨眼表情。
+- 高兴跳为两次腾空，已调整蹬地、收爪、落腿和节奏；拜年合爪向铃铛前下方伸出，避免遮挡。
+- 单击随机动作；右键“选择动作”可指定或依次演示。手动动作可打断演示，待机不会抢动作。
+- 气泡是独立透明、鼠标点穿的窗口，跟随桌宠移动，避开本体、计时表与屏幕边缘。
+- 正上方独立计时表：待机圆表，记录时展开为时间胶囊；数字区域只展示时间，操作按钮开始或结束。菜单打开时让位。
+- 设置有安静模式、待机动作、主动台词及低/适中/高频率；安静模式保留原偏好，仍响应手动操作。
+- 可临时收起，托盘双击恢复；收起不结束计时。可见待机约 20fps，动作约 60fps，收起暂停绘制。
+- 保留窗口拖动心跳、尺寸自愈、屏幕夹紧、置顶巡检、菜单测量和 setShape 裁切处理，不要直接删掉当作冗余代码。
+
+### 真实记录完整流程
+
+1. 点击头顶秒表、右键开始，或使用 Ctrl+Shift+F8 开始计时；开始时间持久化。
+2. 用户停在结算画面，结束记录；立即固定结束时间与耗时。
+3. 暂时隐藏本工具窗口约 160ms，只截光标所在显示器的一帧，再恢复窗口。
+4. 原图保存本机，建立草稿，调用本地文字及图标识别。
+5. 打开核对页：左边原图、右边字段，可以放大、修改、换图、重截、重识别、稍后处理或丢弃。
+6. **只有人工确认并保存后才写正式战绩、计入统计**。截图或识别失败仍保留冻结时间和可手填草稿。
+
+另有单张 PNG/JPG/WebP 导入。导入不打断正在计时的对局；导入图的耗时默认未知，结束时间先填导入时刻，并明确提示用户按实际对局修改。
+
+已经处理：
+
+- 重复开始不重置时间，重复结束复用任务，重复确认不重复入库。
+- 重启恢复计时和草稿；中断的截图/识别恢复为可编辑状态。
+- 换图时清掉旧识别字段，避免新图失败却沿用旧胜负。
+- 重识别覆盖手填前有界面确认。
+- 数据库候选副本写盘成功才切换内存；draft_id 唯一约束防重复保存。
+- Windows 文件短暂占用时有有限重试，不先删原文件，不吞永久错误。
+- 单实例锁防两个 sql.js 内存快照互相覆盖。
+- 原图可从正式记录详情查看；丢弃草稿也不会自动删除原图。
+- 旧 demo 保留但不进入真实列表与统计，新库不再播种演示数据。
+
+核对页尚未确认的手工修改只在当前表单内，不会逐字保存到持久草稿；稍后处理、换图或重识别前会提示放弃修改。不要把“原始识别草稿可恢复”误写成“所有未确认的手填内容都可跨重启恢复”。
+
+### 统计口径
+
+有概览、记录列表、阵容 / 羁绊、职级、耗时和时段分析。
+
+未知时长不当零计入平均或直方图；待核实和中断局打断连胜连败。职级曲线只看最近有可用变化的已标注赛季。界面使用“有职级提升的对局”，没有声称已算出打满整个段位所需时间。
+
+阵容统计实际按单个字符串标签聚合，角色和不同数量的羁绊各自计数，不是整套阵容的胜率。职级曲线从零累计已知变化，不是绝对职级；旧内部字段 maxRankHours / maxRankGames 只代表正变化记录的耗时与局数。
+
+## 5 识别实现与判断规则
+
+入口是 `src/main/recognizeRecord.ts`：
+
+- 先运行 `ocr.ts` 与 `scripts/windows-ocr.ps1`，通过 Windows PowerShell / WinRT Windows.Media.Ocr 读文字，做页面分类及有上限的区域增强。
+- 页面为 unknown 时停止自动填字段，不继续用图标猜页面。
+- 页面可信后，并行运行角色头像和羁绊图标匹配；一个失败保留另一个及已读文字。
+- 低把握字段留空，附提示，供用户核对。
+
+关键规则不能回退：
+
+- 评分 SSS、满血、触发晋升赛都不等于胜利；B 也可以是胜利。
+- 只有明确的结算胜负文字才填结果。历史页面不自动确定该场胜负或职级变化。
+- “晋升等级 80 / 110”不是职级，不能拿来计算上分。
+- 职级增量需要明确的晋升/下降标签、同阶且方向一致；跨阶不直接相减。
+- 优先识别历史页面，不能把总览顶部当前职级套到下方某场战绩。
+- 文件名不作模式或胜负依据，低清样本叫 quick-b 也不能据此判超频。
+- 局部评分 OCR 用固定排版上下文辅助，最终只采真实字形范围；空白或替换字形的负例已验证。
+- 完整赛季标题可读赛季；普通即时结算没有赛季时不猜当前赛季。
+
+模板来源和缓存：
+
+- 官方公开静态 config：`https://sg-act-public-api.hoyolab.com/event/rpgcurrencywar/game/config?game=hkrpg`，请求语言 zh-cn，赛制头 tourn。
+- 当前样本缓存有官方 75 张角色小卡，StarRailRes 补 28 个旧角色，共 103 个模板；羁绊图标 33 个。这是验证时的资源快照，不是未来版本角色总量承诺。
+- 补充来源：`https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_min/cn/characters.json` 及对应小头像。
+- 只请求白名单来源，限制大小、重定向和超时。角色准备总预算约 25 秒，羁绊约 20 秒；缓存齐全后可离线匹配，失败可手填。
+- 角色按像素特征、卡片网格、抗混叠及角标遮罩匹配；相似或低置信候选弃权。
+- 羁绊按透明轮廓匹配，数量读取真实数字区域；增强 OCR 的两种字号结果一致才采信。
+
+**当前数据结构的局限**：`Match.lineup` 仍是 `string[]`，把角色名和“羁绊名×数量”合并成标签。没有独立的角色阵位、星级、装备或羁绊实体，不能把当前统计宣传成完整配队复盘。
+
+## 6 字段到底还缺哪些
+
+### 截图本身未提供或只在部分画面提供
+
+| 字段 | 当前处理 |
+| --- | --- |
+| 开始、结束时间与对局耗时 | 普通即时结算图没有。秒表记录用用户实际按钮时间；仅导入图片无法反推，允许手填和未知。 |
+| 赛季名称 | 普通即时结算图没显示。设置可预填新计时对局的默认赛季；明确赛季标题可识别。 |
+| 结算后职级、职级增量 | 不是每张图都有。B 样本有 19→20，已填 +1；中文 SSS 样本没有新职级，继续留空。 |
+| 备注 | 用户自行填写，不从画面编造。 |
+
+默认赛季只随新计时对局结束时写入草稿。旧草稿重识别不套新设置，导入历史图不套当前默认赛季。
+
+不能笼统说“历史截图也没有日期”：手机历史总览和游戏历史详情里能看到日期；**当前解析器尚未自动提取这些日期**，导入时仍需核对实际对局时间。
+
+### 图里有但仍可能漏识或尚未解析
+
+| 内容 | 当前状态 |
+| --- | --- |
+| 羁绊数量 | 四张清晰图共 22 项，读出 13 项，其余保留名称、数量为空。 |
+| 特殊单位与个别角色头像 | 中文 SSS / B 两图均 10/10；历史 SS 为 8/9，漏特殊单位佩佩；英文为 8/9。 |
+| 英文字段 | 英文样本评分和生命可读，胜负、模式、职级部分仍留空。 |
+| 手机历史总览 | 已读赛季、超频模式和 9 个角色；图上可见的日期、生命、评分及该场职级尚未可靠自动填入。 |
+| 低清、缩小、不同布局 | 可能整体 unknown。B 图放大 150% 可识别，缩到 80% 丢关键字时仍拒识。 |
+| 更多职级称呼、跨阶变化 | 尚未全面覆盖，不推算缺失变化。 |
+
+### 尚未纳入正式字段
+
+角色星级、装备、前后台/站位、试用状态、投资环境、投资策略或晋升选项、晋升等级、关卡/头目、总经济、阵容价值等没有完整结构化记录。不同截图显示内容不同；它们不能全部归类为“图片没有”，应在后续有明确复盘需求时再扩展数据结构。
+
+核对页的“尚未填写”只检查当前表单字段；阵容标签非空不代表角色和所有羁绊数量都已经齐全。
+
+## 7 已验证的样本与结果
+
+样本都只在忽略目录 `.superpowers/ocr-research/`，不要提交。原始页面链接供核对来源，样本结果不代表通用准确率。
+
+| 本地样本 | 页面和结果 |
+| --- | --- |
+| settlement-sss-cn.jpg | 中文即时结算：胜利、标准、财富造物主30、SSS、生命100；10角色、5羁绊名称，其中3项数量。没有结算后职级。 |
+| standard-b.jpg | 繁中即时结算：胜利、标准、19→20、+1、B、生命21；10角色、5羁绊名称，其中公司×3。 |
+| standard-ss.jpg | 蓝色历史详情：标准、财富造物主40、SS、生命94；8/9角色、7羁绊名称，其中6项数量；胜负待核实。 |
+| history-overview-cn.jpg | 手机历史总览：零和博弈、超频、9/9角色；其它未可靠解析字段保留空。 |
+| settlement-sss-en.webp | 英文结算：SSS、生命100、8/9角色、5羁绊名称，其中3项数量；胜负待核实。WebP 已实际导入通过。 |
+| quick-b.jpg | 严重模糊，unknown，自动字段保持空。 |
+
+来源：
+- [中文 SSS 米游社原帖](https://www.miyoushe.com/sr/article/73553550)
+- [繁中 B 巴哈原帖](https://forum.gamer.com.tw/C.php?bsn=72822&snA=12290)
+- [历史 SS 巴哈原帖](https://forum.gamer.com.tw/C.php?bsn=72822&snA=13144)
+- [手机历史总览米游社原帖](https://www.miyoushe.com/ys/article/72264711)
+- [英文 SSS HoYoLAB 原帖](https://www.hoyolab.com/article/42466683)
+- [低清攻略图来源](https://www.qieyou.com/content/147872)
+
+不要使用 `docs/refs/settlement-sample.png` 作为结算样本：它是备战画面。真实失败与中途退出的可靠截图仍缺，失败解析目前有合成文字用例，不能声称已完成真实失败画面验收。
+
+## 8 源码入口与本机数据
+
+| 路径 | 作用 |
+| --- | --- |
+| src/main/index.ts | 窗口、IPC、记录编排、截图隐藏恢复、托盘与单实例锁 |
+| src/main/recordingStore.ts | 计时和草稿持久化、结束冻结、重启恢复 |
+| src/main/recordingCapture.ts | 单次显示器截图、导入、原图保存和 WebP 规范化 |
+| src/main/recognizeRecord.ts | 文字、头像、羁绊识别组合入口 |
+| src/main/ocr.ts / scripts/windows-ocr.ps1 | Windows OCR 与区域增强 |
+| src/shared/ocrParser.ts | 页面分类、字段解析、归一化识别区域 |
+| src/main/portraitRecognition.ts / portraitMatcher.ts | 角色缓存下载与纯像素匹配 |
+| src/main/bondRecognition.ts / bondImageMatcher.ts | 羁绊缓存、图标匹配与数量区域 |
+| scripts/bond-counts.ps1 / decode-image.ps1 | 数量增强 OCR 与 WebP 系统解码 |
+| src/main/repository.ts / atomicReplace.ts | SQLite 迁移、记录、统计和原子替换 |
+| src/shared/types.ts / recordingValidation.ts | IPC、数据类型和人工确认校验 |
+| src/preload/index.ts | 安全桥接 API；recordEnd 返回草稿或 null，不是正式 Match |
+| src/renderer/src/panel/ReviewDraft.tsx | 原图核对、编辑、缺项清单和确认保存 |
+| src/renderer/src/panel/App.tsx | 草稿队列、正式记录和统计面板 |
+| src/renderer/src/pet/App.tsx | 桌宠交互、菜单、陪伴行为 |
+| src/renderer/src/pet/PetOfficial.tsx | 官方模型渲染与局部绑定接入 |
+| src/renderer/src/pet/petMotion.ts / petRig.ts | 三个动作曲线与几何绑定 |
+| src/renderer/src/pet/toonMaterial.ts | 已认可的 toon 上色和简化嘴部 |
+| src/renderer/src/pet/petRenderScheduler.ts | 待机/动作/隐藏绘制调度 |
+| src/main/petBubble.ts / petTimer.ts | 独立气泡与正上方秒表窗口 |
+| src/shared/bubblePlacement.ts / timerPlacement.ts | 显示器工作区、边缘回退和避让布局 |
+| src/shared/petPreferences.ts / src/renderer/settings.html | 设置兼容、陪伴偏好与默认赛季 |
+| extractor/ | 本机只读提取器，说明见该目录 README |
+
+默认数据目录是 `%APPDATA%/currency-war-pet/`，本机为 `C:/Users/20715/AppData/Roaming/currency-war-pet/`：
+
+- `config.json`：游戏路径、位置、形象、陪伴开关/频率、可选 recordSeason。
+- `matches.db`：正式记录与保留的旧 demo。
+- `recording-state.json`：正在计时的状态和待确认草稿。
+- `screenshots/`：原始截图。WebP 的原始字节也保留，本地规范 PNG 用于识别预览。
+- `image-templates/portraits/`、`image-templates/bonds/`：模板与 manifest。
+- `ocr-helper/` 及模板下的辅助目录：运行时生成的 PowerShell 脚本/短期文件。
+
+本次只读检查时用户配置的 gamePath 仍为空，默认赛季未设置；不要把测试配置中的“测试赛季”当作用户实际赛季。此前样本没有写入用户真实战绩库。
+
+## 9 运行与验证
+
+本机 Node 为 24.19.0，node_modules 已有。当前工具终端找不到 npm 时，直接使用依赖里的入口，不必先重装环境。
+
+~~~powershell
+Set-Location "C:/Users/20715/Desktop/Star Rail Currency War Tool"
 $env:ELECTRON_RUN_AS_NODE = $null
-npm install        # 如未装
-npm run dev        # electron-vite，renderer 在 http://localhost:5173
-```
+node node_modules/electron-vite/bin/electron-vite.js dev
+~~~
 
-- 技术栈：Electron 44 + electron-vite 6 + Vite 8 + React 19 + TS，DB 用 **sql.js**（SQLite wasm，主进程内存库 + 写盘）。
-- **electron-vite 的 watcher 会漏 main/preload 改动**（实测多次）：改了 `src/main/**` 或 `src/preload/**` 必须**杀掉 dev 进程重启**，renderer 改动 HMR 正常。重启前查空闲内存（§5 机器教训）：`Get-CimInstance Win32_OperatingSystem` 的 FreePhysicalMemory ≥ 1.5GB。
-- 验证"改动真的进了产物"：grep `out/main/index.js`（编译产物），别信 watcher 日志。
-- 用户显示器 **125% 缩放（DPI=120）**：窗口逻辑 176×212 DIP，物理像素 220×265。任何截屏取证必须按物理尺寸截，否则会把"自己截少了"误判成"被裁了"（本项目栽过一次，§8.3）。
+常规环境也可 `npm install` 后 `npm run dev`。renderer 默认 `http://localhost:5173`；本地动作预览是 `/pet-official-preview.html`，支持暂停、时间轴和视角，复用真实组件。
 
-## 4. 文件地图
+检查：
 
-```
-src/main/index.ts        主进程：两个窗口 + 全部 IPC + 桌宠窗口治理(尺寸自愈/topmost巡检/拖动/夹紧)
-src/main/repository.ts   sql.js 封装：matches 表读写、统计聚合（UI 唯一数据口）
-src/main/config.ts       %APPDATA%\currency-war-pet\config.json 读写
-src/shared/types.ts      IPC 契约（PetApi / Match / PetRect 等）
-src/shared/dialogue.ts   台词引擎：事件→阴阳怪气模板（line('click'|'idle'|'start'|'end'|'win'|'loss'|'launch')）
-src/preload/index.ts     contextBridge
-src/renderer/src/pet/App.tsx            桌宠渲染层：状态机/拖动/气泡/菜单/shape 上报
-src/renderer/src/pet/PetOfficial.tsx    ★ Three.js 官方模型渲染 + 全部动效循环（§7 核心）
-src/renderer/src/pet/toonMaterial.ts    ★ HSR 风 toon ShaderMaterial（ramp 采样）
-src/renderer/src/pet/PetSprite.tsx      备用形象档（截图素材 sprite.png，可选）
-src/renderer/src/pet/styles.css         含 .ctx-menu/.bubble 等（行高/尺寸有讲究，见 §8.2）
-src/renderer/src/panel/App.tsx          战绩面板（6 模块：概览/列表/阵容/段位/时长/时段）
-extractor/               独立 Python 提取器（§7.1 链路），README 有免责声明
-assets/official_pet/     ★ 本地产物（不入 git）：pet03.obj + color/cool/warm.png
-scripts/shot.cjs         Electron 截图自查管线（预览页渲染→PNG）
-scripts/videoframes.cjs  B站参考视频抓帧工具（单段连拍 + "start-end-step" 时间轴模式）
-docs/superpowers/specs/  设计文档（阶段划分/合规边界/数据模型都在）
-```
+~~~powershell
+node node_modules/typescript/bin/tsc -p tsconfig.json
+node node_modules/typescript/bin/tsc -p tsconfig.node.json
+node node_modules/electron-vite/bin/electron-vite.js build
+~~~
 
-运行时数据（都在 `%APPDATA%\currency-war-pet\`）：
-- `config.json`：`{gamePath, petX, petY, petStyle}`。当前 `gamePath` 为空（用户还没在设置里填游戏路径）。
-- `matches.db`：**52 条演示数据**（阶段1占位，source='demo'，note='手动记录（演示）'）。阶段2接真实 OCR 后这些要不要清、怎么清，届时问用户。
+测试用 `npm test`；若 npm 不可用，运行 package.json 中 scripts.test 的原始命令。共 13 个测试文件，使用 Node 内置测试器，不需要游戏模型。
 
-## 5. 机器/环境教训（防重蹈）
+验证状态：
 
-- 开发机 15.2GB 内存。曾有一次 teammate 并行跑全量解包扫描（单进程吃到 10.21GB）把宿主 OOM 打崩、会话反复重启。**规则：任何解包/全盘扫描前先查 FreePhysicalMemory ≥1.5~3GB，绝不与渲染/其他重活并行，分批 ≤2GB。**
-- PowerShell `Add-Type` 里写 C#：不支持 `$"..."` 字符串插值（用 `string.Format`）；`RGNDATAHEADER` 是 **32 字节头**，矩形数据从偏移 **32** 开始（曾按 20 解析得出错误结论）。
-- GDI `CopyFromScreen` **截不到** Electron 透明窗口（`WS_EX_NOREDIRECTIONBITMAP`），会截成透明/背景；抓桌宠真实画面必须用 `PrintWindow(hwnd, hdc, PW_RENDERFULLCONTENT=2)` 且按物理像素尺寸建位图。
-- 模拟点击/右键用 `SetCursorPos + mouse_event` 可稳定驱动桌宠做行为级验证；`WindowFromPoint` 可验证点击穿透路由（不依赖鼠标事件）。
+- **2026-10-30 交接时重新整套运行：127/127 单元测试通过，0 失败。**
+- 前一轮最终实现的两个 TS 配置检查和 build 通过；本次只改交接文档，没有改实现代码。
+- 构建包含 3 个 PowerShell 辅助脚本，不含游戏模型、测试截图或模板 PNG；`publicDir:false` 防止本地素材被复制进产物。
+- 之前已用隔离 Electron 实际运行 Windows OCR、六图导入/补全/确认、WebP、默认赛季、旧草稿不被新赛季污染和断网降级。
+- 实际截图的隐藏恢复、重复操作幂等、重启、截图/识别/写盘失败恢复和第二实例退出已有隔离行为验证。
+- 原生文件选择框也已实际导入网图试过；并非所有验收都只调用解析函数。
+- 桌宠收起/恢复、计时表、菜单和气泡避让已有隔离验证。动作曲线有合成模型回归与本地真实模型范围检查。
 
-## 6. 当前状态：已完成什么
+本机验收材料（全部忽略，不在新克隆里）：
 
-### 阶段1（完整验收过）
-桌宠可拖、可点（说话）、右键菜单（开始/结束记录、面板、启动游戏、设置、切形象、退出）、气泡台词、待机随机动作；面板 6 模块有演示数据；记录开关走真实写入路径。
+- `.superpowers/filled-fields-result.json`：六图最终字段和耗时；有缓存的清晰样本约 2.5–3.3 秒，不含首次模板下载。
+- `.superpowers/check-filled-fields.cjs`：字段、导入和确认保存验收。
+- `.superpowers/check-template-fallback.cjs`：资源不可用保留文字、恢复缓存后重识别。
+- `.superpowers/check-recording-e2e.cjs` / `recording-e2e-result.json`：真实记录链路及故障恢复。
+- `.superpowers/check-companion-e2e.cjs`、`check-timer-e2e.cjs`：陪伴设置与秒表布局。
+- `.superpowers/net-import-ui-result.json`：实际原生文件对话框导入检查。
+- `.superpowers/preview/filled-fields-b.png`：B 图补全核对页。
+- `.superpowers/preview/record-season-settings.png`：默认赛季设置页。
 
-### 桌宠窗口治理（本轮修了 6 个 bug，全部有回归验证，别回退）
-按提交时间顺序，每个都对应一类"消失/点不了/裁切"：
+这些脚本可能使用本机绝对路径和隔离 profile，接手后先读再跑。不要改成指向用户实际数据目录。
 
-| 提交 | 修了什么 | 关键机制 |
-|---|---|---|
-| `c3caa0d` | 拖几下消失（幽灵拖动） | pointerup 丢失 → 拖动循环加**心跳超时 1.2s** 自停；`buttons===0` 补救；保存位置前 `isOnScreen` 校验；`clampToScreens` 每帧夹紧 |
-| `90477b8` | 移动后消失一部分 | 窗口曾被外部改成 383×408（**第一因未确证**）→ 四重自愈：创建参数 min/max 锁 + `resize` 监听 + 拖动/保存路径校验 + 1px DPI 容差；topmost 掉 Z 序 → `setAlwaysOnTop(true,'screen-saver') + moveTop()` 5s 巡检（`setAlwaysOnTop(true)` 在状态已 true 时是**空操作**，必须带层级） |
-| `49dc6e7` | 一些地方点不了 + 菜单显示不全 | 气泡/计时期间不再切 full（气泡 `pointer-events:none` 根本不需要鼠标，旧逻辑每次弹泡整窗吃点击 4s）；菜单紧凑化 + 实测 bbox 视口夹紧 + 250ms 二次复测；self-heal 节流 500ms；菜单开着点本体可关 |
-| `44aa18a` | 蹦跳/气泡时模型头顶被裁 | **`setShape` 在 Windows 走 SetWindowRgn 语义：区域连绘制一起裁，不只是鼠标**。区域动态化：渲染层按可见内容实测 bbox 上报 `PetRect[]`（动效时顶边抬 0、气泡时追加气泡矩形、菜单时整窗），主进程统一夹进 176×212 后应用 |
+## 10 环境和历史问题
 
-### 动效（§7.3 详述，用户尚未最终验收）
-`c1bd97b`→`ecd32f5`→`c6f1cb1`：对照用户给的 B站参考视频（BV15exUzyE5n）逐帧改写。点击反应 = 兴奋两跳连跳串；待机 = 站定微呼吸 + 每 ~7s 缓慢侧倾。
+- 启动 Electron 前清除 ELECTRON_RUN_AS_NODE，否则可能以 Node 模式运行、app 不存在。
+- main/preload 的开发监听曾多次漏更新；改动后明确停止并重启本项目 dev，检查产物是否更新。不要一次结束所有 Electron，以免影响其他应用。
+- 换模型素材后也要重启，主进程的 officialCache 只读一次。
+- 本机曾用 125% 缩放；176×212 DIP 的本体对应 220×265 物理像素。窗口验证要区分 DIP 和像素。
+- Windows setShape 同时裁绘制和鼠标区域；不能为了点穿把动作头顶裁掉。气泡已经独立，不要恢复为整窗吃点击。
+- 透明 Electron 窗口用普通 GDI 屏幕复制可能截不到。需要原生取证时曾用 PrintWindow(PW_RENDERFULLCONTENT=2)，还要结合实际操作判断，不能只凭一帧断言用户看起来一定正常。
+- 以前大量系统弹窗与裸启动截图工具导致 stdout 断管 EPIPE 有关，已加 shot-logger.cjs。运行截图工具时隐藏启动、等待退出、重定向日志，避免遗留多个 GUI 进程。
+- 窗口外部尺寸变化的根因未完全查明，尺寸自愈仍保留。真实多屏、不同 DPI、全屏游戏、实际休眠恢复和长期运行尚未全面验收。
+- 曾有并行全量解包占用约 10GB 内存导致崩溃；需要解包时先检查空闲内存，分批，不和其他重活并行。
+- 提取器当前输出 OBJ，不保留原版骨骼和 blendshape。已经用运行时绑定满足当前动作需求，完整 ACL 解码不是下一阶段前置条件。
+- 提取链路：本机 block 解密/解压 → UnityPy 读取 → 烘焙 GameObject 变换 → OBJ 与 3 张贴图；贴图 .resS 必须与资产合并加载，并给 BytesIO 设置 name。
+- 模型内部名为 PlayerBall_Pet_03 / NPC_Special_Complainer_00；旧定位 block 为 072465116d0a75341688ef20b3317abe.block，prefab 偏移 964672。这是旧版本线索，不保证更新后不变。
+- 上色用户已认可。法线翻转兜底、DoubleSide、Cool/Warm Ramp 不要随意换成默认材质。
 
-### 提取器（`98792a8`+`71aac9b`，端到端跑通过）
-`extract_pet.py` 一条命令从本机游戏出 4 个素材文件。关键坑已修：贴图数据在 `.resS` 流里，必须给所有文件（含 `.resS`）设 `BytesIO.name` 后 `UnityPy.load(*streams)` **合并加载**，否则 `Texture2D.image` 报 "Resource file CAB-xxx.resS not found"。
+提取命令与固定文件名：
 
-## 7. 3D 模型专题（用户点名的短板区，重点读）
+~~~powershell
+python extractor/extract_pet.py --game "D:/Star Rail"
+~~~
 
-### 7.1 资产链路（要改形象/补素材时重跑）
+本地产物为 `assets/official_pet/pet03.obj`、`pet03_color.png`、`pet03_cool.png`、`pet03_warm.png`。首次需要 Python、UnityPy、lz4；详见 [提取器说明](extractor/README.md)。发布安装包的素材存放与首次提取引导仍需设计和验收，不要把当前开发路径直接当最终安装方案。
 
-```
-游戏 block 文件(ENCR 加密) → mr0k_crypto 解密 → 拼接 UnityFS 块 →
-blocksInfo=LZ4HC, type6/7 data=Oodle(ooz.dll) → UnityPy 读 Mesh/Texture2D →
-obj_writer 烘焙 GameObject localToWorld 进顶点(OBJ 无层级) → pet03.obj
-```
+## 11 接下来建议怎么做
 
-- 说怪话 = `PlayerBall_Pet_03` = `NPC_Special_Complainer_00`，prefab 在 block `072465116d0a75341688ef20b3317abe.block` 偏移 964672。
-- 重跑提取：`python extractor/extract_pet.py --game "D:/Star Rail"`（注意游戏真实布局是 `<root>\Game\StarRail_Data\...`，locate.py 已兼容）。
-- 素材加载链：主进程 IPC `pet:officialModel` 读 `assets/official_pet/` 返回 base64；**`officialCache` 进程内缓存一次**——换素材文件后必须重启 dev 才生效（踩过：以为没生效，其实是缓存）。
+1. **先用真实游戏结算做完整验收。** 在窗口/无边框/全屏、常用 DPI 和多屏场景下，从秒表开始到结算结束、看原图、核对保存。优先拿到失败和中退样本，验证没有截黑、截错屏或混入工具窗口。
+2. **提高现有字段可靠性。** 先补剩余羁绊数量、特殊单位和常见布局，保持低把握留空。历史截图日期和该场信息值得单独解析，避免当前总览职级串场。
+3. **用真实记录验证统计是否满足用户。** 如果需要装备、星级、策略等复盘，再拆分角色和羁绊的数据结构；不要继续把所有信息无止境塞进字符串标签。
+4. **整理可发布状态。** 检查大量未提交文件，分清源码、依赖、许可与本地产物，补正式安装包、首次提取/缓存失败提示与不同机器的 Windows OCR 兼容验证。当前 build 通过不等于已经有可交付安装包。
+5. 批量导入、目录监听、账号同步和全自动识别均未实现，也不会自动翻到第二页取得其它信息；是否需要扩展按实际体验决定，不要默认扩需求。
 
-### 7.2 渲染（PetOfficial.tsx + toonMaterial.ts）
-
-- Three.js WebGLRenderer `alpha:true`，176×212 画布，透明背景。
-- 材质 = 自定义 ShaderMaterial 复刻 HSR toon：base color × Cool/Warm_Ramp（官方 256×16 色带，连续采样 `t=clamp(nl*0.62+0.45,...)`，软明暗界线 `smoothstep`）+ rim light。**用户已认可上色效果，别乱回退到 Lambert/Standard。**
-- 两个已知补丁别删：OBJ 法线可能朝内 → 片元里 `if(dot(n,v)<0.0) n=-n` + `side: DoubleSide`（否则脸全黑）。
-- 模型自动定标：`s=1.55/size.y`，相机距离 `max(h,0.5)*2.7`。
-
-### 7.3 动效系统现状与**硬局限**（前任承认的能力边界）
-
-现状（PetOfficial.tsx 的 rAF 循环，纯代码曲线，无骨骼）：
-- 待机：呼吸 ±0.8% 缩放 + 0.45Hz 侧倾 0.035rad，**贴地**；
-- bounce（点击/随机）：0.75s 周期 ×2 跳连跳串 = 蓄力下蹲→蹬地拉伸→抛物线(顶点0.18)→落地压扁→停顿，空中微后仰近似"上举发力"；
-- cheer/howl：小弹跳/歪头；
-- 影子钉地（反向抵消 wrap.position.y），腾空缩小。
-
-**硬局限（改 3D 前必须知道）**：
-1. OBJ 解出来只有 **3 个刚体组：`g Blush` / `g Body` / `g Face`**（腮红/身体/脸）。耳朵、四肢、铃铛全焊死在 Body 里。
-2. **没有骨骼**：Mesh 无 skinning 数据可用（提取时 SkinnedMeshRenderer 无 type tree 读不了）。→ 耳朵扇动、收腿、摆尾这类**部件级动作做不了**，只能整体位移/缩放/旋转近似。
-3. **OBJ 格式不支持 blendshapes** → 眨眼、张嘴（原版说话靠这个）做不了。
-4. 原版完整动画在 **ACL 压缩动画**（`.anim`/ACL bundle）里，社区无成熟 Python 解码先例——这是解锁以上全部的唯一正路，工作量大、风险高，用户此前明确"远期再说"。
-5. 参考视频（BV15exUzyE5n）实测结论：原版待机 = 站定为主 + 兴奋时 2~3 次小连跳（t4.8–7.1，0.1s 细扫确认），**跳是真实存在的**（前任曾误判"从不离地"，被用户纠正——做动效判断务必用 0.1~0.25s 步进细扫，2s 粗采样会漏）。
-
-→ **接手者如果 3D 更强，优先方向**：a) 解 ACL 拿到骨骼/表情曲线，把 ear/eye/mouth 动作做真；b) 或从 prefab 反推骨骼层级重导带 skinning 的模型（glTF 比 OBJ 合适，可换 obj_writer 输出）。c) 动效参数手感（跳高/节奏）都是显式常量，用户一句话就能调。
-
-## 8. 未结问题清单
-
-### 8.1 动效未获用户最终验收
-`c6f1cb1`（点击=两跳连跳串）做完后用户没有再反馈"像不像"，转而要了这份交接文档。**接手后第一个问题就问用户：点击连跳和待机姿态，现在对味了吗？** 参数都在 PetOfficial.tsx 的 loop 里，是明码常量。
-
-### 8.2 右键菜单"退出"项的存疑
-`49dc6e7` 时用户报"经常显示不完全"，修了紧凑化+夹紧；但**从未在真实 125% DPI 下让用户确认"退出"项可见**（前任的像素分析先误报后被自己推翻，最终结论"完整可见"依赖 PrintWindow 单帧）。若用户再报菜单问题，先让他右键时截给你看，别信远程像素推断。
-
-### 8.3 窗口尺寸自愈的触发源未查明
-`[pet] size self-heal` 日志显示外部确实会改窗口尺寸（383×408 出现过、拖动中 178~184 抖动常见）。自愈已兜住，但**谁在改**（键盘 Win+方向键吸附？某窗口工具？）未确证。若自愈日志频繁刷屏或桌宠位置被"抢"，从这条线查。
-
-### 8.4 gamePath 未配置
-config 里 `gamePath=""` → 右键"货币战争启动!"会提示需要设置。用户还没填过，设置窗口（settings.html）功能没被真实用过，可能藏着没验过的坑。
-
-### 8.5 sprite 备用形象档
-`assets/pet/sprite.png` 不存在时"截图素材"档自动跳过。非必需，用户没提过要。
-
-### 8.6 演示数据 52 条
-阶段2 上线真实记录前需要和用户确认清库策略（面板/统计会被假数据污染）。
-
-## 9. 下一步主线：阶段2 OCR（设计文档 §3 验收标准）
-
-**这是用户等的正事，动效只是插曲。** 需求原文：按下"开始记录"→ 打完点"结束记录"→ **结束时自动截取结算画面一帧** → OCR 填 胜负/阵容/段位变化 → 用户确认后入库（source='ocr'，截图永久留档 `screenshot_path`，低置信度 → result='suspected'，识别错可看原图修正）。
-
-实施要点：
-1. **只换写入方**：UI 只认 Repository，`record:end` 从演示随机改为 OCR 管道，面板/桌宠零改动。数据模型字段（`confidence`、`screenshot_path`、`source`）已建好。
-2. **红线**：只在用户点击那一刻截一帧（`desktopCapturer` 或主进程截图），**不做**连续监屏找结算页；OCR 本地跑（推荐 windows 内置 OCR `Windows.Media.Ocr` via node-icu/ffi 太重，务实选项：tesseract.js 中文包，或 PaddleOCR——先和用户确认接受 Python 依赖与否）。
-3. 结算页布局参考：对局胜利/失败大字 + SS 评级 + 阵容头像行。标定素材已转存本机 `docs/refs/settlement-sample.png`（真实结算页截图，**含游戏版权画面，已 gitignore，勿入库勿外发**）。
-4. 定点截图策略：结束记录时全屏截图 → 用户预览确认/框选修正 → OCR 区域裁剪。识别结果先给用户过目再入库（设计文档硬要求）。
-
-## 10. 工程习惯（用户已认可的流程，延续）
-
-- 每个 bug：先**取证**（截图/日志/Win32 实测），再修，修完**行为级验证**（模拟点击 + PrintWindow 抓帧 + region 转储），最后中文 commit。commit 格式参考 `git log`：`fix:/feat:/perf:` + 中文破折号列点。
-- 验证动效误触热区会写演示记录，记得用一次性脚本清掉并**重启 dev**（内存库不回读磁盘）。
-- `.superpowers/` 全目录不入 git（预览图/临时脚本）。
-- 不要并行跑重活；Electron 启动前查内存。
-- 用户报"没变化"时，先确认他触发的路径是不是你改的那条（本会话真事：改了 bounce 他点的是 cheer，白解释一轮）。
-
-## 11. 快速自检命令（接手 5 分钟上手）
-
-```powershell
-Set-Location "D:\Star Rail Currency War Tool"
-git log --oneline -8                      # 应见 c6f1cb1 顶格
-$env:ELECTRON_RUN_AS_NODE = $null; npm run dev   # 后台跑，日志应出现 [official] ready
-# 验证素材在位（本地文件，不入 git）：
-Get-ChildItem assets\official_pet          # pet03.obj(~684KB)+color/cool/warm.png
-# 泄露自查（每次提交前）：
-git ls-files | Select-String 'official_pet|\.obj$|assets/pet/.*png'
-```
-
-—— 前任 AI，2026-10-26。祝接手顺利，3D 那块拜托了。
+用户最后已经要求“补齐后告诉我哪些字段没有”，前任已明确告知剩余缺项，现在要求交接。接手后直接延续记录主线，不必重新从“项目方向有没有问题”开始讨论。
