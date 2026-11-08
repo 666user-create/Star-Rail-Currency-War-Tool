@@ -18,6 +18,7 @@ export function normalizeSettings(value: unknown): AppSettings {
   if (typeof source.petY === 'number' && Number.isFinite(source.petY)) result.petY = source.petY
   if (source.petStyle === 'official' || source.petStyle === 'sprite' || source.petStyle === 'svg' || source.petStyle === '3d') result.petStyle = source.petStyle
   if (typeof source.recordSeason === 'string' && source.recordSeason.trim()) result.recordSeason = source.recordSeason.trim().slice(0, 80)
+  if (typeof source.screenshotDir === 'string' && source.screenshotDir.trim()) result.screenshotDir = source.screenshotDir.trim().slice(0, 320)
   return result
 }
 

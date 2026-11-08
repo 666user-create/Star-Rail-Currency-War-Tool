@@ -46,6 +46,8 @@ const api: PetApi = {
   launchGame: () => ipcRenderer.invoke('game:launch'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('settings:set', patch),
+  pickScreenshotDir: () => ipcRenderer.invoke('settings:pick-screenshot-dir'),
+  currentScreenshotDir: () => ipcRenderer.invoke('settings:screenshot-dir'),
   onSettingsChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, settings: AppSettings): void => listener(settings)
     ipcRenderer.on('settings:changed', handler)

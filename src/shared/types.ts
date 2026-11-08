@@ -120,6 +120,8 @@ export interface AppSettings {
   idleAnimations: boolean
   idleTalk: boolean
   activity: PetActivity
+  /** 截图保存目录；为空表示使用默认位置（data/screenshots 或 userData） */
+  screenshotDir?: string
   petX?: number
   petY?: number
   petStyle?: 'official' | 'sprite' | 'svg' | '3d'
@@ -185,6 +187,10 @@ export interface PetApi {
   launchGame(): Promise<boolean>
   getSettings(): Promise<AppSettings>
   setSettings(patch: Partial<AppSettings>): Promise<AppSettings>
+  /** 打开文件夹选择器，返回选中路径（取消返回 null） */
+  pickScreenshotDir(): Promise<string | null>
+  /** 当前实际生效的截图目录 */
+  currentScreenshotDir(): Promise<string>
   onSettingsChanged(listener: (settings: AppSettings) => void): () => void
   petVisibility(): Promise<boolean>
   onPetVisibility(listener: (visible: boolean) => void): () => void

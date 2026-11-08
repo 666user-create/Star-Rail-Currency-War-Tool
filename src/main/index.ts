@@ -34,10 +34,14 @@ let captureInProgress = false
 let endPending: Promise<RecordingDraft | null> | null = null
 const draftJobs = new Map<string, Promise<RecordingDraft>>()
 /**
- * 截图存放目录：优先放在项目文件夹下的 data/screenshots（防误删/重装丢失，用户可直接找到）。
- * 打包后 app.getAppPath() 位于 asar 内部只读，退回 userData。
+ * 截图存放目录优先级：
+ * 1) 用户在设置里指定的目录（settings.screenshotDir）
+ * 2) 项目文件夹下的 data/screenshots（防误删/重装丢失，用户可直接找到）
+ * 3) 打包后 asar 只读，退回 userData
  */
 const screenshotDirectory = (): string => {
+  const custom = settings?.screenshotDir?.trim()
+  if (custom) return custom
   const appPath = app.getAppPath()
   if (appPath.includes('.asar')) return path.join(app.getPath('userData'), 'screenshots')
   return path.join(appPath, 'data', 'screenshots')
@@ -192,14 +196,50 @@ function setPetVisible(visible: boolean): void {
 }
 
 function updateSettings(patch: Partial<AppSettings>): AppSettings {
+  const previousDir = settings ? screenshotDirectory() : null
   const next = normalizeSettings({ ...settings, ...patch })
   saveSettings(next)
   settings = next
+  // 截图目录变更：把已有截图与数据库/草稿里的路径一起迁过去，避免断链
+  const nextDir = screenshotDirectory()
+  if (previousDir && path.resolve(previousDir) !== path.resolve(nextDir)) {
+    try { migrateScreenshotsTo(previousDir, nextDir) } catch (error) { console.error('[screenshot-move]', error) }
+  }
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('settings:changed', settings)
   }
   updateTrayMenu()
   return settings
+}
+
+/** 把截图从旧目录搬到新目录，并重写数据库/草稿中的绝对路径。 */
+function migrateScreenshotsTo(fromDir: string, toDir: string): void {
+  fs.mkdirSync(toDir, { recursive: true })
+  let moved = 0
+  if (fs.existsSync(fromDir)) {
+    for (const name of fs.readdirSync(fromDir)) {
+      const from = path.join(fromDir, name)
+      try {
+        if (!fs.statSync(from).isFile()) continue
+        const to = path.join(toDir, name)
+        if (fs.existsSync(to)) continue
+        fs.copyFileSync(from, to)
+        moved++
+      } catch (error) { console.error('[screenshot-move]', name, error) }
+    }
+  }
+  let records = 0
+  try { records = repo.rewriteScreenshotPaths(fromDir, toDir) } catch (error) { console.error('[screenshot-move] db', error) }
+  let drafts = 0
+  try {
+    for (const draft of recordingStore.list()) {
+      if (!draft.screenshotPath || !path.isAbsolute(draft.screenshotPath)) continue
+      if (path.resolve(path.dirname(draft.screenshotPath)) !== path.resolve(fromDir)) continue
+      recordingStore.update(draft.id, { screenshotPath: path.join(toDir, path.basename(draft.screenshotPath)) })
+      drafts++
+    }
+  } catch (error) { console.error('[screenshot-move] drafts', error) }
+  console.log(`[screenshot-move] ${fromDir} -> ${toDir}: 文件${moved} 记录${records} 草稿${drafts}`)
 }
 
 function updateTrayMenu(): void {
@@ -648,6 +688,16 @@ function setupIpc(): void {
 
   ipcMain.handle('settings:get', () => settings)
   ipcMain.handle('settings:set', (_e, patch: Partial<AppSettings>) => updateSettings(patch))
+  // 选择截图目录（设置页用）：返回选中路径，用户取消返回 null
+  ipcMain.handle('settings:pick-screenshot-dir', async () => {
+    const options: Electron.OpenDialogOptions = {
+      title: '选择截图保存文件夹', properties: ['openDirectory', 'createDirectory']
+    }
+    const result = settingsWindow ? await dialog.showOpenDialog(settingsWindow, options) : await dialog.showOpenDialog(options)
+    return result.canceled || !result.filePaths[0] ? null : result.filePaths[0]
+  })
+  // 当前实际生效的截图目录（设置页展示用）
+  ipcMain.handle('settings:screenshot-dir', () => screenshotDirectory())
   ipcMain.handle('pet:visibility', () => petIsVisible())
   ipcMain.on('pet:hide', (event) => { if (event.sender === petWindow?.webContents) setPetVisible(false) })
   ipcMain.on('pet:show', () => setPetVisible(true))

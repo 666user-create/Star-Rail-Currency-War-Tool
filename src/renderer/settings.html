@@ -61,6 +61,15 @@
           <input type="text" id="record-season" maxlength="80" placeholder="例如 零和博弈" autocomplete="off" />
           <div class="hint">仅用于秒表新记录；导入历史截图时单独核对赛季。</div>
         </div>
+        <div>
+          <label class="field-label" for="screenshot-dir">截图保存文件夹</label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="screenshot-dir" placeholder="留空 = 默认位置" autocomplete="off" style="flex:1;min-width:0;" />
+            <button id="pick-dir" class="ghost" type="button">选择…</button>
+          </div>
+          <div class="hint" id="dir-hint">当前实际位置：读取中…</div>
+          <div class="hint">更改后保存时，已有截图会一并迁移到新文件夹（数据库引用同步更新）。</div>
+        </div>
         <div class="preferences">
           <label class="check"><input type="checkbox" id="idle-animations" checked />待机自动动作</label>
           <label class="check"><input type="checkbox" id="idle-talk" checked />主动说话</label>
@@ -90,6 +99,9 @@
       const input = document.getElementById('path')
       const quiet = document.getElementById('quiet')
       const recordSeason = document.getElementById('record-season')
+      const screenshotDir = document.getElementById('screenshot-dir')
+      const pickDir = document.getElementById('pick-dir')
+      const dirHint = document.getElementById('dir-hint')
       const idleAnimations = document.getElementById('idle-animations')
       const idleTalk = document.getElementById('idle-talk')
       const activity = document.getElementById('activity')
@@ -117,13 +129,29 @@
         input.value = settings.gamePath || ''
         quiet.checked = settings.quietMode === true
         recordSeason.value = settings.recordSeason || ''
+        screenshotDir.value = settings.screenshotDir || ''
         idleAnimations.checked = settings.idleAnimations !== false
         idleTalk.checked = settings.idleTalk !== false
         activity.value = ['low', 'normal', 'high'].includes(settings.activity) ? settings.activity : 'normal'
+        void refreshDirHint()
         loaded = true
         retry.hidden = true
         updateControls()
       }
+      // 显示当前实际生效的截图目录（用户留空时的默认位置也一并展示）
+      const refreshDirHint = async () => {
+        try {
+          const current = await window.api.currentScreenshotDir()
+          dirHint.textContent = '当前实际位置：' + current
+        } catch { dirHint.textContent = '当前实际位置：读取失败' }
+      }
+      pickDir.addEventListener('click', async () => {
+        if (!loaded || saving) return
+        try {
+          const picked = await window.api.pickScreenshotDir()
+          if (picked) { screenshotDir.value = picked; showStatus('已选择文件夹，点「保存设置」生效。') }
+        } catch { showStatus('无法打开文件夹选择器。', 'error') }
+      })
 
       // 先订阅，再读取：如果读取期间收到了更新，就丢弃旧的读取结果。
       const unsubscribe = window.api.onSettingsChanged((settings) => {
@@ -163,12 +191,14 @@
           const settings = await window.api.setSettings({
             gamePath: input.value.trim(),
             recordSeason: recordSeason.value.trim(),
+            screenshotDir: screenshotDir.value.trim(),
             quietMode: quiet.checked,
             idleAnimations: idleAnimations.checked,
             idleTalk: idleTalk.checked,
             activity: activity.value
           })
           if (version === settingsVersion) applySettings(settings)
+          void refreshDirHint()
           showStatus('已保存 ✓', 'ok')
           statusTimer = setTimeout(() => showStatus(''), 2200)
         } catch {
