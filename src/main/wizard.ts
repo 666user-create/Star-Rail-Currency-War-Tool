@@ -2,7 +2,7 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
-import { spawn } from 'node:child_process'
+import { spawn, execFileSync } from 'node:child_process'
 
 /** 首次设置向导：选择游戏路径/截图目录，并调用内置 Python 解包随宠模型。 */
 let wizardWindow: BrowserWindow | null = null
@@ -30,14 +30,58 @@ function embeddedPython(): string | null {
   return candidates.find((p) => fs.existsSync(p)) ?? null
 }
 
+/**
+ * 找能真正执行起来的系统 Python。
+ *
+ * 两个坑：
+ * 1. Windows Store 版的 python.exe 是 0 字节「应用执行别名」，`fs.existsSync` 返回 false，
+ *    但直接执行却能跑起来 —— 所以不能靠存在性判断，必须实际 execFile 试。
+ * 2. Store 应用包目录名是 PythonSoftwareFoundation.Python.3.11_xxx，不是 Python311。
+ */
 function systemPython(): string | null {
-  for (const name of ['python.exe', 'python3.exe']) {
-    const candidates = [
-      path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Python', 'Python311', name),
-      path.join(process.env.ProgramFiles ?? '', 'Python311', name)
-    ]
-    const found = candidates.find((p) => fs.existsSync(p))
-    if (found) return found
+  const works = (candidate: string): boolean => {
+    try {
+      const out = execFileSync(candidate, ['--version'], { encoding: 'utf8', timeout: 8000, windowsHide: true })
+      return /Python 3\.\d+/.test(out)
+    } catch { return false }
+  }
+
+  // 先试 PATH（where 能列出 Store 别名），再试常见安装目录
+  const candidates: string[] = []
+
+  for (const name of ['python', 'python3']) {
+    try {
+      const out = execFileSync('where', [name], { encoding: 'utf8', windowsHide: true, timeout: 5000 })
+      for (const line of out.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)) candidates.push(line)
+    } catch { /* where 不可用 */ }
+  }
+
+  const names = ['python.exe', 'python3.exe', 'python3.13.exe', 'python3.12.exe', 'python3.11.exe', 'python3.10.exe']
+  const roots = [
+    path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Python'),
+    process.env.ProgramFiles ?? '',
+    process.env['ProgramFiles(x86)'] ?? '',
+    path.join(process.env.LOCALAPPDATA ?? '', 'Microsoft', 'WindowsApps')
+  ]
+  for (const root of roots) {
+    if (!root) continue
+    let entries: string[] = []
+    try { entries = fs.readdirSync(root) } catch { continue }
+    const bases = [root]
+    for (const entry of entries) {
+      // 普通安装：Python311 / Python3.12；Store 包：PythonSoftwareFoundation.Python.3.11_xxx
+      if (/^Python/i.test(entry)) bases.push(path.join(root, entry))
+    }
+    for (const base of bases) {
+      for (const name of names) candidates.push(path.join(base, name))
+    }
+  }
+
+  const seen = new Set<string>()
+  for (const candidate of candidates) {
+    if (seen.has(candidate)) continue
+    seen.add(candidate)
+    if (works(candidate)) return candidate
   }
   return null
 }

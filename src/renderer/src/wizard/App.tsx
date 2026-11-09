@@ -147,12 +147,26 @@ export default function App() {
           <p className="hint">从你本机的游戏文件中读取「说怪话」的模型与贴图。全部在本机处理，不会上传任何内容。</p>
           <div className="progress"><div className="bar" style={{ width: `${percent}%` }} /><span className="pct">{percent}%</span></div>
           <pre className="log">{logLines.length ? logLines.join('\n') : '准备中…'}</pre>
-          {error && <div className="err">{error}</div>}
-          {done && (
+          {error && (
+            <>
+              <div className="err">{error}</div>
+              {/* 提取失败不能让用户卡死在这一页：允许跳过（桌宠会用兜底轮廓）或重试 */}
+              <div className="skip-hint">
+                可以先跳过，桌宠会显示简化轮廓；之后随时能在设置里重新提取。
+              </div>
+            </>
+          )}
+          {done ? (
             <footer className="foot">
               <button className="primary" onClick={() => void finish()}>完成，开始使用</button>
             </footer>
-          )}
+          ) : error ? (
+            <footer className="foot">
+              <button className="ghost" onClick={() => setStep(2)}>上一步</button>
+              <button className="ghost" onClick={() => void startExtract()}>重试</button>
+              <button className="primary" onClick={() => void finish()}>跳过，先用着</button>
+            </footer>
+          ) : null}
         </section>
       )}
 
