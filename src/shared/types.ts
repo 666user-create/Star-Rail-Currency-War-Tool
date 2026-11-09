@@ -116,6 +116,10 @@ export type PetActivity = 'low' | 'normal' | 'high'
 export interface AppSettings {
   gamePath: string
   recordSeason?: string
+  /** 用户填写的赛季开始时间：赛季 id → 毫秒时间戳（优先于代码内置值） */
+  seasonStarts?: Record<string, number>
+  /** 用户填写的赛季结束时间 */
+  seasonEnds?: Record<string, number>
   quietMode: boolean
   idleAnimations: boolean
   idleTalk: boolean

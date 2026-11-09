@@ -1,7 +1,10 @@
 // 验证「面板顶部选中赛季 → 写入设置 → 秒表结束带入新记录」这条链路
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { SEASONS, defaultSeason, normalizeSeason } from '../src/shared/seasons.ts'
+import {
+  SEASONS, defaultSeason, normalizeSeason, hasStartTime,
+  resolvedSeasons, parseStartDate, formatStartDate
+} from '../src/shared/seasons.ts'
 
 test('SEASONS 包含零和博弈与入画奇航', () => {
   const ids = SEASONS.map((s) => s.id)
@@ -32,4 +35,51 @@ test('normalizeSeason 空值回落到默认赛季', () => {
 test('normalizeSeason 截断超长名称到 80 字符', () => {
   const long = 'X'.repeat(200)
   assert.equal(normalizeSeason(long).length, 80)
+})
+
+test('入画奇航 默认没有开始时间（等待用户填写或官方公布）', () => {
+  assert.equal(hasStartTime('入画奇航'), false, '内置数据不应臆造开始日期')
+})
+
+test('用户填写的开始时间优先于内置值', () => {
+  const starts = { '入画奇航': Date.UTC(2026, 10, 10, 22) }
+  const seasons = resolvedSeasons({ starts })
+  const season = seasons.find((s) => s.id === '入画奇航')
+  assert.equal(season.startAt, Date.UTC(2026, 10, 10, 22))
+  assert.equal(hasStartTime('入画奇航', { starts }), true)
+})
+
+test('填了开始时间后，该时间点起 入画奇航 成为默认赛季', () => {
+  const starts = { '入画奇航': Date.UTC(2026, 10, 10, 22) }
+  // 2026-11-11 06:00 (UTC+8) 之后
+  assert.equal(defaultSeason(Date.UTC(2026, 10, 10, 23), { starts }), '入画奇航')
+  // 之前仍是零和博弈
+  assert.equal(defaultSeason(Date.UTC(2026, 10, 10, 21), { starts }), '零和博弈')
+})
+
+test('parseStartDate 接受 yyyy-MM-dd 并返回当天零点', () => {
+  const ms = parseStartDate('2026-11-11')
+  assert.ok(ms != null, '合法日期应解析成功')
+  const date = new Date(ms)
+  assert.equal(date.getFullYear(), 2026)
+  assert.equal(date.getMonth(), 10)
+  assert.equal(date.getDate(), 11)
+  assert.equal(date.getHours(), 0)
+})
+
+test('parseStartDate 拒绝非法输入', () => {
+  assert.equal(parseStartDate(''), null)
+  assert.equal(parseStartDate('2026/11/11'), null)
+  assert.equal(parseStartDate('2026-02-30'), null, '不存在的日期不能被自动滚动')
+  assert.equal(parseStartDate('乱写'), null)
+})
+
+test('formatStartDate 与 parseStartDate 往返一致', () => {
+  const ms = parseStartDate('2026-11-11')
+  assert.equal(formatStartDate(ms), '2026-11-11')
+})
+
+test('formatStartDate 对空值返回空字符串', () => {
+  assert.equal(formatStartDate(undefined), '')
+  assert.equal(formatStartDate(null), '')
 })

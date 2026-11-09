@@ -7,6 +7,19 @@ export const IDLE_ACTIVITY_SECONDS: Record<PetActivity, readonly [number, number
 /** 旧配置自动补齐陪伴偏好；无效输入不能使待机计时器变成紧密循环。 */
 export function normalizeSettings(value: unknown): AppSettings {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+
+  /** 赛季时间映射：只保留「非空字符串 → 有限数字」的条目，忽略脏数据。 */
+  const isFiniteMap = (input: unknown): Record<string, number> | undefined => {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined
+    const out: Record<string, number> = {}
+    for (const [key, raw] of Object.entries(input as Record<string, unknown>)) {
+      if (typeof raw !== 'number' || !Number.isFinite(raw)) continue
+      const name = key.trim().slice(0, 80)
+      if (!name) continue
+      out[name] = raw
+    }
+    return Object.keys(out).length ? out : undefined
+  }
   const result: AppSettings = {
     gamePath: typeof source.gamePath === 'string' ? source.gamePath : '',
     quietMode: typeof source.quietMode === 'boolean' ? source.quietMode : false,
@@ -18,6 +31,10 @@ export function normalizeSettings(value: unknown): AppSettings {
   if (typeof source.petY === 'number' && Number.isFinite(source.petY)) result.petY = source.petY
   if (source.petStyle === 'official' || source.petStyle === 'sprite' || source.petStyle === 'svg' || source.petStyle === '3d') result.petStyle = source.petStyle
   if (typeof source.recordSeason === 'string' && source.recordSeason.trim()) result.recordSeason = source.recordSeason.trim().slice(0, 80)
+  const starts = isFiniteMap(source.seasonStarts)
+  if (starts) result.seasonStarts = starts
+  const ends = isFiniteMap(source.seasonEnds)
+  if (ends) result.seasonEnds = ends
   if (typeof source.screenshotDir === 'string' && source.screenshotDir.trim()) result.screenshotDir = source.screenshotDir.trim().slice(0, 320)
   return result
 }

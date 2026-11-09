@@ -340,3 +340,49 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .season-tab.custom { cursor: default; font-style: italic; }
 .season-tab.clear { border-color: rgba(255, 146, 146, 0.3); color: #d9a0a0; }
 .season-tab.clear:hover { border-color: #ff9292; color: #ff9292; background: rgba(255, 146, 146, 0.1); }
+
+/* 赛季开始日期填写弹窗 */
+.season-modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 9, 20, 0.72);
+  backdrop-filter: blur(3px);
+}
+.season-modal {
+  width: 380px;
+  padding: 20px 22px 16px;
+  border-radius: 14px;
+  background: #151b33;
+  border: 1.5px solid rgba(232, 196, 118, 0.42);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.season-modal h3 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--gold);
+}
+.season-modal input[type="date"] {
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(232, 196, 118, 0.35);
+  background: #1b2240;
+  color: #e8e6f0;
+  font-family: inherit;
+  font-size: 13px;
+}
+.season-modal input[type="date"]:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+.season-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
