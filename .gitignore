@@ -25,3 +25,6 @@ build/icon-256.png
 
 # 内嵌 Python（构建时生成，不入库）
 python-embed/
+
+# 临时 TTS 依赖（不提交）
+.tts/
