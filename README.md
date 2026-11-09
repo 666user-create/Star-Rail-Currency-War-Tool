@@ -12,9 +12,7 @@
 
 ### 方式一：绿色包（推荐给普通用户）
 
-下载 Releases 里的 `货币战争桌宠-x.x.x-win.zip`，解压到一个**不含空格的英文路径**（例如 `D:\StarRailPet`），双击 `货币战争桌宠.exe` 即可。
-
-> ⚠️ **重要**：解压路径**不能包含空格**（例如 `D:\Star Rail Currency War Tool\` 这种会启动失败且无任何提示）。这是 Electron 打包应用的已知限制，请务必解压到 `D:\StarRailPet`、`C:\Games\StarRailPet` 这类路径。
+下载 Releases 里的 `货币战争桌宠-x.x.x-win.zip`，解压到任意目录（例如 `D:\StarRailPet`），双击 `货币战争桌宠.exe` 即可。
 
 首次启动会进入**设置向导**（约 1 分钟）：
 1. **游戏路径** — 自动探测你本机的《崩坏：星穹铁道》，也可手动选择
