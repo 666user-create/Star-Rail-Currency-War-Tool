@@ -56,12 +56,18 @@ export class PetTimerController {
     if (!rect || ![rect.x, rect.y, rect.width, rect.height, rect.x + rect.width, rect.y + rect.height].every(Number.isFinite) ||
         rect.width <= 0 || rect.height <= 0) return
     const bounds = win.getBounds()
-    // 变更记录状态时窗口也会改宽；旧视口的暂态测量不能提前显示被裁到的胶囊。
-    if (rect.x < -1 || rect.y < -1 || rect.x + rect.width > bounds.width + 1 || rect.y + rect.height > bounds.height + 1) return
+    // 窗口由 48 宽切到 136 宽时，渲染端的旧视口测量可能给出负坐标（胶囊居中溢出）。
+    // 以前这里直接丢弃，导致 ready 永远为 false、计时表一直隐藏（重启后"闹钟丢失"）。
+    // 现在把窗口扩到能容纳内容即可，不必丢弃这次测量。
+    const needWidth = Math.max(bounds.width, Math.ceil(rect.x + rect.width) + 4)
+    const needHeight = Math.max(bounds.height, Math.ceil(rect.y + rect.height) + 4)
+    if (needWidth > bounds.width || needHeight > bounds.height) {
+      win.setBounds({ x: bounds.x, y: bounds.y, width: needWidth, height: needHeight })
+    }
     const x = Math.max(0, Math.floor(rect.x) - 4)
     const y = Math.max(0, Math.floor(rect.y) - 4)
-    const right = Math.min(bounds.width, Math.ceil(rect.x + rect.width) + 4)
-    const bottom = Math.min(bounds.height, Math.ceil(rect.y + rect.height) + 4)
+    const right = Math.min(needWidth, Math.ceil(rect.x + rect.width) + 4)
+    const bottom = Math.min(needHeight, Math.ceil(rect.y + rect.height) + 4)
     if (right <= x || bottom <= y) return
     if (typeof win.setShape === 'function') win.setShape([{ x, y, width: right - x, height: bottom - y }])
     this.ready = true

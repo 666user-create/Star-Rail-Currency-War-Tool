@@ -38,7 +38,10 @@ export default function App() {
       setError('暂时无法读取记录状态，请重试')
       setLoaded(true)
     })
-    return () => { disposed = true; unsubscribe() }
+    // 兜底：无论 IPC 是否因竞态被丢弃，都要让布局测量跑起来，
+    // 否则主进程的 ready 永远是 false，计时表会一直隐藏（重启后"闹钟丢失"）。
+    const fallback = setTimeout(() => { if (!disposed) setLoaded(true) }, 1200)
+    return () => { disposed = true; clearTimeout(fallback); unsubscribe() }
   }, [])
 
   useEffect(() => {
