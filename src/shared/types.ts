@@ -105,7 +105,7 @@ export interface HourBucket {
 
 export type DialogueEvent =
   | 'click' | 'win' | 'loss' | 'winStreak' | 'lossStreak'
-  | 'start' | 'end' | 'idle' | 'launch' | 'needGamePath'
+  | 'start' | 'end' | 'idle' | 'launch' | 'needGamePath' | 'checkUpdate'
 
 export interface DialogueContext {
   [key: string]: string | number | undefined
@@ -222,6 +222,10 @@ export interface PetApi {
   settingsOpen(): void
   petDrag(action: 'start' | 'move' | 'end'): void
   quit(): void
+  /** 手动检查更新（忽略 24 小时节流） */
+  checkUpdate(): Promise<UpdateCheckResult>
+  /** 打开下载页（Gitee Releases） */
+  openDownloadPage(): Promise<void>
   // —— 首次设置向导 ——
   detectGamePath(): Promise<{ path: string | null; message: string }>
   pickGamePath(): Promise<string | null>
@@ -234,4 +238,16 @@ export interface PetApi {
   onTrayMenuState(listener: (state: TrayMenuState) => void): () => void
   trayMenuAction(action: TrayMenuAction): void
   trayMenuClose(): void
+}
+
+/** 版本检查结果 */
+export interface UpdateCheckResult {
+  /** 是否有新版本 */
+  hasUpdate: boolean
+  /** 远程最新版本号（去掉前缀 v）；检查失败为 null */
+  latest: string | null
+  /** 当前版本 */
+  current: string
+  /** 下载页地址 */
+  downloadPage: string
 }

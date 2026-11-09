@@ -12,7 +12,7 @@
     "preview": "electron-vite preview",
     "check": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
     "dist": "electron-vite build && electron-builder --win --x64",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --experimental-strip-types tests/seasons.test.mjs tests/timer-measure.test.mjs tests/pet-animation.test.mjs tests/shot-logger.test.cjs tests/bubble-placement.test.mjs tests/timer-placement.test.mjs tests/pet-preferences.test.mjs tests/pet-render-scheduler.test.mjs tests/ocr-parser.test.mjs tests/recording-store.test.mjs tests/repository.test.mjs tests/recording-validation.test.mjs tests/bond-recognition.test.mjs tests/portrait-matcher.test.mjs tests/atomic-replace.test.mjs"
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --experimental-strip-types tests/seasons.test.mjs tests/timer-measure.test.mjs tests/update-check.test.mjs tests/pet-animation.test.mjs tests/shot-logger.test.cjs tests/bubble-placement.test.mjs tests/timer-placement.test.mjs tests/pet-preferences.test.mjs tests/pet-render-scheduler.test.mjs tests/ocr-parser.test.mjs tests/recording-store.test.mjs tests/repository.test.mjs tests/recording-validation.test.mjs tests/bond-recognition.test.mjs tests/portrait-matcher.test.mjs tests/atomic-replace.test.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",

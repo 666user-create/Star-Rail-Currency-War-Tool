@@ -78,6 +78,9 @@ const api: PetApi = {
   settingsOpen: () => ipcRenderer.send('settings:open'),
   petDrag: (action) => ipcRenderer.send('pet:drag', action),
   quit: () => ipcRenderer.send('app:quit'),
+  // 版本检查
+  checkUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
+  openDownloadPage: () => ipcRenderer.invoke('app:openDownload'),
   // 首次设置向导
   detectGamePath: () => ipcRenderer.invoke('wizard:detect-game'),
   pickGamePath: () => ipcRenderer.invoke('wizard:pick-game'),

@@ -6,6 +6,7 @@ import { loadSettings, saveSettings } from './config'
 import { PetBubbleController } from './petBubble'
 import { PetTimerController } from './petTimer'
 import { createTrayIcon } from './trayIcon'
+import { checkForUpdate, markNotified, openDownloadPage, wasNotified } from './updateCheck'
 import { TrayMenuController } from './trayMenu'
 import { createWizardWindow, hasCompletedWizard, setupWizardIpc } from './wizard'
 import { defaultSeason } from '../shared/seasons'
@@ -500,8 +501,25 @@ function startRecording(): number {
   return recordStartedAt
 }
 
-/** 长局提醒：只读本地起始时间戳，不碰屏幕。30分、40分各提醒一次；40分之后每 10 分钟提醒。 */
-const LONG_RUN_FIRST_SEC = 30 * 60
+/** 有新版本时用气泡提示（不自动安装；绿色包替换文件需要用户自己解压覆盖）。 */
+async function notifyUpdateIfAny(): Promise<void> {
+  try {
+    const result = await checkForUpdate()
+    if (!result.hasUpdate || !result.latest) return
+    // 同一版本只提示一次，避免每次启动都唠叨
+    if (wasNotified(result.latest)) return
+    markNotified(result.latest)
+    petBubble?.update({
+      text: `老板~新版本 ${result.latest} 出来了（当前 ${result.current}），右键菜单 →「检查更新」可以去下载~`
+    })
+    setTimeout(() => petBubble?.update(null), 12000)
+  } catch (error) {
+    // 版本检查失败绝不能影响主功能
+    console.error('[update-check]', error)
+  }
+}
+
+/** 长局提醒：只读本地起始时间戳，不碰屏幕。30分、40分各提醒一次；40分之后每 10 分钟提醒。 */const LONG_RUN_FIRST_SEC = 30 * 60
 const LONG_RUN_SECOND_SEC = 40 * 60
 const LONG_RUN_REPEAT_SEC = 10 * 60
 let lastLongRunReminderAt = 0
@@ -811,6 +829,14 @@ function setupIpc(): void {
   ipcMain.on('settings:open', () => createSettingsWindow())
   ipcMain.on('app:quit', () => app.quit())
 
+  // 手动检查更新（跳过 24 小时节流）
+  ipcMain.handle('app:checkUpdate', async () => {
+    const result = await checkForUpdate(true)
+    if (result.hasUpdate && result.latest) markNotified(result.latest)
+    return result
+  })
+  ipcMain.handle('app:openDownload', () => openDownloadPage())
+
   ipcMain.on('pet:bubble', (event, content: PetBubbleContent | null) => {
     if (event.sender !== petWindow?.webContents) return
     const text = typeof content?.text === 'string' ? content.text.slice(0, 240) : ''
@@ -963,6 +989,8 @@ if (ownsData) app.whenReady().then(async () => {
   createPanelWindow() // 预创建，保证面板秒开；用时再 show
   // 长局提醒巡检：纯本地时间戳，1 分钟一次（不截屏、不读游戏；40 分后需 10 分钟粒度提醒）
   setInterval(() => { try { checkLongRun() } catch (error) { console.error('[long-run]', error) } }, 60 * 1000)
+  // 版本检查：启动 8 秒后查一次（不去抢启动阶段的资源），有新版本用气泡提示
+  setTimeout(() => { void notifyUpdateIfAny() }, 8000)
   // 跨重启恢复：上一局没点结束（含中途退出）→ 计时继续累计，并明确告知
   if (recordStartedAt !== null) {
     const elapsed = (Date.now() - recordStartedAt) / 1000

@@ -119,6 +119,7 @@ export default function App() {
     { key: 'settings', label: () => '设置' },
     { key: 'companion', label: () => '陪伴设置 ›' },
     { key: 'actions', label: () => '选择动作 ›' },
+    { key: 'checkUpdate', label: () => '检查更新' },
     { key: 'sep', label: () => '' },
     { key: 'quit', label: () => '退出' }
   ] as const
@@ -354,6 +355,22 @@ export default function App() {
       else say(line('needGamePath'), 5000)
     }
     if (key === 'settings') window.api.settingsOpen()
+    if (key === 'checkUpdate') {
+      say(line('checkUpdate'), 4000)
+      try {
+        const result = await window.api.checkUpdate()
+        if (result.hasUpdate && result.latest) {
+          say(`老板~有新版 ${result.latest}（你是 ${result.current}），我这就打开下载页~`, 6000)
+          await window.api.openDownloadPage()
+        } else if (result.latest === null) {
+          say('连不上更新服务器，可能与网络有关，稍后再试吧老板~', 5000)
+        } else {
+          say(`已经是最新的 ${result.current} 啦，老板~`, 5000)
+        }
+      } catch {
+        say('检查更新失败，稍后再试吧老板~', 5000)
+      }
+    }
     if (key === 'quit') window.api.quit()
   }
 
