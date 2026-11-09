@@ -251,7 +251,6 @@ export default function App() {
 
       <p className="capture-hint">自助添加：游戏结算画面用 Win+Shift+S 截图，回到面板 Ctrl+V（或点「粘贴截图」）即进入核对。</p>
       <p className="capture-hint">Ctrl+Shift+F8 开始/结束计时（若快捷键未被占用）。结束后截图会进入待确认草稿。</p>
-      <p className="capture-hint">首次识别会缓存公开角色与羁绊图标，后续在本机比对，截图不上传。</p>
 
       {/* 总览统计 */}
       <div className="tiles">
