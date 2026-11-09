@@ -37,8 +37,15 @@ test('normalizeSeason 截断超长名称到 80 字符', () => {
   assert.equal(normalizeSeason(long).length, 80)
 })
 
-test('入画奇航 默认没有开始时间（等待用户填写或官方公布）', () => {
-  assert.equal(hasStartTime('入画奇航'), false, '内置数据不应臆造开始日期')
+test('入画奇航 有官方开始时间（随 4.7 开服，2026-11-11 约 11:00 UTC+8）', () => {
+  // 官方 4.7 前瞻：06:00 (UTC+8) 开始停机维护，约 5 小时 → 11:00 开服，赛季随之开启
+  assert.equal(hasStartTime('入画奇航'), true, '官方已公布时间，内置数据应有 startAt')
+  const season = resolvedSeasons().find((s) => s.id === '入画奇航')
+  assert.ok(season.startAt != null)
+  const local = new Date(season.startAt)
+  assert.equal(local.getUTCFullYear(), 2026)
+  assert.equal(local.getUTCMonth(), 10) // 11 月
+  assert.equal(local.getUTCDate(), 11)
 })
 
 test('用户填写的开始时间优先于内置值', () => {
