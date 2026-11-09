@@ -28,3 +28,6 @@ python-embed/
 
 # 临时 TTS 依赖（不提交）
 .tts/
+
+# GitHub Release 请求体临时文件
+release-body.json
