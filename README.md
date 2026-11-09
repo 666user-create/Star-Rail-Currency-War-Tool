@@ -4,8 +4,6 @@
 
 仓库镜像：[GitHub](https://github.com/666user-create/Star-Rail-Currency-War-Tool) · [Gitee](https://gitee.com/qq2746993199qq/star-rail-currency-war-tool)
 
-演示视频：[功能介绍（2 分 35 秒）](docs/货币战争桌宠-功能介绍.mp4)（配音是通用中文 TTS，非角色原声）
-
 桌宠说怪话，附加对战记录能力：
 
 - **桌宠**：点击说话（"老板~"式吐槽）、拖动、右键菜单、开始/结束对局记录、一键启动游戏

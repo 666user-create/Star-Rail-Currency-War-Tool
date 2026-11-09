@@ -17,6 +17,10 @@ assets/_extract/_tools/
 assets/official_pet/
 
 docs/refs/
+# 宣传视频/字幕/解说词：自行发布到社交平台，不进仓库
+docs/*.mp4
+docs/*.srt
+docs/解说词-*.txt
 
 # 本机数据（截图等），不入库
 data/
