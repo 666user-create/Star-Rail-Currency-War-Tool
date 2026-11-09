@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import type { DraftInput, MatchResult, RecordingDraft } from '@shared/types'
+import { SEASONS } from '@shared/seasons'
 
 export const RESULT_LABEL: Record<MatchResult, string> = {
   win: '胜利', loss: '失败', interrupted: '中断', suspected: '待核实'
@@ -185,7 +186,22 @@ export default function ReviewDraft({ draft, onClose, onUpdate, onSaved, onDisca
             <label>段位变化<input type="number" step="1" value={form.rankChange} onChange={(event) => edit('rankChange', event.target.value)} placeholder="例如 +1 / +2 / +3" /></label>
             <label>结算评级<input value={form.rating} onChange={(event) => edit('rating', event.target.value)} placeholder="未知可留空" /></label>
             <label>队伍生命<input type="number" min="0" step="1" value={form.squadHp} onChange={(event) => edit('squadHp', event.target.value)} placeholder="未知可留空" /></label>
-            <label>赛季<input value={form.season} readOnly title="赛季在面板顶部切换，这里只显示" placeholder="未标注" /></label>
+            <div className="span2 season-tabs-field">
+              <label>赛季</label>
+              <div className="season-tabs" role="group" aria-label="这一局所属赛季">
+                {SEASONS.map((season) => (
+                  <button
+                    key={season.id}
+                    type="button"
+                    className={`season-tab ${form.season === season.id ? 'on' : ''}`}
+                    onClick={() => edit('season', season.id)}
+                  >{season.label}</button>
+                ))}
+                {form.season && !SEASONS.some((season) => season.id === form.season) && (
+                  <span className="season-tab custom on" title="历史记录里的自定义赛季名">{form.season}</span>
+                )}
+              </div>
+            </div>
             <label className="span2">阵容（角色）<input value={form.lineup} onChange={(event) => edit('lineup', event.target.value)} placeholder="角色名，多个用顿号或逗号分隔" /></label>
             <label className="span2">羁绊<input value={form.bonds} onChange={(event) => edit('bonds', event.target.value)} placeholder="羁绊名称，多个用顿号或逗号分隔（数量请按原图自己补，如 减益×2）" /></label>
             <label className="span2">备注<textarea rows={2} value={form.note} onChange={(event) => edit('note', event.target.value)} placeholder="可记录需要补充核实的信息" /></label>

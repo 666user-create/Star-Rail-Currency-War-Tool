@@ -315,3 +315,28 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   color: var(--gold);
   font-weight: 700;
 }
+
+/* 赛季选项卡（表单内直接点选，替代手填输入框） */
+.season-tabs-field { display: flex; flex-direction: column; gap: 6px; }
+.season-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.season-tab {
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-family: inherit;
+  border-radius: 999px;
+  border: 1px solid rgba(232, 196, 118, 0.28);
+  background: rgba(255, 255, 255, 0.03);
+  color: #cfc9dd;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.season-tab:hover { border-color: rgba(232, 196, 118, 0.6); color: var(--gold); }
+.season-tab.on {
+  background: rgba(232, 196, 118, 0.16);
+  border-color: var(--gold);
+  color: var(--gold);
+  font-weight: 700;
+}
+.season-tab.custom { cursor: default; font-style: italic; }
+.season-tab.clear { border-color: rgba(255, 146, 146, 0.3); color: #d9a0a0; }
+.season-tab.clear:hover { border-color: #ff9292; color: #ff9292; background: rgba(255, 146, 146, 0.1); }
