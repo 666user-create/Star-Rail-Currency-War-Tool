@@ -231,8 +231,8 @@ export default function App() {
                 type="button"
                 className={`season-btn ${currentSeason === season.id ? 'on' : ''} ${seasonDatePrompt?.seasonId === season.id ? 'editing' : ''}`}
                 title={season.startAt
-                  ? `${new Date(season.startAt).toLocaleDateString()} 起${season.endAt ? ` · ${new Date(season.endAt).toLocaleDateString()} 结束` : ' · 进行中'}${season.confirmStartOnSwitch ? '（切换时确认开始日期）' : ''}`
-                  : '开始日期未填写，点击填写'}
+                  ? `${new Date(season.startAt).toLocaleDateString()} 起${season.endAt ? ` · ${new Date(season.endAt).toLocaleDateString()} 结束` : ' · 进行中'}`
+                  : '还没确认开赛时间'}
                 onClick={() => void switchSeason(season.id)}
               >{season.label}</button>
             ))}
@@ -241,18 +241,18 @@ export default function App() {
           {seasonDatePrompt && (
             <div className="season-inline-prompt" role="dialog" aria-label="填写赛季开始日期">
               <div className="season-inline-head">
-                <span>「{seasonDatePrompt.label}」什么时候开始？</span>
+                <span>「{seasonDatePrompt.label}」还没开赛</span>
                 <button type="button" className="season-inline-close" aria-label="关闭" onClick={() => { setSeasonDatePrompt(null); setError('') }}>✕</button>
               </div>
-              {/* 告知：这一季要等版本更新开服后才算正式开始 */}
+              {/* 告知：这一季要等版本更新才开 */}
               <div className="season-inline-when">
                 <span className="season-inline-date">{formatStartDate(seasonStartAt(seasonDatePrompt.seasonId, { starts: seasonStarts, ends: seasonEnds }))}</span>
-                <span className="season-inline-after">版本更新开服后开启</span>
+                <span className="season-inline-after">开服</span>
               </div>
-              <p className="season-inline-hint">开服前的对局仍属于上一季。确认切换后，从这个时间点起的对局计入「{seasonDatePrompt.label}」。</p>
+              <p className="season-inline-hint">开服前打的局还算上一季。切过去之后，新打的局就记到这一季。</p>
               <div className="season-inline-row">
-                <button type="button" className="tb-btn" onClick={() => { setSeasonDatePrompt(null); setError('') }}>先不切</button>
-                <button type="button" className="primary-btn" onClick={() => void confirmSeasonStart()}>知道了，切换</button>
+                <button type="button" className="tb-btn" onClick={() => { setSeasonDatePrompt(null); setError('') }}>取消</button>
+                <button type="button" className="primary-btn" onClick={() => void confirmSeasonStart()}>切过去</button>
               </div>
               {error && <div className="inline-error" role="alert">{error}</div>}
             </div>
