@@ -221,23 +221,45 @@ export default function App() {
           货币战争作战记录
           <span className="season-chip">本地记录</span>
         </div>
-        {/* 赛季切换：顶部按钮，不用在表单里手填；未登记开始日期的赛季点了会就地补填 */}
-        <div className="season-switch" role="group" aria-label="当前赛季">
-          <span className="season-switch-label">赛季</span>
-          {resolvedSeasons({ starts: seasonStarts, ends: seasonEnds }).map((season) => (
-            <button
-              key={season.id}
-              type="button"
-              className={`season-btn ${currentSeason === season.id ? 'on' : ''}`}
-              title={season.startAt
-                ? `${new Date(season.startAt).toLocaleDateString()} 起${season.endAt ? ` · ${new Date(season.endAt).toLocaleDateString()} 结束` : ' · 进行中'}（点击可改开始日期）`
-                : '开始日期未填写，点击填写'}
-              onClick={() => {
-                if (hasStartTime(season.id, { starts: seasonStarts, ends: seasonEnds })) void switchSeason(season.id)
-                else setSeasonDatePrompt({ seasonId: season.id, label: season.label, value: formatStartDate(seasonStarts[season.id]) })
-              }}
-            >{season.label}</button>
-          ))}
+        {/* 赛季切换：顶部按钮，不用在表单里手填；未登记开始日期的赛季点了就地补填 */}
+        <div className="season-switch-wrap">
+          <div className="season-switch" role="group" aria-label="当前赛季">
+            <span className="season-switch-label">赛季</span>
+            {resolvedSeasons({ starts: seasonStarts, ends: seasonEnds }).map((season) => (
+              <button
+                key={season.id}
+                type="button"
+                className={`season-btn ${currentSeason === season.id ? 'on' : ''} ${seasonDatePrompt?.seasonId === season.id ? 'editing' : ''}`}
+                title={season.startAt
+                  ? `${new Date(season.startAt).toLocaleDateString()} 起${season.endAt ? ` · ${new Date(season.endAt).toLocaleDateString()} 结束` : ' · 进行中'}（点击可改开始日期）`
+                  : '开始日期未填写，点击填写'}
+                onClick={() => {
+                  if (hasStartTime(season.id, { starts: seasonStarts, ends: seasonEnds })) void switchSeason(season.id)
+                  else setSeasonDatePrompt({ seasonId: season.id, label: season.label, value: formatStartDate(seasonStarts[season.id]) })
+                }}
+              >{season.label}</button>
+            ))}
+          </div>
+          {/* 紧贴按钮下方出现：填该赛季开始日期（官方公布时间），不必改代码 */}
+          {seasonDatePrompt && (
+            <div className="season-inline-prompt" role="dialog" aria-label="填写赛季开始日期">
+              <div className="season-inline-head">
+                <span>「{seasonDatePrompt.label}」开始日期</span>
+                <button type="button" className="season-inline-close" aria-label="取消" onClick={() => { setSeasonDatePrompt(null); setError('') }}>✕</button>
+              </div>
+              <div className="season-inline-row">
+                <input
+                  type="date"
+                  value={seasonDatePrompt.value}
+                  onChange={(event) => setSeasonDatePrompt({ ...seasonDatePrompt, value: event.target.value })}
+                  autoFocus
+                />
+                <button type="button" className="primary-btn" onClick={() => void confirmSeasonStart()}>保存并切换</button>
+              </div>
+              <p className="season-inline-hint">官方公布后填这里，之后赛季判断与统计都用它</p>
+              {error && <div className="inline-error" role="alert">{error}</div>}
+            </div>
+          )}
         </div>
         <div className="title-actions">
           <button className="primary-btn" disabled={importing} onClick={() => void importScreenshot()}>{importing ? '正在导入…' : '导入结算截图'}</button>
@@ -346,26 +368,6 @@ export default function App() {
         </div>
       )}
       {selectedDraft && <ReviewDraft key={selectedDraft.id} draft={selectedDraft} onClose={() => setSelectedDraftId(null)} onUpdate={updateDraft} onSaved={async () => { setSelectedDraftId(null); setNotice('已确认保存，本局已计入正式记录。'); await reload() }} onDiscarded={async () => { setSelectedDraftId(null); setNotice('草稿已丢弃，未计入统计。'); await reload() }} />}
-      {/* 赛季开始日期填写：官方未公布时由用户自己登记 */}
-      {seasonDatePrompt && (
-        <div className="season-modal-scrim" role="dialog" aria-modal="true" aria-label="填写赛季开始日期">
-          <div className="season-modal">
-            <h3>「{seasonDatePrompt.label}」什么时候开始？</h3>
-            <p className="field-hint">填官方公布的开始日期即可，之后统计与赛季判断都会用它。留空取消不影响已有记录。</p>
-            <input
-              type="date"
-              value={seasonDatePrompt.value}
-              onChange={(event) => setSeasonDatePrompt({ ...seasonDatePrompt, value: event.target.value })}
-              autoFocus
-            />
-            {error && <div className="inline-error" role="alert">{error}</div>}
-            <div className="season-modal-actions">
-              <button type="button" className="tb-btn" onClick={() => { setSeasonDatePrompt(null); setError('') }}>取消</button>
-              <button type="button" className="primary-btn" onClick={() => void confirmSeasonStart()}>保存并切换</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

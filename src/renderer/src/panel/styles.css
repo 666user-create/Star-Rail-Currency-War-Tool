@@ -341,48 +341,58 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .season-tab.clear { border-color: rgba(255, 146, 146, 0.3); color: #d9a0a0; }
 .season-tab.clear:hover { border-color: #ff9292; color: #ff9292; background: rgba(255, 146, 146, 0.1); }
 
-/* 赛季开始日期填写弹窗 */
-.season-modal-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(6, 9, 20, 0.72);
-  backdrop-filter: blur(3px);
+/* 赛季开始日期：贴着赛季按钮展开的内联面板 */
+.season-switch-wrap { position: relative; margin-left: auto; margin-right: 10px; }
+.season-switch-wrap .season-switch { margin-left: 0; margin-right: 0; }
+.season-btn.editing {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(232, 196, 118, 0.18);
 }
-.season-modal {
-  width: 380px;
-  padding: 20px 22px 16px;
-  border-radius: 14px;
+.season-inline-prompt {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: 300px;
+  padding: 12px 14px;
+  border-radius: 10px;
   background: #151b33;
   border: 1.5px solid rgba(232, 196, 118, 0.42);
-  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 9px;
 }
-.season-modal h3 {
-  margin: 0;
-  font-size: 15px;
+.season-inline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
   color: var(--gold);
+  font-weight: 700;
 }
-.season-modal input[type="date"] {
-  padding: 9px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(232, 196, 118, 0.35);
+.season-inline-close {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+}
+.season-inline-close:hover { color: var(--gold); }
+.season-inline-row { display: flex; gap: 8px; align-items: center; }
+.season-inline-row input[type="date"] {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 9px;
+  border-radius: 7px;
+  border: 1px solid rgba(232, 196, 118, 0.3);
   background: #1b2240;
   color: #e8e6f0;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12px;
 }
-.season-modal input[type="date"]:focus {
-  outline: none;
-  border-color: var(--gold);
-}
-.season-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
+.season-inline-row input[type="date"]:focus { outline: none; border-color: var(--gold); }
+.season-inline-row .primary-btn { padding: 7px 12px; font-size: 12px; white-space: nowrap; }
+.season-inline-hint { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
