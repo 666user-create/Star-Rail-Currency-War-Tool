@@ -49,9 +49,16 @@ Gitee 单文件上限 100MB，所以发布包拆成了两卷：
 2. **截图位置** — 结算截图存放位置，默认在应用目录的 `data\screenshots`
 3. **提取模型** — 一键从游戏文件中提取随宠模型，带实时进度
 
-安装包**已内置 Python 运行环境与提取依赖**，不需要你另外安装 Python。
+> **关于内置 Python 的两点区别，别搞混：**
+>
+> | 你拿到的包 | 内置 Python？ | 第 3 步能否一键提取 |
+> |---|---|---|
+> | **Releases 下载的绿色包** | ✅ 有（`resources/python-embed/`） | ✅ 能，无需装任何东西 |
+> | **自己从源码 `npm run dist` 打包** | ❌ 没有 | ⚠️ 需你本机有 Python 3 + `UnityPy` + `lz4` |
+>
+> 源码仓库里不含 `python-embed/`（60MB，被 `.gitignore` 排除），所以**从源码构建出的包不带内嵌 Python**，打包日志会出现 `file source doesn't exist from=...\python-embed`，这属正常现象。想让自己打的包也带内嵌 Python，见下文「打包」一节。
 
-> 桌宠形象（随宠模型）**不随包分发**。首次启动需要在向导第 3 步从你本机的游戏文件提取；跳过的话桌宠只有轮廓、没有形象。
+> 桌宠形象（随宠模型）**不随包分发**。首次启动需要在向导第 3 步从你本机的游戏文件提取；**提取失败可以直接点「跳过，先用着」**，桌宠会显示简化轮廓、不影响其他功能，之后可再提取。
 
 > 若出现「Windows 已保护你的电脑」，是未签名程序的正常提示：点「更多信息」→「仍要运行」。
 
@@ -79,6 +86,37 @@ npm run dist
 ```
 
 产物在 `release/`：`货币战争桌宠-x.x.x-win.zip`（绿色包）。**解压到任意路径都能运行**，不限空格或中文。
+
+### 让自建的包带上内置 Python（可选）
+
+仓库不含 `python-embed/`，所以默认打出来的包不带内置 Python。想打成和 Releases 一样的完整包，先准备内嵌 Python：
+
+```powershell
+$ProgressPreference='SilentlyContinue'
+Invoke-WebRequest "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip" -OutFile py.zip
+Expand-Archive py.zip -DestinationPath python-embed -Force
+Remove-Item py.zip
+
+# 启用 site-packages（embed 版默认禁用）
+@"
+python311.zip
+.
+Lib\site-packages
+
+import site
+"@ | Set-Content python-embed\python311._pth -Encoding ASCII
+
+# 装提取依赖（用你本机的 Python，装进内嵌目录）
+$env:PIP_USER="no"
+python -m pip install --target="python-embed\Lib\site-packages" UnityPy lz4
+
+# 验证
+.\python-embed\python.exe -c "import UnityPy, lz4; print('OK')"
+```
+
+之后 `npm run dist`，`extraResources` 会自动把 `python-embed/` 打进 `resources/python-embed/`，日志里那条 `file source doesn't exist` 也就消失了。
+
+> 不打进去也能用：只要本机装了 Python 3 + `UnityPy` + `lz4`，向导第 3 步会自动找到它（支持 PATH、Program Files、Windows Store 版）。都没有的话点「跳过，先用着」即可。
 
 ## 获取随宠模型（extractor）
 
