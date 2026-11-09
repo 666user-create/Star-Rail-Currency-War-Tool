@@ -342,8 +342,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .season-tab.clear:hover { border-color: #ff9292; color: #ff9292; background: rgba(255, 146, 146, 0.1); }
 
 /* 赛季开始日期：贴着赛季按钮展开的内联面板 */
-.season-switch-wrap { position: relative; margin-left: auto; margin-right: 10px; }
+/* 关键：标题栏是 -webkit-app-region: drag（拖动窗口），其内部元素收不到鼠标事件。
+   赛季按钮必须在 no-drag 区域，否则真实点击无效（JS dispatchEvent 能过，鼠标点击不行）。 */
+.season-switch-wrap {
+  position: relative;
+  margin-left: auto;
+  margin-right: 10px;
+  -webkit-app-region: no-drag;
+}
 .season-switch-wrap .season-switch { margin-left: 0; margin-right: 0; }
+.season-btn {
+  -webkit-app-region: no-drag;
+}
 .season-btn.editing {
   border-color: var(--gold);
   box-shadow: 0 0 0 2px rgba(232, 196, 118, 0.18);
