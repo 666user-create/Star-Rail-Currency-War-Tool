@@ -146,8 +146,7 @@ export default function App() {
   const updateDraft = (draft: RecordingDraft) => setDrafts((current) => [draft, ...current.filter((item) => item.id !== draft.id)])
   /**
    * 切换赛季。
-   * 新赛季（入画奇航）要等版本更新开服后才正式开始：切换前先弹一个说明界面，
-   * 告诉使用者准确的开启时间，避免提前把对局记到还没开放的赛季里。
+   * 还没开赛的赛季（入画奇航）功能尚未实现，点击只弹一句说明，不切换。
    */
   const switchSeason = async (season: string) => {
     if (needsStartConfirm(season, { starts: seasonStarts, ends: seasonEnds })) {
@@ -157,17 +156,6 @@ export default function App() {
     }
     setCurrentSeason(season)
     try { await window.api.setSettings({ recordSeason: season }) } catch { /* 设置写失败不影响当前会话内切换 */ }
-  }
-
-  /** 确认说明后切到该赛季。 */
-  const confirmSeasonStart = async () => {
-    if (!seasonDatePrompt) return
-    setCurrentSeason(seasonDatePrompt.seasonId)
-    setSeasonDatePrompt(null)
-    setError('')
-    try {
-      await window.api.setSettings({ recordSeason: seasonDatePrompt.seasonId })
-    } catch (reason) { setError(errorText(reason, '切换赛季失败')) }
   }
   const importScreenshot = async () => {
     if (importing) return
@@ -244,15 +232,10 @@ export default function App() {
                 <span>「{seasonDatePrompt.label}」还没开赛</span>
                 <button type="button" className="season-inline-close" aria-label="关闭" onClick={() => { setSeasonDatePrompt(null); setError('') }}>✕</button>
               </div>
-              {/* 告知：这一季要等版本更新才开 */}
+              {/* 只告知开赛时间；这一季还没做，不提供切换 */}
               <div className="season-inline-when">
                 <span className="season-inline-date">{formatStartDate(seasonStartAt(seasonDatePrompt.seasonId, { starts: seasonStarts, ends: seasonEnds }))}</span>
                 <span className="season-inline-after">开服</span>
-              </div>
-              <p className="season-inline-hint">开服前打的局还算上一季。切过去之后，新打的局就记到这一季。</p>
-              <div className="season-inline-row">
-                <button type="button" className="tb-btn" onClick={() => { setSeasonDatePrompt(null); setError('') }}>取消</button>
-                <button type="button" className="primary-btn" onClick={() => void confirmSeasonStart()}>切过去</button>
               </div>
               {error && <div className="inline-error" role="alert">{error}</div>}
             </div>
