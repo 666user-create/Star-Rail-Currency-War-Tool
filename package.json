@@ -1,6 +1,6 @@
 {
   "name": "currency-war-pet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "货币战争桌宠助手 — 话痨阴阳怪气小奇美拉，专治官方只给10条对战记录（非米哈游官方作品）",
   "author": "currency-war-pet contributors",
   "main": "out/main/index.js",
