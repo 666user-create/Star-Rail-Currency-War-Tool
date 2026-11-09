@@ -56,10 +56,57 @@ function validRole(value: unknown): value is RoleTemplate {
 async function readManifest(directory: string): Promise<Manifest | null> {
   try {
     const data = JSON.parse(await fs.readFile(path.join(directory, 'manifest.json'), 'utf8')) as Manifest
-    return data.version === 2 && Array.isArray(data.roles) && data.roles.length <= 220 && data.roles.length > 0 && data.roles.every(validRole) ? data : null
+    return data.version === 2 && Array.isArray(data.roles) && data.roles.length <= 400 && data.roles.length > 0 && data.roles.every(validRole) ? data : null
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EACCES' || (error as NodeJS.ErrnoException).code === 'EPERM') throw error
     return null
+  }
+}
+
+/**
+ * 角色库多久刷新一次。
+ * 新赛季会出新角色，旧逻辑「有缓存就永不刷新」会导致新角色永远认不出。
+ * 设 7 天：既能让新赛季角色在开服后一周内自动补上，又不会频繁打扰官方接口。
+ */
+const MANIFEST_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+/** manifest.json 的修改时间，用作「上次刷新」时间。 */
+async function manifestAge(directory: string): Promise<number> {
+  try {
+    const stat = await fs.stat(path.join(directory, 'manifest.json'))
+    return Date.now() - stat.mtimeMs
+  } catch { return Number.POSITIVE_INFINITY }
+}
+
+/**
+ * 取角色清单：过期或不存在就去拉最新版。
+ * 关键安全策略：**刷新失败绝不覆盖旧缓存**，否则官方接口抖动会让用户从
+ * 「能识别 104 个角色」退化到「一个都认不出」。所以先建新的，成功了才落盘。
+ */
+async function resolveManifest(directory: string, warnings: string[], budget: AbortSignal): Promise<Manifest | null> {
+  const cached = await readManifest(directory)
+  const stale = (await manifestAge(directory)) > MANIFEST_TTL_MS
+  if (cached && !stale) return cached
+
+  // 需要刷新（或没有缓存）
+  if (!cached) {
+    // 全新安装：只能新建，失败就没有可用的
+    return createManifest(directory, warnings, budget)
+  }
+
+  // 有旧缓存但过期：尝试刷新，失败则继续用旧的
+  try {
+    const fresh = await createManifest(directory, [], budget)
+    // createManifest 内部已落盘；这里只做「新清单是否比旧的更差」的兜底判断
+    if (fresh.roles.length < cached.roles.length * 0.5) {
+      warnings.push('新角色库异常偏少，已回退到上一次的缓存。')
+      await writeCache(path.join(directory, 'manifest.json'), Buffer.from(JSON.stringify(cached), 'utf8'))
+      return cached
+    }
+    return fresh
+  } catch {
+    warnings.push('角色库刷新失败，继续使用本机缓存（不影响已有角色识别）。')
+    return cached
   }
 }
 
@@ -101,7 +148,8 @@ export function preparePortraitTemplates(cacheDir: string): Promise<Preparation>
     try {
       await fs.mkdir(directory, { recursive: true })
       const budget = AbortSignal.timeout(25_000)
-      const manifest = await readManifest(directory) ?? await createManifest(directory, warnings, budget)
+      const manifest = await resolveManifest(directory, warnings, budget)
+      if (!manifest) { warnings.push('角色库不可用，请手动填写角色名。'); return { count: 0, warnings } }
       let index = 0, count = 0, failures = 0
       await Promise.all(Array.from({ length: 4 }, async () => {
         while (index < manifest.roles.length && !budget.aborted) {

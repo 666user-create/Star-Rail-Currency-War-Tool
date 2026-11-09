@@ -63,8 +63,8 @@ async function readCache(directory: string): Promise<PreparedBonds> {
     if ((await fs.stat(file)).size > 128 * 1024) return empty
     const saved: unknown = JSON.parse(await fs.readFile(file, 'utf8'))
     const candidates = Array.isArray(saved) ? saved : saved && typeof saved === 'object' && 'templates' in saved ? (saved as { templates: unknown }).templates : []
-    if (!Array.isArray(candidates) || candidates.length > 100) return empty
-    const expectedCount = saved && typeof saved === 'object' && 'expectedCount' in saved && Number.isInteger(saved.expectedCount) && Number(saved.expectedCount) <= 100 ? Number(saved.expectedCount) : candidates.length
+    if (!Array.isArray(candidates) || candidates.length > 200) return empty
+    const expectedCount = saved && typeof saved === 'object' && 'expectedCount' in saved && Number.isInteger(saved.expectedCount) && Number(saved.expectedCount) <= 200 ? Number(saved.expectedCount) : candidates.length
     const valid: CachedBond[] = []
     for (const item of candidates) {
       if (!validEntry(item)) continue
@@ -76,6 +76,22 @@ async function readCache(directory: string): Promise<PreparedBonds> {
   } catch { return empty }
 }
 
+/**
+ * 羁绊图标库多久刷新一次。新赛季会出新羁绊，旧逻辑「有缓存就永不刷新」认不出新羁绊。
+ * 与角色库同一节奏（7 天）。
+ */
+const BOND_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+/** 读缓存里的下载时间；读不到返回 0（视为很旧，需要刷新）。 */
+async function bondCacheAge(directory: string): Promise<number> {
+  try {
+    const raw = JSON.parse(await fs.readFile(path.join(directory, 'manifest.json'), 'utf8')) as { downloadedAt?: unknown }
+    return typeof raw?.downloadedAt === 'number' && Number.isFinite(raw.downloadedAt)
+      ? Date.now() - raw.downloadedAt
+      : Number.POSITIVE_INFINITY
+  } catch { return Number.POSITIVE_INFINITY }
+}
+
 /** 首次仅下载官方攻略页公开的羁绊小图标；后续有缓存即完全离线，不发送截图或账号信息。 */
 export function prepareBondTemplates(cacheDir: string): Promise<PreparedBonds> {
   const directory = path.resolve(cacheDir)
@@ -83,7 +99,9 @@ export function prepareBondTemplates(cacheDir: string): Promise<PreparedBonds> {
   if (previous) return previous
   const pending = (async (): Promise<PreparedBonds> => {
     const cached = await readCache(directory)
-    if (cached.templates.length) return cached
+    const stale = (await bondCacheAge(directory)) > BOND_CACHE_TTL_MS
+    // 有缓存且未过期：直接用（离线，不联网）
+    if (cached.templates.length && !stale) return cached
     const warnings: string[] = []
     try {
       await fs.mkdir(directory, { recursive: true })
@@ -113,10 +131,20 @@ export function prepareBondTemplates(cacheDir: string): Promise<PreparedBonds> {
       }
       await Promise.all(Array.from({ length: Math.min(4, entries.length) }, worker))
       if (!available.length) throw new Error('羁绊小图标未缓存成功')
+      // 安全兜底：新图标库比旧缓存少一半以上，视为官方接口异常，保留旧缓存
+      if (cached.templates.length && available.length < cached.templates.length * 0.5) {
+        warnings.push('新羁绊图标库异常偏少，已回退到上一次的缓存。')
+        return { templates: cached.templates, warnings }
+      }
       await atomicFile(path.join(directory, 'manifest.json'), JSON.stringify({ source: CONFIG_URL, downloadedAt: Date.now(), expectedCount: entries.length, templates: available }))
       if (available.length < entries.length) warnings.push('部分羁绊图标未缓存成功，识别可能有遗漏，可按原图补充。')
       return { templates: available, warnings }
     } catch {
+      // 刷新失败时若已有旧缓存，继续用旧的（避免从「能识别」退化到「一个都不认」）
+      if (cached.templates.length) {
+        warnings.push('羁绊图标库刷新失败，继续使用本机缓存（不影响已有羁绊识别）。')
+        return { templates: cached.templates, warnings }
+      }
       warnings.push('羁绊图标库暂不可用；首次使用需下载官方公开小图标，截图不会上传，可先手动填写。')
       return { templates: [], warnings }
     }
