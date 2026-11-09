@@ -30,6 +30,16 @@ npm run dev
 
 开发命令：`npm run check`（类型检查）、`npm test`（单元测试）、`npm run build`（编译）、`npm run dist`（打 Windows 包）。
 
+打包时需要从 GitHub 下载 electron 与 winCodeSign，国内网络常超时。可先设镜像再打包：
+
+```powershell
+$env:ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/"
+$env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
+npm run dist
+```
+
+产物在 `release/`：`货币战争桌宠-x.x.x-win.zip`（绿色包）。**解压到任意路径都能运行**，不限空格或中文。
+
 ## 获取随宠模型（extractor）
 
 绿色包与源码版**都不包含任何游戏模型或贴图**。两种方式获取模型：
