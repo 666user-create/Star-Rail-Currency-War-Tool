@@ -57,11 +57,6 @@
           <div class="hint">暂停主动动作和台词，仍回应点击和记录操作</div>
         </div>
         <div>
-          <label class="field-label" for="record-season">新对局的默认赛季（可留空）</label>
-          <input type="text" id="record-season" maxlength="80" placeholder="例如 零和博弈" autocomplete="off" />
-          <div class="hint">仅用于秒表新记录；导入历史截图时单独核对赛季。</div>
-        </div>
-        <div>
           <label class="field-label" for="screenshot-dir">截图保存文件夹</label>
           <div style="display:flex;gap:8px;">
             <input type="text" id="screenshot-dir" placeholder="留空 = 默认位置" autocomplete="off" style="flex:1;min-width:0;" />
@@ -98,7 +93,6 @@
       const fields = document.getElementById('settings-fields')
       const input = document.getElementById('path')
       const quiet = document.getElementById('quiet')
-      const recordSeason = document.getElementById('record-season')
       const screenshotDir = document.getElementById('screenshot-dir')
       const pickDir = document.getElementById('pick-dir')
       const dirHint = document.getElementById('dir-hint')
@@ -128,7 +122,6 @@
       const applySettings = (settings) => {
         input.value = settings.gamePath || ''
         quiet.checked = settings.quietMode === true
-        recordSeason.value = settings.recordSeason || ''
         screenshotDir.value = settings.screenshotDir || ''
         idleAnimations.checked = settings.idleAnimations !== false
         idleTalk.checked = settings.idleTalk !== false
@@ -190,7 +183,6 @@
         try {
           const settings = await window.api.setSettings({
             gamePath: input.value.trim(),
-            recordSeason: recordSeason.value.trim(),
             screenshotDir: screenshotDir.value.trim(),
             quietMode: quiet.checked,
             idleAnimations: idleAnimations.checked,

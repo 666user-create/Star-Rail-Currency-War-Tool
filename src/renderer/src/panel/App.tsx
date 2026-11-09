@@ -110,8 +110,13 @@ export default function App() {
       setDurations(nextDurations)
       setHours(nextHours)
       setDrafts(nextDrafts)
-      // 赛季：优先用设置里保存的，否则按时间推测
-      void window.api.getSettings().then((s) => { if (s.recordSeason) setCurrentSeason(s.recordSeason) }).catch(() => {})
+      // 赛季：优先用设置里保存的；为空则用按时间推测的当前赛季，并写回设置，
+      // 保证秒表结束时读到的是面板上正在显示的这一季
+      void window.api.getSettings().then((s) => {
+        const season = s.recordSeason || currentSeason
+        setCurrentSeason(season)
+        if (!s.recordSeason) void window.api.setSettings({ recordSeason: season }).catch(() => {})
+      }).catch(() => {})
       setError('')
     } catch (reason) {
       if (version === reloadVersion.current) setError(errorText(reason, '读取记录失败，请重试。'))

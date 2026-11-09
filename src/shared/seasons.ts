@@ -30,9 +30,10 @@ export function defaultSeason(now = Date.now()): string {
   return SEASONS[SEASONS.length - 1].id
 }
 
-/** 校验并归一化用户选择的赛季：已知赛季用 id，未知自定义名保留原文。 */
+/** 校验并归一化用户选择的赛季：空值回落默认赛季，已知赛季用 id，未知自定义名保留原文。 */
 export function normalizeSeason(value: string): string {
-  const trimmed = value.trim().slice(0, 80)
+  const trimmed = (value ?? '').trim().slice(0, 80)
+  if (!trimmed) return defaultSeason()
   const known = SEASONS.find((season) => season.id === trimmed || season.label === trimmed)
   return known ? known.id : trimmed
 }

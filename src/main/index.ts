@@ -531,7 +531,9 @@ function formatDuration(seconds: number | null): string {
 
 function endRecording(): Promise<RecordingDraft | null> {
   if (endPending) return endPending
-  const draft = recordingStore.end(Date.now(), settings.recordSeason || defaultSeason())
+  // 赛季优先级：设置里（由面板顶部切换按钮写入）＞ 按时间推测
+  const season = (settings.recordSeason ?? '').trim() || defaultSeason()
+  const draft = recordingStore.end(Date.now(), season)
   if (!draft) return Promise.resolve(null)
   recordStartedAt = null
   publishRecording()
