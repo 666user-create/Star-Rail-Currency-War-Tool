@@ -2,8 +2,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  SEASONS, defaultSeason, normalizeSeason, hasStartTime,
-  resolvedSeasons, parseStartDate, formatStartDate
+  SEASONS, defaultSeason, normalizeSeason, hasStartTime, needsStartConfirm,
+  resolvedSeasons, parseStartDate, formatStartDate, seasonStartAt
 } from '../src/shared/seasons.ts'
 
 test('SEASONS 包含零和博弈与入画奇航', () => {
@@ -89,4 +89,38 @@ test('formatStartDate 与 parseStartDate 往返一致', () => {
 test('formatStartDate 对空值返回空字符串', () => {
   assert.equal(formatStartDate(undefined), '')
   assert.equal(formatStartDate(null), '')
+})
+
+test('入画奇航 切换时先显示开启时间说明界面', () => {
+  // 新赛季要等版本更新开服后才开始，切换前告知使用者
+  assert.equal(needsStartConfirm('入画奇航'), true)
+})
+
+test('入画奇航 的官方开启时间已内置（2026-11-11 11:00 UTC+8）', () => {
+  const start = seasonStartAt('入画奇航')
+  assert.ok(start != null, '应有官方开启时间')
+  // UTC+8 的 11:00 = UTC 03:00
+  assert.equal(new Date(start).toISOString(), '2026-11-11T03:00:00.000Z')
+})
+
+test('零和博弈 切换时不弹确认（已有确定时间，无需每次核对）', () => {
+  assert.equal(needsStartConfirm('零和博弈'), false)
+})
+
+test('未知赛季不触发确认', () => {
+  assert.equal(needsStartConfirm('不存在的赛季'), false)
+})
+
+test('seasonStartAt 返回用户填写值优先', () => {
+  const builtin = seasonStartAt('入画奇航')
+  assert.ok(builtin != null, '内置应有官方时间')
+  const override = Date.UTC(2026, 10, 10, 22)
+  assert.equal(seasonStartAt('入画奇航', { starts: { '入画奇航': override } }), override)
+})
+
+test('没有任何开始时间的赛季也要求确认', () => {
+  // 模拟一个没有 startAt 的新赛季
+  const seasons = resolvedSeasons({})
+  const unknown = seasons.find((s) => s.startAt == null)
+  if (unknown) assert.equal(needsStartConfirm(unknown.id), true)
 })

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { BondStat, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint, RecordingDraft } from '@shared/types'
 import ReviewDraft, { errorText, RESULT_LABEL, ScreenshotPreview } from './ReviewDraft'
-import { SEASONS, defaultSeason, formatStartDate, hasStartTime, parseStartDate, resolvedSeasons } from '@shared/seasons'
+import { SEASONS, defaultSeason, formatStartDate, needsStartConfirm, resolvedSeasons, seasonStartAt } from '@shared/seasons'
 import EditMatch from './EditMatch'
 
 function fmtDur(sec: number | null): string {
@@ -144,30 +144,30 @@ export default function App() {
   }, [reload])
 
   const updateDraft = (draft: RecordingDraft) => setDrafts((current) => [draft, ...current.filter((item) => item.id !== draft.id)])
+  /**
+   * 切换赛季。
+   * 新赛季（入画奇航）要等版本更新开服后才正式开始：切换前先弹一个说明界面，
+   * 告诉使用者准确的开启时间，避免提前把对局记到还没开放的赛季里。
+   */
   const switchSeason = async (season: string) => {
-    // 该赛季若还没登记开始日期，先让用户补上（官方公布后不必等改代码）
-    if (!hasStartTime(season, { starts: seasonStarts, ends: seasonEnds })) {
+    if (needsStartConfirm(season, { starts: seasonStarts, ends: seasonEnds })) {
       const label = SEASONS.find((item) => item.id === season)?.label ?? season
-      setSeasonDatePrompt({ seasonId: season, label, value: formatStartDate(seasonStarts[season]) })
+      setSeasonDatePrompt({ seasonId: season, label, value: '' })
       return
     }
     setCurrentSeason(season)
     try { await window.api.setSettings({ recordSeason: season }) } catch { /* 设置写失败不影响当前会话内切换 */ }
   }
 
-  /** 保存用户在弹窗里填的赛季开始日期，然后切到该赛季。 */
+  /** 确认说明后切到该赛季。 */
   const confirmSeasonStart = async () => {
     if (!seasonDatePrompt) return
-    const parsed = parseStartDate(seasonDatePrompt.value)
-    if (parsed == null) { setError('开始日期格式不对，请用 2026-11-11 这样的格式'); return }
-    const nextStarts = { ...seasonStarts, [seasonDatePrompt.seasonId]: parsed }
-    setSeasonStarts(nextStarts)
     setCurrentSeason(seasonDatePrompt.seasonId)
     setSeasonDatePrompt(null)
     setError('')
     try {
-      await window.api.setSettings({ recordSeason: seasonDatePrompt.seasonId, seasonStarts: nextStarts })
-    } catch (reason) { setError(errorText(reason, '保存赛季开始日期失败')) }
+      await window.api.setSettings({ recordSeason: seasonDatePrompt.seasonId })
+    } catch (reason) { setError(errorText(reason, '切换赛季失败')) }
   }
   const importScreenshot = async () => {
     if (importing) return
@@ -231,12 +231,9 @@ export default function App() {
                 type="button"
                 className={`season-btn ${currentSeason === season.id ? 'on' : ''} ${seasonDatePrompt?.seasonId === season.id ? 'editing' : ''}`}
                 title={season.startAt
-                  ? `${new Date(season.startAt).toLocaleDateString()} 起${season.endAt ? ` · ${new Date(season.endAt).toLocaleDateString()} 结束` : ' · 进行中'}（点击可改开始日期）`
+                  ? `${new Date(season.startAt).toLocaleDateString()} 起${season.endAt ? ` · ${new Date(season.endAt).toLocaleDateString()} 结束` : ' · 进行中'}${season.confirmStartOnSwitch ? '（切换时确认开始日期）' : ''}`
                   : '开始日期未填写，点击填写'}
-                onClick={() => {
-                  if (hasStartTime(season.id, { starts: seasonStarts, ends: seasonEnds })) void switchSeason(season.id)
-                  else setSeasonDatePrompt({ seasonId: season.id, label: season.label, value: formatStartDate(seasonStarts[season.id]) })
-                }}
+                onClick={() => void switchSeason(season.id)}
               >{season.label}</button>
             ))}
           </div>
@@ -244,19 +241,19 @@ export default function App() {
           {seasonDatePrompt && (
             <div className="season-inline-prompt" role="dialog" aria-label="填写赛季开始日期">
               <div className="season-inline-head">
-                <span>「{seasonDatePrompt.label}」开始日期</span>
-                <button type="button" className="season-inline-close" aria-label="取消" onClick={() => { setSeasonDatePrompt(null); setError('') }}>✕</button>
+                <span>「{seasonDatePrompt.label}」什么时候开始？</span>
+                <button type="button" className="season-inline-close" aria-label="关闭" onClick={() => { setSeasonDatePrompt(null); setError('') }}>✕</button>
               </div>
+              {/* 告知：这一季要等版本更新开服后才算正式开始 */}
+              <div className="season-inline-when">
+                <span className="season-inline-date">{formatStartDate(seasonStartAt(seasonDatePrompt.seasonId, { starts: seasonStarts, ends: seasonEnds }))}</span>
+                <span className="season-inline-after">版本更新开服后开启</span>
+              </div>
+              <p className="season-inline-hint">开服前的对局仍属于上一季。确认切换后，从这个时间点起的对局计入「{seasonDatePrompt.label}」。</p>
               <div className="season-inline-row">
-                <input
-                  type="date"
-                  value={seasonDatePrompt.value}
-                  onChange={(event) => setSeasonDatePrompt({ ...seasonDatePrompt, value: event.target.value })}
-                  autoFocus
-                />
-                <button type="button" className="primary-btn" onClick={() => void confirmSeasonStart()}>保存并切换</button>
+                <button type="button" className="tb-btn" onClick={() => { setSeasonDatePrompt(null); setError('') }}>先不切</button>
+                <button type="button" className="primary-btn" onClick={() => void confirmSeasonStart()}>知道了，切换</button>
               </div>
-              <p className="season-inline-hint">官方公布后填这里，之后赛季判断与统计都用它</p>
               {error && <div className="inline-error" role="alert">{error}</div>}
             </div>
           )}

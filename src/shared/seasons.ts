@@ -18,13 +18,18 @@ export interface SeasonOption {
   startAt?: number
   /** 结束时间（毫秒） */
   endAt?: number
+  /**
+   * 切换到该赛季时是否总是先确认开始时间。
+   * 新赛季的开放时间常有维护提前/延后，切换时让用户核对一遍更稳。
+   */
+  confirmStartOnSwitch?: boolean
 }
 
 export const SEASONS: SeasonOption[] = [
   // 第一赛季：2025-11-05 起，2026-11-11 06:00 (UTC+8) 结束
   { id: '零和博弈', label: '零和博弈', startAt: Date.UTC(2025, 10, 5), endAt: Date.UTC(2026, 10, 10, 22) },
   // 第二赛季：随 4.7 开服开启（维护 06:00 起约 5 小时），结束时间官方未公布
-  { id: '入画奇航', label: '入画奇航', startAt: Date.UTC(2026, 10, 11, 3) }
+  { id: '入画奇航', label: '入画奇航', startAt: Date.UTC(2026, 10, 11, 3), confirmStartOnSwitch: true }
 ]
 
 /** 用户在界面上填写的赛季时间（毫秒），优先级高于 SEASONS 里的内置值 */
@@ -67,6 +72,22 @@ export function normalizeSeason(value: string, overrides: SeasonTimeOverrides = 
 export function hasStartTime(seasonId: string, overrides: SeasonTimeOverrides = {}): boolean {
   const season = resolvedSeasons(overrides).find((item) => item.id === seasonId)
   return season?.startAt != null
+}
+
+/**
+ * 切换到该赛季时是否应先弹出「确认开始时间」界面。
+ * 两种情况需要确认：① 还没有开始时间；② 该赛季标记了 confirmStartOnSwitch（新赛季开服时间易变）。
+ */
+export function needsStartConfirm(seasonId: string, overrides: SeasonTimeOverrides = {}): boolean {
+  const season = resolvedSeasons(overrides).find((item) => item.id === seasonId)
+  if (!season) return false
+  if (season.startAt == null) return true
+  return season.confirmStartOnSwitch === true
+}
+
+/** 取该赛季当前生效的开始时间（用户填写优先，其次内置）。 */
+export function seasonStartAt(seasonId: string, overrides: SeasonTimeOverrides = {}): number | undefined {
+  return resolvedSeasons(overrides).find((item) => item.id === seasonId)?.startAt
 }
 
 /** 把日期字符串（yyyy-MM-dd，本地时区）转成当天 00:00 的毫秒时间戳；非法返回 null。 */
