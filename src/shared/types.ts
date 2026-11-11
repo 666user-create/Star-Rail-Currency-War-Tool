@@ -90,7 +90,14 @@ export interface BondStat {
 
 export interface RankPoint {
   time: number
+  /**
+   * 该局结束后玩家所在段位的可排序数值（大段序号×10 + 小段位）。
+   * 例：A0黑铁1=1、A5紫金3=53、A6投资大师7=67、A8财富造物主=80。
+   * 这是**绝对位置**，不是累加值 —— 大段间有晋级赛，累加会算错。
+   */
   cumulative: number
+  /** 该点对应的原始段位文本（如「A6 投资大师7」），用于图表提示 */
+  label: string
 }
 
 export interface DurationBucket {

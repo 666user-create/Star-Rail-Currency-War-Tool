@@ -91,10 +91,14 @@ test('所有统计排除演示，未知时长不当0计平均/直方图，未知
   assert.equal(overview.bestWinStreak, 1)
   assert.equal(overview.bestLossStreak, 1)
   assert.deepEqual(repository.lineupStats(), [{ lineup: '追击', games: 2, wins: 1, winRate: 0.5 }])
-  // 段位曲线改为按「小队生命值」推导（官方规则 ≥70→+3 / ≥40→+2 / <40→+1，失败→0）。
-  // 第 1 条 win(squadHp=21) → +1；第 2 条 loss → +0（不掉段，画成水平线）；
-  // 第 3 条 interrupted → 推导不出，跳过。
-  assert.deepEqual(repository.rankCurve(), [{ time: 601000, cumulative: 1 }, { time: 602000, cumulative: 1 }])
+  // 段位曲线改为读「玩家实际填写的段位」（rank_after），不按血量推导。
+  // 本测试三条记录都用 match() 的默认 rankAfter='财富造物主20' → A8 = 80 分。
+  // （A8 无小段位，尾部数字被忽略）
+  assert.deepEqual(repository.rankCurve(), [
+    { time: 601000, cumulative: 80, label: '财富造物主20' },
+    { time: 602000, cumulative: 80, label: '财富造物主20' },
+    { time: 603000, cumulative: 80, label: '财富造物主20' }
+  ])
   assert.deepEqual(repository.durationHistogram().map((bucket) => bucket.count), [0, 1, 0, 0, 0, 0])
   const hours = repository.hourHistogram()
   assert.equal(hours.reduce((sum, bucket) => sum + bucket.count, 0), 2)
@@ -136,48 +140,79 @@ test('只有未知胜负时长或中断/待核实局时，平均单局显示未�
   repository.close()
 })
 
-test('段位曲线只累计最近赛季，且按小队生命值推导提升级数', async (t) => {
+test('段位曲线只取最近有段位数据的赛季，且按实际填写的段位绘制', async (t) => {
   const { file } = fixture(t)
   const repository = await Repository.create(file)
-  // 曲线现在由 squadHp 推导（≥70→+3 / ≥40→+2 / <40→+1），不再读 rankChange
-  repository.insert(match({ season: '旧赛季', endedAt: 1000, squadHp: 100 }))
-  repository.insert(match({ season: '新赛季', endedAt: 2000, squadHp: 20 }))   // +1
-  repository.insert(match({ season: '新赛季', endedAt: 3000, squadHp: 50 }))   // +2
-  repository.insert(match({ season: '', endedAt: 4000, squadHp: 100 }))
-  repository.insert(match({ season: '   ', endedAt: 4100, squadHp: 100 }))
-  repository.insert(match({ season: '未标注', endedAt: 4200, squadHp: 100 }))
-  repository.insert(match({ season: ' 未标注 ', endedAt: 4300, squadHp: 100 }))
-  // 未来赛季这条 squadHp 为 null → 推导不出，曲线里不出现
-  repository.insert(match({ season: '未来赛季', endedAt: 5000, squadHp: null }))
-  repository.insert(match({ source: 'demo', season: '演示赛季', endedAt: 6000, squadHp: 100 }))
-  assert.deepEqual(repository.rankCurve(), [{ time: 2000, cumulative: 1 }, { time: 3000, cumulative: 3 }])
+  // 曲线改为读 rank_after（玩家实际段位），不再按血量推导
+  repository.insert(match({ season: '旧赛季', endedAt: 1000, rankAfter: 'A8 财富造物主' }))
+  repository.insert(match({ season: '新赛季', endedAt: 2000, rankAfter: 'A5 紫金1' }))
+  repository.insert(match({ season: '新赛季', endedAt: 3000, rankAfter: 'A5 紫金3' }))
+  repository.insert(match({ season: '', endedAt: 4000, rankAfter: 'A8 财富造物主' }))
+  repository.insert(match({ season: '   ', endedAt: 4100, rankAfter: 'A8 财富造物主' }))
+  repository.insert(match({ season: '未标注', endedAt: 4200, rankAfter: 'A8 财富造物主' }))
+  repository.insert(match({ season: ' 未标注 ', endedAt: 4300, rankAfter: 'A8 财富造物主' }))
+  // 未来赛季这条没有段位 → 曲线里不出现
+  repository.insert(match({ season: '未来赛季', endedAt: 5000, rankAfter: null }))
+  repository.insert(match({ source: 'demo', season: '演示赛季', endedAt: 6000, rankAfter: 'A8 财富造物主' }))
+  assert.deepEqual(repository.rankCurve(), [
+    { time: 2000, cumulative: 51, label: 'A5 紫金1' },
+    { time: 3000, cumulative: 53, label: 'A5 紫金3' }
+  ])
   repository.close()
 })
 
-test('段位曲线：血量不同推导出 +1/+2/+3', async (t) => {
+test('段位曲线：按玩家实际填写的结算后段位绘制（大段序号×10+小段）', async (t) => {
   const { file } = fixture(t)
   const repository = await Repository.create(file)
   const season = '零和博弈'
-  repository.insert(match({ season, endedAt: 1000, squadHp: 100 }))  // +3
-  repository.insert(match({ season, endedAt: 2000, squadHp: 70 }))   // +3（边界）
-  repository.insert(match({ season, endedAt: 3000, squadHp: 69 }))   // +2
-  repository.insert(match({ season, endedAt: 4000, squadHp: 40 }))   // +2（边界）
-  repository.insert(match({ season, endedAt: 5000, squadHp: 39 }))   // +1
-  repository.insert(match({ season, endedAt: 6000, squadHp: 0 }))    // +1
+  // 实测真实进度：A6投资大师1 → 4 → 7 → A6投资大师9
+  repository.insert(match({ season, endedAt: 1000, rankAfter: 'A6 投资大师1' }))
+  repository.insert(match({ season, endedAt: 2000, rankAfter: 'A6 投资大师4' }))
+  repository.insert(match({ season, endedAt: 3000, rankAfter: '投资大师7' }))
+  repository.insert(match({ season, endedAt: 4000, rankAfter: 'A6 投资大师9' }))
   const curve = repository.rankCurve(season)
-  assert.deepEqual(curve.map((p) => p.cumulative), [3, 6, 8, 10, 11, 12])
+  assert.deepEqual(curve.map((p) => p.cumulative), [61, 64, 67, 69], '直接反映真实段位位置')
+  assert.deepEqual(curve.map((p) => p.label), ['A6 投资大师1', 'A6 投资大师4', '投资大师7', 'A6 投资大师9'])
   repository.close()
 })
 
-test('段位曲线：失败不掉段（+0 水平线）', async (t) => {
+test('段位曲线：跨大段时数值跨越（晋级赛也体现在跳变里）', async (t) => {
   const { file } = fixture(t)
   const repository = await Repository.create(file)
   const season = '零和博弈'
-  repository.insert(match({ season, endedAt: 1000, squadHp: 100, result: 'win' }))
-  repository.insert(match({ season, endedAt: 2000, squadHp: 0, result: 'loss' }))
-  repository.insert(match({ season, endedAt: 3000, squadHp: 0, result: 'loss' }))
+  repository.insert(match({ season, endedAt: 1000, rankAfter: 'A5 紫金3' }))   // 53
+  repository.insert(match({ season, endedAt: 2000, rankAfter: 'A6 投资大师1' })) // 61，跨大段跳 8
+  repository.insert(match({ season, endedAt: 3000, rankAfter: 'A7 资本帝王1' })) // 71
   const curve = repository.rankCurve(season)
-  assert.deepEqual(curve.map((p) => p.cumulative), [3, 3, 3], '失败后累计值不变')
+  assert.deepEqual(curve.map((p) => p.cumulative), [53, 61, 71])
+  // 关键：A5 任意小段都必须低于 A6 任意小段
+  assert.ok(curve[0].cumulative < curve[1].cumulative)
+  repository.close()
+})
+
+test('段位曲线：没填段位的记录被跳过，不瞎画', async (t) => {
+  const { file } = fixture(t)
+  const repository = await Repository.create(file)
+  const season = '零和博弈'
+  repository.insert(match({ season, endedAt: 1000, rankAfter: 'A5 紫金1', rankBefore: null }))
+  // 显式清空两种段位字段，模拟「都没填」
+  repository.insert(match({ season, endedAt: 2000, rankAfter: null, rankBefore: null }))
+  repository.insert(match({ season, endedAt: 3000, rankAfter: '', rankBefore: '' }))
+  repository.insert(match({ season, endedAt: 4000, rankAfter: 'A5 紫金2', rankBefore: null }))
+  const curve = repository.rankCurve(season)
+  assert.equal(curve.length, 2, '没填段位的点不出现')
+  assert.deepEqual(curve.map((p) => p.cumulative), [51, 52])
+  repository.close()
+})
+
+test('段位曲线：结算后没填时回落到结算前段位', async (t) => {
+  const { file } = fixture(t)
+  const repository = await Repository.create(file)
+  const season = '零和博弈'
+  repository.insert(match({ season, endedAt: 1000, rankAfter: 'A5 紫金1' }))
+  repository.insert(match({ season, endedAt: 2000, rankAfter: null, rankBefore: 'A5 紫金2' }))
+  const curve = repository.rankCurve(season)
+  assert.deepEqual(curve.map((p) => p.cumulative), [51, 52], '用结算前位置补上')
   repository.close()
 })
 

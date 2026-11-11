@@ -5,7 +5,7 @@ import { atomicReplace } from './atomicReplace.ts'
 import initSqlJs from 'sql.js'
 import type { BondStat, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint } from '@shared/types'
 // 注意用相对路径：仓库的测试用 node 直接加载 .ts，不经过打包器的别名解析
-import { rankGainFromHp } from '../shared/rankProgress.ts'
+import { rankToScore } from '../shared/ranks.ts'
 
 type Database = import('sql.js').Database & { close?: () => void }
 type SqlRuntime = Awaited<ReturnType<typeof initSqlJs>>
@@ -300,31 +300,31 @@ export class Repository {
   /**
    * 段位走势。
    *
-   * 用**小队生命值**推导每局提升级数（官方规则：≥70→+3、≥40→+2、<40→+1、失败不掉段），
-   * 不再读 rank_change 字段——那个字段是用户手填的，实测填错过（误填 +3），
-   * 而血量是截图能识别出的客观值。
+   * 用**玩家实际填写的结算后段位**（rank_after）绘制，不再按血量推导。
+   * 原因：大段之间有晋级赛，血量决定的「+1/+2/+3」只在小段内生效，
+   * 跨大段时还要打晋级赛，用血量累加会算错（实测踩过：
+   * 手填 A6投资大师1 → A6投资大师4，但血量推导说 +3+3=+6）。
    *
-   * 只统计胜利局（失败 +0 会形成水平线，可保留；血量未知的跳过）。
+   * 把「A6 投资大师7」这类文本压成可排序数值（大段序号×10+小段），
+   * 直接反映玩家真实所在位置。没填段位的记录跳过，不猜。
    */
   rankCurve(season?: string | null): RankPoint[] {
     const target = season != null && String(season).trim() !== ''
       ? String(season).trim()
-      : this.rows("SELECT season FROM matches WHERE source!='demo' AND squad_hp IS NOT NULL AND TRIM(season) NOT IN ('','未标注') ORDER BY ended_at DESC,id DESC LIMIT 1")[0]?.season
+      : this.rows("SELECT season FROM matches WHERE source!='demo' AND rank_after IS NOT NULL AND TRIM(rank_after)!='' AND TRIM(season) NOT IN ('','未标注') ORDER BY ended_at DESC,id DESC LIMIT 1")[0]?.season
     if (typeof target !== 'string') return []
     const rows = this.rows(
-      "SELECT ended_at, result, squad_hp FROM matches WHERE source!='demo' AND season=? ORDER BY ended_at ASC,id ASC",
+      "SELECT ended_at, rank_after, rank_before FROM matches WHERE source!='demo' AND season=? ORDER BY ended_at ASC,id ASC",
       [target]
     )
-    let cumulative = 0
     const points: RankPoint[] = []
     for (const row of rows) {
-      const gain = rankGainFromHp({
-        result: row.result as 'win' | 'loss' | 'interrupted' | 'suspected',
-        squadHp: typeof row.squad_hp === 'number' ? row.squad_hp : null
-      })
-      if (gain === null) continue
-      cumulative += gain
-      points.push({ time: row.ended_at as number, cumulative })
+      // 优先用结算后段位；结算后没填但填了结算前的，用结算前的位置（至少能标出所在段）
+      const raw = String(row.rank_after ?? '').trim() || String(row.rank_before ?? '').trim()
+      if (!raw) continue
+      const score = rankToScore(raw)
+      if (score === null) continue
+      points.push({ time: row.ended_at as number, cumulative: score, label: raw })
     }
     return points
   }

@@ -32,6 +32,8 @@ let petTray: Tray | null = null
 let trayMenu: TrayMenuController | null = null
 let petHidden = false
 let lastVisible: boolean | null = null
+/** 上次自动恢复显示的时间戳，避免可见性巡检反复 showInactive 引起窗口闪动 */
+let lastAutoShowAt = 0
 let finishPetDrag: (() => void) | null = null
 let recordingStore: RecordingStore
 let captureInProgress = false
@@ -398,8 +400,34 @@ function createPetWindow(): void {
   // 周期兜底：全屏应用/覆盖层可能随时清掉 topmost 位或改尺寸，5s 巡检一次。
   // setAlwaysOnTop(true) 在内部状态已为 true 时是空操作（实测掉到 Z4 被盖）→ 高层级 + moveTop 真正抬回
   setInterval(() => {
-    if (!petWindow || petWindow.isDestroyed() || !petIsVisible()) return
+    if (!petWindow || petWindow.isDestroyed()) return
+    // 可见性自愈：用户没有主动隐藏（petHidden=false）但窗口不可见时，
+    // 说明被外部因素藏起来了（截图流程异常退出、系统事件等）→ 自动恢复。
+    // 注意跳过「正在截图」这种合法隐藏。
+    if (!petHidden && !captureInProgress && !petWindow.isVisible()) {
+      const now = Date.now()
+      if (now - lastAutoShowAt > 5000) {
+        lastAutoShowAt = now
+        console.error('[pet] visibility self-heal: 窗口意外不可见，恢复显示')
+        try {
+          if (petWindow.isMinimized()) petWindow.restore()
+          petWindow.showInactive()
+          applyPetShape()
+          publishPetVisibility()
+        } catch (error) { console.error('[pet] auto-show failed', error) }
+      }
+      return
+    }
+    if (!petIsVisible()) return
     ensurePetSize()
+    // 位置自愈：外部程序/系统缩放变化可能把窗口挪到屏外或压到任务栏下，
+    // 这里每 5 秒校验一次并拉回安全区（只动位置，不动尺寸）。
+    const b = petWindow.getBounds()
+    const safe = clampToScreens(b.x, b.y, b.width, b.height)
+    if (Math.round(safe.x) !== b.x || Math.round(safe.y) !== b.y) {
+      console.error(`[pet] position self-heal ${b.x},${b.y} -> ${Math.round(safe.x)},${Math.round(safe.y)}`)
+      petWindow.setPosition(Math.round(safe.x), Math.round(safe.y))
+    }
     petWindow.setAlwaysOnTop(true, 'screen-saver')
     petWindow.moveTop()
     petTimer?.refreshPosition()

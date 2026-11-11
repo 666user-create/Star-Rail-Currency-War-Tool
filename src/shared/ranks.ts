@@ -48,6 +48,39 @@ export function rankByCode(code: string): RankOption | null {
   return RANKS.find((item) => item.code === trimmed) ?? null
 }
 
+/**
+ * 每档大段内的小段位基数（用于把「A6 投资大师7」压成一个可排序的标量）。
+ *
+ * 为什么取 10 而不是实测档数：各档上限不同且官方未公开（紫金 3、资本帝王至少 7），
+ * 取 10 留足余量，保证「A6 任意小段」永远排在「A7 任意小段」之前。
+ * 玩家实际能填到的小段位不可能超过 10，所以不会出现跨档串位。
+ */
+const SUB_LEVEL_BASE = 10
+
+/**
+ * 把职级压成可排序的数值：大段序号 × 10 + 小段位。
+ * 例：A0黑铁1 → 1；A5紫金3 → 53；A6投资大师7 → 67；A8财富造物主 → 80。
+ * 无法解析返回 null（调用方视为缺数据，跳过该点）。
+ */
+export function rankToScore(value: string): number | null {
+  const parsed = parseRank(value)
+  if (!parsed) return null
+  const index = RANKS.findIndex((item) => item.code === parsed.code)
+  if (index < 0) return null
+  // 小段位 0（未填）按 0 处理，仍能体现大段间的先后
+  return index * SUB_LEVEL_BASE + Math.max(0, parsed.sub)
+}
+
+/**
+ * 把数值还原成基准展示用的档位标签（不带小段位）。
+ * 只用于图表 Y 轴刻度，精确的小段位信息由点本身携带。
+ */
+export function scoreToRankLabel(score: number): string {
+  const index = Math.floor(score / SUB_LEVEL_BASE)
+  const rank = RANKS[Math.min(Math.max(index, 0), RANKS.length - 1)]
+  return rank ? `${rank.code} ${rank.label}` : ''
+}
+
 /** 把 RankValue 拼成显示文本：「A5 紫金1」/「A8 财富造物主」。 */
 export function formatRank(value: RankValue | null): string {
   if (!value) return ''
