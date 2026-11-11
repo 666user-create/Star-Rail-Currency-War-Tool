@@ -91,7 +91,10 @@ test('所有统计排除演示，未知时长不当0计平均/直方图，未知
   assert.equal(overview.bestWinStreak, 1)
   assert.equal(overview.bestLossStreak, 1)
   assert.deepEqual(repository.lineupStats(), [{ lineup: '追击', games: 2, wins: 1, winRate: 0.5 }])
-  assert.deepEqual(repository.rankCurve(), [{ time: 601000, cumulative: 3 }])
+  // 段位曲线改为按「小队生命值」推导（官方规则 ≥70→+3 / ≥40→+2 / <40→+1，失败→0）。
+  // 第 1 条 win(squadHp=21) → +1；第 2 条 loss → +0（不掉段，画成水平线）；
+  // 第 3 条 interrupted → 推导不出，跳过。
+  assert.deepEqual(repository.rankCurve(), [{ time: 601000, cumulative: 1 }, { time: 602000, cumulative: 1 }])
   assert.deepEqual(repository.durationHistogram().map((bucket) => bucket.count), [0, 1, 0, 0, 0, 0])
   const hours = repository.hourHistogram()
   assert.equal(hours.reduce((sum, bucket) => sum + bucket.count, 0), 2)
@@ -133,19 +136,48 @@ test('只有未知胜负时长或中断/待核实局时，平均单局显示未�
   repository.close()
 })
 
-test('段位曲线只累计最近有已知段位变化的赛季，不混入旧赛季或demo', async (t) => {
+test('段位曲线只累计最近赛季，且按小队生命值推导提升级数', async (t) => {
   const { file } = fixture(t)
   const repository = await Repository.create(file)
-  repository.insert(match({ season: '旧赛季', endedAt: 1000, rankChange: 30 }))
-  repository.insert(match({ season: '新赛季', endedAt: 2000, rankChange: 1 }))
-  repository.insert(match({ season: '新赛季', endedAt: 3000, rankChange: 2 }))
-  repository.insert(match({ season: '', endedAt: 4000, rankChange: 99 }))
-  repository.insert(match({ season: '   ', endedAt: 4100, rankChange: 99 }))
-  repository.insert(match({ season: '未标注', endedAt: 4200, rankChange: 99 }))
-  repository.insert(match({ season: ' 未标注 ', endedAt: 4300, rankChange: 99 }))
-  repository.insert(match({ season: '未来赛季', endedAt: 5000, rankChange: null }))
-  repository.insert(match({ source: 'demo', season: '演示赛季', endedAt: 6000, rankChange: 99 }))
+  // 曲线现在由 squadHp 推导（≥70→+3 / ≥40→+2 / <40→+1），不再读 rankChange
+  repository.insert(match({ season: '旧赛季', endedAt: 1000, squadHp: 100 }))
+  repository.insert(match({ season: '新赛季', endedAt: 2000, squadHp: 20 }))   // +1
+  repository.insert(match({ season: '新赛季', endedAt: 3000, squadHp: 50 }))   // +2
+  repository.insert(match({ season: '', endedAt: 4000, squadHp: 100 }))
+  repository.insert(match({ season: '   ', endedAt: 4100, squadHp: 100 }))
+  repository.insert(match({ season: '未标注', endedAt: 4200, squadHp: 100 }))
+  repository.insert(match({ season: ' 未标注 ', endedAt: 4300, squadHp: 100 }))
+  // 未来赛季这条 squadHp 为 null → 推导不出，曲线里不出现
+  repository.insert(match({ season: '未来赛季', endedAt: 5000, squadHp: null }))
+  repository.insert(match({ source: 'demo', season: '演示赛季', endedAt: 6000, squadHp: 100 }))
   assert.deepEqual(repository.rankCurve(), [{ time: 2000, cumulative: 1 }, { time: 3000, cumulative: 3 }])
+  repository.close()
+})
+
+test('段位曲线：血量不同推导出 +1/+2/+3', async (t) => {
+  const { file } = fixture(t)
+  const repository = await Repository.create(file)
+  const season = '零和博弈'
+  repository.insert(match({ season, endedAt: 1000, squadHp: 100 }))  // +3
+  repository.insert(match({ season, endedAt: 2000, squadHp: 70 }))   // +3（边界）
+  repository.insert(match({ season, endedAt: 3000, squadHp: 69 }))   // +2
+  repository.insert(match({ season, endedAt: 4000, squadHp: 40 }))   // +2（边界）
+  repository.insert(match({ season, endedAt: 5000, squadHp: 39 }))   // +1
+  repository.insert(match({ season, endedAt: 6000, squadHp: 0 }))    // +1
+  const curve = repository.rankCurve(season)
+  assert.deepEqual(curve.map((p) => p.cumulative), [3, 6, 8, 10, 11, 12])
+  repository.close()
+})
+
+test('段位曲线：失败不掉段（+0 水平线）', async (t) => {
+  const { file } = fixture(t)
+  const repository = await Repository.create(file)
+  const season = '零和博弈'
+  repository.insert(match({ season, endedAt: 1000, squadHp: 100, result: 'win' }))
+  repository.insert(match({ season, endedAt: 2000, squadHp: 0, result: 'loss' }))
+  repository.insert(match({ season, endedAt: 3000, squadHp: 0, result: 'loss' }))
+  const curve = repository.rankCurve(season)
+  assert.deepEqual(curve.map((p) => p.cumulative), [3, 3, 3], '失败后累计值不变')
   repository.close()
 })
 

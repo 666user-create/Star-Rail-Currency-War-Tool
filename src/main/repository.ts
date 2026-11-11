@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto'
 import { atomicReplace } from './atomicReplace.ts'
 import initSqlJs from 'sql.js'
 import type { BondStat, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint } from '@shared/types'
+// 注意用相对路径：仓库的测试用 node 直接加载 .ts，不经过打包器的别名解析
+import { rankGainFromHp } from '../shared/rankProgress.ts'
 
 type Database = import('sql.js').Database & { close?: () => void }
 type SqlRuntime = Awaited<ReturnType<typeof initSqlJs>>
@@ -297,19 +299,34 @@ export class Repository {
 
   /**
    * 段位走势。
-   * 传入 season 时只看该赛季；不传时回落到「最近一条有段位变化的记录所属赛季」，
-   * 保持原有行为（否则跨赛季会把不同职级体系串成一条线）。
+   *
+   * 用**小队生命值**推导每局提升级数（官方规则：≥70→+3、≥40→+2、<40→+1、失败不掉段），
+   * 不再读 rank_change 字段——那个字段是用户手填的，实测填错过（误填 +3），
+   * 而血量是截图能识别出的客观值。
+   *
+   * 只统计胜利局（失败 +0 会形成水平线，可保留；血量未知的跳过）。
    */
   rankCurve(season?: string | null): RankPoint[] {
     const target = season != null && String(season).trim() !== ''
       ? String(season).trim()
-      : this.rows("SELECT season FROM matches WHERE source!='demo' AND rank_change IS NOT NULL AND TRIM(season) NOT IN ('','未标注') ORDER BY ended_at DESC,id DESC LIMIT 1")[0]?.season
+      : this.rows("SELECT season FROM matches WHERE source!='demo' AND squad_hp IS NOT NULL AND TRIM(season) NOT IN ('','未标注') ORDER BY ended_at DESC,id DESC LIMIT 1")[0]?.season
     if (typeof target !== 'string') return []
+    const rows = this.rows(
+      "SELECT ended_at, result, squad_hp FROM matches WHERE source!='demo' AND season=? ORDER BY ended_at ASC,id ASC",
+      [target]
+    )
     let cumulative = 0
-    return this.rows("SELECT ended_at,rank_change FROM matches WHERE source!='demo' AND rank_change IS NOT NULL AND season=? ORDER BY ended_at ASC,id ASC", [target]).map((row) => {
-      cumulative += row.rank_change as number
-      return { time: row.ended_at as number, cumulative }
-    })
+    const points: RankPoint[] = []
+    for (const row of rows) {
+      const gain = rankGainFromHp({
+        result: row.result as 'win' | 'loss' | 'interrupted' | 'suspected',
+        squadHp: typeof row.squad_hp === 'number' ? row.squad_hp : null
+      })
+      if (gain === null) continue
+      cumulative += gain
+      points.push({ time: row.ended_at as number, cumulative })
+    }
+    return points
   }
 
   durationHistogram(season?: string | null): DurationBucket[] {

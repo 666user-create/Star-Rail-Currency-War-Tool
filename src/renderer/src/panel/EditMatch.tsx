@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import type { DraftInput, Match, MatchResult } from '@shared/types'
 import { SEASONS } from '@shared/seasons'
 import { RankPicker } from './RankPicker'
+import { RankChangeField } from './RankChangeField'
+import { rankGainFromHp } from '../../../shared/rankProgress'
 import { RESULT_LABEL, errorText } from './ReviewDraft'
 
 const RESULT_OPTIONS: MatchResult[] = ['win', 'loss', 'interrupted', 'suspected']
@@ -63,11 +65,14 @@ export default function EditMatch({ match, onCancel, onSaved }: {
     const endedAt = new Date(form.endedAt).getTime()
     const durationMin = form.durationUnknown ? null : Number(form.durationMin)
     const durationSec = durationMin === null ? null : Math.round(durationMin * 60)
-    const rankChange = form.rankChange.trim() ? Number(form.rankChange) : null
     const squadHp = form.squadHp.trim() ? Number(form.squadHp) : null
+    // 段位变化由血量推导（官方规则），不再读用户输入
+    const rankChange = rankGainFromHp({
+      result: form.result as 'win' | 'loss' | 'interrupted' | 'suspected',
+      squadHp: squadHp != null && Number.isFinite(squadHp) ? squadHp : null
+    })
     if (!Number.isFinite(endedAt)) { setError('请填写有效的结束时间。'); return }
     if (durationSec !== null && (!form.durationMin.trim() || !Number.isFinite(durationMin as number) || (durationMin as number) < 0)) { setError('时长请填写非负分钟数，或勾选「时长未知」。'); return }
-    if (rankChange !== null && !Number.isInteger(rankChange)) { setError('段位变化请填写整数，可为负数；未知时留空。'); return }
     if (squadHp !== null && (!Number.isInteger(squadHp) || squadHp < 0)) { setError('队伍生命请填写非负整数；未知时留空。'); return }
     const input: DraftInput = {
       endedAt, durationSec, result: form.result,
@@ -94,7 +99,7 @@ export default function EditMatch({ match, onCancel, onSaved }: {
         <label className="check-field"><input type="checkbox" checked={form.durationUnknown} onChange={(event) => edit('durationUnknown', event.target.checked)} />时长未知</label>
         <label>本局时长（分钟）<input type="number" min="0" step="0.1" value={form.durationMin} disabled={form.durationUnknown} onChange={(event) => edit('durationMin', event.target.value)} placeholder="如 12.5" /></label>
         <label>玩法模式<select value={form.mode} onChange={(event) => edit('mode', event.target.value)}><option value="">未知</option><option value="standard">标准博弈</option><option value="overclock">超频博弈</option></select></label>
-        <label>段位变化<input type="number" step="1" value={form.rankChange} onChange={(event) => edit('rankChange', event.target.value)} placeholder="如 +1" /></label>
+        <label>段位变化<RankChangeField result={form.result} squadHp={form.squadHp} /></label>
         <RankPicker label="结算前段位（可选）" value={form.rankBefore} onChange={(next) => edit('rankBefore', next)} />
         <RankPicker label="结算后段位" value={form.rankAfter} onChange={(next) => edit('rankAfter', next)} />
         <label>结算评级<input value={form.rating} onChange={(event) => edit('rating', event.target.value)} placeholder="未知可留空" /></label>
