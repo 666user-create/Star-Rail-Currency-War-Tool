@@ -157,6 +157,18 @@ const EDGE_MARGIN = 10
 // 夹紧到最近的显示器工作区内，保证桌宠完整可见（防「拖出屏外消失」）
 function clampToScreens(x: number, y: number, w: number, h: number): { x: number; y: number } {
   const displays = screen.getAllDisplays()
+  // 纵深防御：非法输入直接回落到主屏右下角的安全位置，
+  // 否则 setPosition(NaN) 会让窗口彻底消失且无法再拖回来。
+  const fallback = (): { x: number; y: number } => {
+    const a = screen.getPrimaryDisplay().workArea
+    return {
+      x: Math.round(a.x + Math.max(EDGE_MARGIN, a.width - PET_W - EDGE_MARGIN)),
+      y: Math.round(a.y + Math.max(EDGE_MARGIN, a.height - PET_H - EDGE_MARGIN))
+    }
+  }
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+    return fallback()
+  }
   let best: { x: number; y: number } | null = null
   let bestDist = Infinity
   for (const d of displays) {
@@ -174,7 +186,7 @@ function clampToScreens(x: number, y: number, w: number, h: number): { x: number
     const dist = (cx - x) * (cx - x) + (cy - y) * (cy - y)
     if (dist < bestDist) { bestDist = dist; best = { x: cx, y: cy } }
   }
-  return best ?? { x, y }
+  return best ?? fallback()
 }
 
 function recoverPetPosition(): void {
@@ -324,10 +336,14 @@ function createPetWindow(): void {
   petWindow.on('hide', publishPetVisibility)
   petWindow.on('minimize', publishPetVisibility)
   petWindow.on('restore', publishPetVisibility)
-  if (settings.petX != null && settings.petY != null) {
+  // 位置恢复必须严格校验：config.json 可能被手工改坏（NaN / 字符串 / Infinity），
+  // 而 setPosition(NaN, NaN) 会把窗口丢到未定义位置，表现为「桌宠彻底消失」。
+  const savedX = typeof settings.petX === 'number' && Number.isFinite(settings.petX) ? settings.petX : null
+  const savedY = typeof settings.petY === 'number' && Number.isFinite(settings.petY) ? settings.petY : null
+  if (savedX != null && savedY != null) {
     // 恢复位置也过夹紧：旧版本若存过屏外坐标，直接拉回可见区（按真实窗口尺寸算）
     const cur = petWindow.getBounds()
-    const p = clampToScreens(settings.petX, settings.petY, cur.width, cur.height)
+    const p = clampToScreens(savedX, savedY, cur.width, cur.height)
     petWindow.setPosition(Math.round(p.x), Math.round(p.y))
   } else {
     const { workArea } = screen.getPrimaryDisplay()
