@@ -429,8 +429,18 @@ function requireDraft(id: string): RecordingDraft {
   return draft
 }
 
+/**
+ * 草稿的空白字段。
+ *
+ * 赛季必须给默认值：截图导入没有 startedAt 时原来填空字符串，
+ * 导致这些记录不属于任何赛季，面板按赛季隔离后就再也看不到它们。
+ * 有 startedAt 的草稿（秒表记录）用起点时间推赛季更准。
+ */
 function blankRecordFields(draft?: RecordingDraft): RecordFields {
-  const season = draft?.startedAt != null ? draft.fields.season : ''
+  const overrides = { starts: settings.seasonStarts ?? {}, ends: settings.seasonEnds ?? {} }
+  const season = draft?.startedAt != null
+    ? draft.fields.season || defaultSeason(draft.startedAt, overrides)
+    : (settings.recordSeason ?? '').trim() || defaultSeason(Date.now(), overrides)
   return { result: 'suspected', lineup: [], bonds: [], rankChange: null, season, note: null, mode: null, rankBefore: null, rankAfter: null, rating: null, squadHp: null }
 }
 
@@ -634,14 +644,16 @@ function resolveGameLauncher(input: string): { exe: string; viaLauncher: boolean
 }
 
 function setupIpc(): void {
-  ipcMain.handle('record:list', (_e, limit?: number) => repo.list(limit))
+  // 赛季隔离：面板切换赛季后，列表与所有统计只统计该赛季（传 null/undefined 表示不隔离）
+  ipcMain.handle('record:list', (_e, limit?: number, season?: string | null) => repo.list(limit, false, season))
   ipcMain.handle('record:get', (_e, id: number) => repo.byId(id))
-  ipcMain.handle('stats:overview', () => repo.overview())
-  ipcMain.handle('stats:lineups', () => repo.lineupStats())
-  ipcMain.handle('stats:bonds', () => repo.bondStats())
-  ipcMain.handle('stats:rankCurve', () => repo.rankCurve())
-  ipcMain.handle('stats:durationHist', () => repo.durationHistogram())
-  ipcMain.handle('stats:hourHist', () => repo.hourHistogram())
+  ipcMain.handle('stats:seasons', () => repo.seasons())
+  ipcMain.handle('stats:overview', (_e, season?: string | null) => repo.overview(season))
+  ipcMain.handle('stats:lineups', (_e, season?: string | null) => repo.lineupStats(season))
+  ipcMain.handle('stats:bonds', (_e, season?: string | null) => repo.bondStats(season))
+  ipcMain.handle('stats:rankCurve', (_e, season?: string | null) => repo.rankCurve(season))
+  ipcMain.handle('stats:durationHist', (_e, season?: string | null) => repo.durationHistogram(season))
+  ipcMain.handle('stats:hourHist', (_e, season?: string | null) => repo.hourHistogram(season))
 
   ipcMain.handle('record:isRecording', () => recordStartedAt)
   ipcMain.handle('record:start', startRecording)

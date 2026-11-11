@@ -126,13 +126,43 @@ export class Repository {
     }
   }
 
-  count(includeDemo = false): number {
-    return (this.rows(`SELECT COUNT(*) AS n FROM matches${includeDemo ? '' : " WHERE source!='demo'"}`)[0]?.n as number) ?? 0
+  /**
+   * 构造「排除演示数据 + 可选赛季过滤」的 WHERE 子句。
+   * 赛季隔离：面板切换赛季后，列表和所有统计都只看该赛季，
+   * 否则「上赛季的胜率」会混进「本赛季」，段位走势也会跨赛季串线。
+   */
+  private where(season?: string | null, extra?: { clause: string; params: unknown[] }): { sql: string; params: unknown[] } {
+    const parts: string[] = ["source!='demo'"]
+    const params: unknown[] = []
+    if (season != null && String(season).trim() !== '') {
+      parts.push('season=?')
+      params.push(String(season).trim())
+    }
+    if (extra) { parts.push(extra.clause); params.push(...extra.params) }
+    return { sql: ` WHERE ${parts.join(' AND ')}`, params }
   }
 
-  list(limit = 500, includeDemo = false): Match[] {
+  count(includeDemo = false, season?: string | null): number {
+    if (includeDemo && season == null) {
+      return (this.rows('SELECT COUNT(*) AS n FROM matches')[0]?.n as number) ?? 0
+    }
+    const w = this.where(season, includeDemo ? { clause: '1=1', params: [] } : undefined)
+    return (this.rows(`SELECT COUNT(*) AS n FROM matches${w.sql}`, w.params)[0]?.n as number) ?? 0
+  }
+
+  list(limit = 500, includeDemo = false, season?: string | null): Match[] {
     const boundedLimit = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 500
-    return this.rows(`SELECT * FROM matches${includeDemo ? '' : " WHERE source!='demo'"} ORDER BY ended_at DESC,id DESC LIMIT ?`, [boundedLimit]).map(Repository.toMatch)
+    if (includeDemo && season == null) {
+      return this.rows('SELECT * FROM matches ORDER BY ended_at DESC,id DESC LIMIT ?', [boundedLimit]).map(Repository.toMatch)
+    }
+    const w = this.where(season, includeDemo ? { clause: '1=1', params: [] } : undefined)
+    return this.rows(`SELECT * FROM matches${w.sql} ORDER BY ended_at DESC,id DESC LIMIT ?`, [...w.params, boundedLimit]).map(Repository.toMatch)
+  }
+
+  /** 库里出现过的赛季（含空值归一后的默认名），供界面提示用。 */
+  seasons(): string[] {
+    const rows = this.rows("SELECT DISTINCT season FROM matches WHERE source!='demo' AND season IS NOT NULL AND season!='' ORDER BY season")
+    return rows.map((row) => String(row.season))
   }
 
   byId(id: number): Match | null {
@@ -198,7 +228,8 @@ export class Repository {
     })
   }
 
-  overview(): OverviewStats {
+  overview(season?: string | null): OverviewStats {
+    const w = this.where(season)
     const r = this.rows(`SELECT COUNT(*) AS total,
       SUM(CASE WHEN result='win' THEN 1 ELSE 0 END) AS wins,
       SUM(CASE WHEN result='loss' THEN 1 ELSE 0 END) AS losses,
@@ -210,8 +241,8 @@ export class Repository {
       SUM(CASE WHEN duration_sec IS NULL THEN 1 ELSE 0 END) AS unknownDurationGames,
       SUM(CASE WHEN squad_hp IS NOT NULL THEN squad_hp END) AS hpSum,
       SUM(CASE WHEN squad_hp IS NOT NULL THEN 1 ELSE 0 END) AS hpN
-      FROM matches WHERE source!='demo'`)[0]
-    const sequence = this.rows("SELECT result FROM matches WHERE source!='demo' ORDER BY ended_at ASC,id ASC")
+      FROM matches${w.sql}`, w.params)[0]
+    const sequence = this.rows(`SELECT result FROM matches${w.sql} ORDER BY ended_at ASC,id ASC`, w.params)
     let win = 0, loss = 0, bestWin = 0, bestLoss = 0
     for (const row of sequence) {
       if (row.result === 'win') { win++; loss = 0; bestWin = Math.max(bestWin, win) }
@@ -232,9 +263,10 @@ export class Repository {
   }
 
   /** 羁绊统计：与阵容分开计数。 */
-  bondStats(): BondStat[] {
+  bondStats(season?: string | null): BondStat[] {
     const totals = new Map<string, BondStat>()
-    for (const row of this.rows("SELECT bonds_json,result FROM matches WHERE source!='demo' AND result IN ('win','loss')")) {
+    const w = this.where(season, { clause: "result IN ('win','loss')", params: [] })
+    for (const row of this.rows(`SELECT bonds_json,result FROM matches${w.sql}`, w.params)) {
       const bonds: string[] = JSON.parse((row.bonds_json as string) ?? '[]')
       for (const name of new Set(bonds)) {
         const stat = totals.get(name) ?? { bond: name, games: 0, wins: 0, winRate: 0 }
@@ -247,9 +279,10 @@ export class Repository {
       .sort((a, b) => b.games - a.games)
   }
 
-  lineupStats(): LineupStat[] {
+  lineupStats(season?: string | null): LineupStat[] {
     const totals = new Map<string, LineupStat>()
-    for (const row of this.rows("SELECT lineup_json,result FROM matches WHERE source!='demo' AND result IN ('win','loss')")) {
+    const w = this.where(season, { clause: "result IN ('win','loss')", params: [] })
+    for (const row of this.rows(`SELECT lineup_json,result FROM matches${w.sql}`, w.params)) {
       const lineup: string[] = JSON.parse((row.lineup_json as string) ?? '[]')
       for (const name of new Set(lineup)) {
         const stat = totals.get(name) ?? { lineup: name, games: 0, wins: 0, winRate: 0 }
@@ -262,22 +295,30 @@ export class Repository {
     return [...totals.values()].sort((a, b) => b.games - a.games)
   }
 
-  rankCurve(): RankPoint[] {
-    const season = this.rows("SELECT season FROM matches WHERE source!='demo' AND rank_change IS NOT NULL AND TRIM(season) NOT IN ('','未标注') ORDER BY ended_at DESC,id DESC LIMIT 1")[0]?.season
-    if (typeof season !== 'string') return []
+  /**
+   * 段位走势。
+   * 传入 season 时只看该赛季；不传时回落到「最近一条有段位变化的记录所属赛季」，
+   * 保持原有行为（否则跨赛季会把不同职级体系串成一条线）。
+   */
+  rankCurve(season?: string | null): RankPoint[] {
+    const target = season != null && String(season).trim() !== ''
+      ? String(season).trim()
+      : this.rows("SELECT season FROM matches WHERE source!='demo' AND rank_change IS NOT NULL AND TRIM(season) NOT IN ('','未标注') ORDER BY ended_at DESC,id DESC LIMIT 1")[0]?.season
+    if (typeof target !== 'string') return []
     let cumulative = 0
-    return this.rows("SELECT ended_at,rank_change FROM matches WHERE source!='demo' AND rank_change IS NOT NULL AND season=? ORDER BY ended_at ASC,id ASC", [season]).map((row) => {
+    return this.rows("SELECT ended_at,rank_change FROM matches WHERE source!='demo' AND rank_change IS NOT NULL AND season=? ORDER BY ended_at ASC,id ASC", [target]).map((row) => {
       cumulative += row.rank_change as number
       return { time: row.ended_at as number, cumulative }
     })
   }
 
-  durationHistogram(): DurationBucket[] {
+  durationHistogram(season?: string | null): DurationBucket[] {
     const buckets: DurationBucket[] = [
       { label: '<10分', count: 0 }, { label: '10-15', count: 0 }, { label: '15-20', count: 0 },
       { label: '20-30', count: 0 }, { label: '30-45', count: 0 }, { label: '>45分', count: 0 }
     ]
-    for (const row of this.rows("SELECT duration_sec AS d FROM matches WHERE source!='demo' AND result IN ('win','loss') AND duration_sec IS NOT NULL")) {
+    const w = this.where(season, { clause: "result IN ('win','loss') AND duration_sec IS NOT NULL", params: [] })
+    for (const row of this.rows(`SELECT duration_sec AS d FROM matches${w.sql}`, w.params)) {
       const minutes = (row.d as number) / 60
       const index = minutes < 10 ? 0 : minutes < 15 ? 1 : minutes < 20 ? 2 : minutes < 30 ? 3 : minutes < 45 ? 4 : 5
       buckets[index].count++
@@ -285,9 +326,10 @@ export class Repository {
     return buckets
   }
 
-  hourHistogram(): HourBucket[] {
+  hourHistogram(season?: string | null): HourBucket[] {
     const buckets = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 }))
-    for (const row of this.rows("SELECT started_at AS t FROM matches WHERE source!='demo' AND started_at IS NOT NULL")) buckets[new Date(row.t as number).getHours()].count++
+    const w = this.where(season, { clause: 'started_at IS NOT NULL', params: [] })
+    for (const row of this.rows(`SELECT started_at AS t FROM matches${w.sql}`, w.params)) buckets[new Date(row.t as number).getHours()].count++
     return buckets
   }
 

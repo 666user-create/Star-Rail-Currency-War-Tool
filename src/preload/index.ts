@@ -2,14 +2,15 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { AppSettings, DraftInput, PetApi, PetBubbleView, RecordingChange } from '../shared/types'
 
 const api: PetApi = {
-  listMatches: (limit?: number) => ipcRenderer.invoke('record:list', limit),
+  listMatches: (limit?: number, season?: string | null) => ipcRenderer.invoke('record:list', limit, season),
   getMatch: (id: number) => ipcRenderer.invoke('record:get', id),
-  overview: () => ipcRenderer.invoke('stats:overview'),
-  lineupStats: () => ipcRenderer.invoke('stats:lineups'),
-  bondStats: () => ipcRenderer.invoke('stats:bonds'),
-  rankCurve: () => ipcRenderer.invoke('stats:rankCurve'),
-  durationHistogram: () => ipcRenderer.invoke('stats:durationHist'),
-  hourHistogram: () => ipcRenderer.invoke('stats:hourHist'),
+  seasons: () => ipcRenderer.invoke('stats:seasons'),
+  overview: (season?: string | null) => ipcRenderer.invoke('stats:overview', season),
+  lineupStats: (season?: string | null) => ipcRenderer.invoke('stats:lineups', season),
+  bondStats: (season?: string | null) => ipcRenderer.invoke('stats:bonds', season),
+  rankCurve: (season?: string | null) => ipcRenderer.invoke('stats:rankCurve', season),
+  durationHistogram: (season?: string | null) => ipcRenderer.invoke('stats:durationHist', season),
+  hourHistogram: (season?: string | null) => ipcRenderer.invoke('stats:hourHist', season),
   isRecording: () => ipcRenderer.invoke('record:isRecording'),
   recordStart: () => ipcRenderer.invoke('record:start'),
   recordEnd: () => ipcRenderer.invoke('record:end'),

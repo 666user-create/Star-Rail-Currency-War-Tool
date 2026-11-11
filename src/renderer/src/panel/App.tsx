@@ -102,9 +102,30 @@ export default function App() {
   const reload = useCallback(async () => {
     const version = ++reloadVersion.current
     try {
+      // 先确定当前赛季，再按赛季拉数据 —— 否则会把所有赛季的记录和统计混在一起。
+      // 赛季：优先用设置里保存的；为空则用按时间推测的当前赛季，并写回设置，
+      // 保证秒表结束时读到的是面板上正在显示的这一季。
+      let season: string
+      let starts: Record<string, number> = {}
+      let ends: Record<string, number> = {}
+      try {
+        const s = await window.api.getSettings()
+        starts = s.seasonStarts ?? {}
+        ends = s.seasonEnds ?? {}
+        season = (s.recordSeason ?? '').trim() || defaultSeason(Date.now(), { starts, ends })
+        if (!s.recordSeason) void window.api.setSettings({ recordSeason: season }).catch(() => {})
+      } catch {
+        season = defaultSeason(Date.now())
+      }
+      if (version !== reloadVersion.current) return
+      setSeasonStarts(starts)
+      setSeasonEnds(ends)
+      setCurrentSeason(season)
+
       const [nextOverview, nextMatches, nextLineups, nextBonds, nextRank, nextDurations, nextHours, nextDrafts] = await Promise.all([
-        window.api.overview(), window.api.listMatches(300), window.api.lineupStats(), window.api.bondStats(), window.api.rankCurve(),
-        window.api.durationHistogram(), window.api.hourHistogram(), window.api.listDrafts()
+        window.api.overview(season), window.api.listMatches(300, season), window.api.lineupStats(season),
+        window.api.bondStats(season), window.api.rankCurve(season),
+        window.api.durationHistogram(season), window.api.hourHistogram(season), window.api.listDrafts()
       ])
       if (version !== reloadVersion.current) return
       setOverview(nextOverview)
@@ -115,17 +136,6 @@ export default function App() {
       setDurations(nextDurations)
       setHours(nextHours)
       setDrafts(nextDrafts)
-      // 赛季：优先用设置里保存的；为空则用按时间推测的当前赛季，并写回设置，
-      // 保证秒表结束时读到的是面板上正在显示的这一季
-      void window.api.getSettings().then((s) => {
-        const starts = s.seasonStarts ?? {}
-        const ends = s.seasonEnds ?? {}
-        setSeasonStarts(starts)
-        setSeasonEnds(ends)
-        const season = s.recordSeason || defaultSeason(Date.now(), { starts, ends })
-        setCurrentSeason(season)
-        if (!s.recordSeason) void window.api.setSettings({ recordSeason: season }).catch(() => {})
-      }).catch(() => {})
       setError('')
     } catch (reason) {
       if (version === reloadVersion.current) setError(errorText(reason, '读取记录失败，请重试。'))
@@ -160,6 +170,9 @@ export default function App() {
     setSeasonDatePrompt(null)
     setCurrentSeason(season)
     try { await window.api.setSettings({ recordSeason: season }) } catch { /* 设置写失败不影响当前会话内切换 */ }
+    // 赛季隔离：切换后必须按新赛季重新拉列表和统计，否则仍显示上一季的数据
+    setLoading(true)
+    void reload()
   }
   const importScreenshot = async () => {
     if (importing) return

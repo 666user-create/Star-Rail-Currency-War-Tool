@@ -163,14 +163,17 @@ export interface TrayMenuState {
 export type TrayMenuAction = 'toggle-pet' | 'toggle-quiet' | 'open-panel' | 'open-settings' | 'quit'
 
 export interface PetApi {
-  listMatches(limit?: number): Promise<Match[]>
+  listMatches(limit?: number, season?: string | null): Promise<Match[]>
   getMatch(id: number): Promise<Match | null>
-  overview(): Promise<OverviewStats>
-  lineupStats(): Promise<LineupStat[]>
-  bondStats(): Promise<BondStat[]>
-  rankCurve(): Promise<RankPoint[]>
-  durationHistogram(): Promise<DurationBucket[]>
-  hourHistogram(): Promise<HourBucket[]>
+  /** 库里出现过的赛季名（用于界面提示） */
+  seasons(): Promise<string[]>
+  /** 以下统计均可传 season 做隔离；不传则统计全部 */
+  overview(season?: string | null): Promise<OverviewStats>
+  lineupStats(season?: string | null): Promise<LineupStat[]>
+  bondStats(season?: string | null): Promise<BondStat[]>
+  rankCurve(season?: string | null): Promise<RankPoint[]>
+  durationHistogram(season?: string | null): Promise<DurationBucket[]>
+  hourHistogram(season?: string | null): Promise<HourBucket[]>
   isRecording(): Promise<number | null>
   recordStart(): Promise<number>
   recordEnd(): Promise<RecordingDraft | null>
