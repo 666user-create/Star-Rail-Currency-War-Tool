@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react'
 import type { DraftInput, MatchResult, RecordingDraft } from '@shared/types'
 import { SEASONS } from '@shared/seasons'
 import { RankPicker } from './RankPicker'
-import { RankChangeField } from './RankChangeField'
-import { rankGainFromHp } from '../../../shared/rankProgress'
 
 export const RESULT_LABEL: Record<MatchResult, string> = {
   win: '胜利', loss: '失败', interrupted: '中断', suspected: '待核实'
@@ -132,13 +130,11 @@ export default function ReviewDraft({ draft, onClose, onUpdate, onSaved, onDisca
     // 内部统一存秒；分钟输入换算成秒（允许一位小数分钟）
     const duration = durationMin === null ? null : Math.round(durationMin * 60)
     const squadHp = form.squadHp.trim() ? Number(form.squadHp) : null
-    // 段位变化由血量推导（官方规则），不再读用户输入
-    const rankChange = rankGainFromHp({
-      result: form.result as 'win' | 'loss' | 'interrupted' | 'suspected',
-      squadHp: squadHp != null && Number.isFinite(squadHp) ? squadHp : null
-    })
+    // 段位变化由用户自己填（大段间有晋级赛，血量规则算不准）
+    const rankChange = form.rankChange.trim() ? Number(form.rankChange) : null
     if (!Number.isFinite(endedAt)) { setError('请填写有效的结束时间。'); return }
     if (duration !== null && (!form.durationMin.trim() || !Number.isFinite(durationMin as number) || (durationMin as number) < 0)) { setError('时长请填写非负分钟数，或勾选「时长未知」。'); return }
+    if (rankChange !== null && !Number.isInteger(rankChange)) { setError('段位变化请填写整数；未知时留空。'); return }
     if (squadHp !== null && (!Number.isInteger(squadHp) || squadHp < 0)) { setError('队伍生命请填写非负整数；未知时留空。'); return }
     const input: DraftInput = {
       endedAt, durationSec: duration, result: form.result,
@@ -190,7 +186,7 @@ export default function ReviewDraft({ draft, onClose, onUpdate, onSaved, onDisca
             <div className="span2 duration-field"><label className="check-field"><input type="checkbox" checked={form.durationUnknown} onChange={(event) => edit('durationUnknown', event.target.checked)} />时长未知</label><label>本局时长（分钟）<input type="number" min="0" step="0.1" value={form.durationMin} disabled={form.durationUnknown} onChange={(event) => edit('durationMin', event.target.value)} placeholder="如 12.5；未知时不必估算" /></label><p className="field-hint">按分钟填写；导入截图通常无法还原时长，未知时长不参与总时长和平均时长统计。</p></div>
             <RankPicker label="结算前段位（可选）" value={form.rankBefore} onChange={(next) => edit('rankBefore', next)} />
             <RankPicker label="结算后段位" value={form.rankAfter} onChange={(next) => edit('rankAfter', next)} />
-            <label>段位变化<RankChangeField result={form.result} squadHp={form.squadHp} /></label>
+            <label>段位变化<input type="number" step="1" value={form.rankChange} onChange={(event) => edit('rankChange', event.target.value)} placeholder="如 +3" /></label>
             <label>结算评级<input value={form.rating} onChange={(event) => edit('rating', event.target.value)} placeholder="未知可留空" /></label>
             <label>队伍生命<input type="number" min="0" step="1" value={form.squadHp} onChange={(event) => edit('squadHp', event.target.value)} placeholder="未知可留空" /></label>
             <div className="span2 season-tabs-field">
