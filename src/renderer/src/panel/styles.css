@@ -428,3 +428,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   color: var(--muted);
 }
 .season-inline-row .tb-btn { padding: 7px 12px; font-size: 12px; white-space: nowrap; }
+
+/* 职级未填时的轻提示 */
+.rank-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #8b8fa8;
+}

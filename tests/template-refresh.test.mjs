@@ -74,3 +74,65 @@ test('回归：首次创建时没有旧缓存，任何数量都接受', () => {
 test('边界：刚好一半时接受（>=）', () => {
   assert.equal(shouldAcceptRefresh({ cachedCount: 104, freshCount: 52 }), true)
 })
+
+/**
+ * 4.7 赛季轮换实测发现的两个真实陷阱：
+ * 1. 官方把角色 ID 从 4 位改成 6 位（1508 → 150302），同一角色会出现在新旧两个名单里
+ * 2. 赛季更替会下架一批角色/羁绊（4.7 下架 29 个角色、22 个羁绊）
+ * 所以刷新时既要按名字去重，又要保留旧清单里新清单没有的条目。
+ */
+
+/** 复刻合并逻辑：新名单 + 旧名单里新名单没有的条目 */
+function mergeKeepHistory(fresh, cached) {
+  const names = new Set(fresh.map((x) => x.name))
+  const ids = new Set(fresh.map((x) => x.id))
+  const merged = [...fresh]
+  let kept = 0
+  for (const old of cached) {
+    if (names.has(old.name) || ids.has(old.id)) continue
+    merged.push(old)
+    names.add(old.name)
+    ids.add(old.id)
+    kept++
+  }
+  return { merged, kept }
+}
+
+test('4.7 真实场景：ID 变长但同名角色不会重复计入', () => {
+  const fresh = [{ id: '150302', name: '真珠' }, { id: '150102', name: '火花' }]
+  const cached = [{ id: '1503', name: '真珠' }, { id: '1501', name: '火花' }]
+  const { merged, kept } = mergeKeepHistory(fresh, cached)
+  assert.equal(merged.length, 2, '同名角色只保留新 ID 那份')
+  assert.equal(kept, 0, '不该把同名的旧 ID 当历史角色保留')
+})
+
+test('回归：赛季下架的角色必须保留（否则旧截图认不出）', () => {
+  // 4.7 实测：远坂凛/Saber/Archer 等联动角色从接口消失
+  const fresh = [{ id: '150302', name: '真珠' }, { id: '900502', name: '星神★阿哈' }]
+  const cached = [
+    { id: '1503', name: '真珠' },
+    { id: '1508', name: '远坂凛' },
+    { id: '1014', name: 'Saber' }
+  ]
+  const { merged, kept } = mergeKeepHistory(fresh, cached)
+  assert.equal(kept, 2, '远坂凛、Saber 应被保留')
+  assert.equal(merged.length, 4)
+  assert.ok(merged.some((x) => x.name === '远坂凛'))
+  assert.ok(merged.some((x) => x.name === 'Saber'))
+})
+
+test('回归：新角色正常加入，历史角色不影响总数', () => {
+  const fresh = [{ id: '900502', name: '星神★阿哈' }, { id: '900602', name: '帕姆王' }]
+  const cached = [{ id: '1508', name: '远坂凛' }]
+  const { merged } = mergeKeepHistory(fresh, cached)
+  assert.equal(merged.length, 3)
+  assert.ok(merged.some((x) => x.name === '星神★阿哈'))
+  assert.ok(merged.some((x) => x.name === '帕姆王'))
+})
+
+test('空旧清单时只保留新名单', () => {
+  const fresh = [{ id: '1', name: 'A' }]
+  const { merged, kept } = mergeKeepHistory(fresh, [])
+  assert.equal(merged.length, 1)
+  assert.equal(kept, 0)
+})

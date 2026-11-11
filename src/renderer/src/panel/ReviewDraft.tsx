@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import type { DraftInput, MatchResult, RecordingDraft } from '@shared/types'
 import { SEASONS } from '@shared/seasons'
+import { RankPicker } from './RankPicker'
 
 export const RESULT_LABEL: Record<MatchResult, string> = {
   win: '胜利', loss: '失败', interrupted: '中断', suspected: '待核实'
@@ -181,8 +182,8 @@ export default function ReviewDraft({ draft, onClose, onUpdate, onSaved, onDisca
             <label className="span2">结束时间<input type="datetime-local" step="1" value={form.endedAt} onChange={(event) => edit('endedAt', event.target.value)} required /></label>
             {draft.startedAt == null && <p className="field-hint span2 imported-time-hint">导入时间已暂填，请按实际对局时间修改。</p>}
             <div className="span2 duration-field"><label className="check-field"><input type="checkbox" checked={form.durationUnknown} onChange={(event) => edit('durationUnknown', event.target.checked)} />时长未知</label><label>本局时长（分钟）<input type="number" min="0" step="0.1" value={form.durationMin} disabled={form.durationUnknown} onChange={(event) => edit('durationMin', event.target.value)} placeholder="如 12.5；未知时不必估算" /></label><p className="field-hint">按分钟填写；导入截图通常无法还原时长，未知时长不参与总时长和平均时长统计。</p></div>
-            <label>结算前段位<input value={form.rankBefore} onChange={(event) => edit('rankBefore', event.target.value)} placeholder="未知可留空" /></label>
-            <label>结算后段位<input value={form.rankAfter} onChange={(event) => edit('rankAfter', event.target.value)} placeholder="未知可留空" /></label>
+            <RankPicker label="结算前段位" value={form.rankBefore} onChange={(next) => edit('rankBefore', next)} />
+            <RankPicker label="结算后段位" value={form.rankAfter} onChange={(next) => edit('rankAfter', next)} />
             <label>段位变化<input type="number" step="1" value={form.rankChange} onChange={(event) => edit('rankChange', event.target.value)} placeholder="例如 +1 / +2 / +3" /></label>
             <label>结算评级<input value={form.rating} onChange={(event) => edit('rating', event.target.value)} placeholder="未知可留空" /></label>
             <label>队伍生命<input type="number" min="0" step="1" value={form.squadHp} onChange={(event) => edit('squadHp', event.target.value)} placeholder="未知可留空" /></label>

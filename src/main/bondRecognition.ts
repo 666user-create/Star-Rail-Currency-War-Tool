@@ -136,6 +136,21 @@ export function prepareBondTemplates(cacheDir: string): Promise<PreparedBonds> {
         warnings.push('新羁绊图标库异常偏少，已回退到上一次的缓存。')
         return { templates: cached.templates, warnings }
       }
+      // 赛季更替会轮换羁绊（4.7 下架了 22 个、新增 23 个）。
+      // 保留旧羁绊：旧赛季的截图里仍然可能出现它们，删掉就认不出了。
+      const seenIds = new Set(available.map((entry) => entry.id))
+      const seenNames = new Set(available.map((entry) => entry.name))
+      let kept = 0
+      for (const old of cached.templates) {
+        if (seenIds.has(old.id) || seenNames.has(old.name)) continue
+        // 只保留图标文件还在的（能匹配才有意义）
+        const iconPath = path.join(directory, old.file)
+        try {
+          const info = await fs.stat(iconPath)
+          if (info.isFile() && info.size > 16) { available.push(old); seenIds.add(old.id); seenNames.add(old.name); kept++ }
+        } catch { /* 文件不在就不保留 */ }
+      }
+      if (kept > 0) warnings.push(`已保留 ${kept} 个本赛季下架的历史羁绊，仍可正常识别。`)
       await atomicFile(path.join(directory, 'manifest.json'), JSON.stringify({ source: CONFIG_URL, downloadedAt: Date.now(), expectedCount: entries.length, templates: available }))
       if (available.length < entries.length) warnings.push('部分羁绊图标未缓存成功，识别可能有遗漏，可按原图补充。')
       return { templates: available, warnings }

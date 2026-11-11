@@ -94,9 +94,9 @@ async function resolveManifest(directory: string, warnings: string[], budget: Ab
     return createManifest(directory, warnings, budget)
   }
 
-  // 有旧缓存但过期：尝试刷新，失败则继续用旧的
+  // 有旧缓存但过期：尝试刷新；传入旧清单以便保留本赛季下架的历史角色
   try {
-    const fresh = await createManifest(directory, [], budget)
+    const fresh = await createManifest(directory, [], budget, cached)
     // createManifest 内部已落盘；这里只做「新清单是否比旧的更差」的兜底判断
     if (fresh.roles.length < cached.roles.length * 0.5) {
       warnings.push('新角色库异常偏少，已回退到上一次的缓存。')
@@ -116,21 +116,66 @@ async function writeCache(file: string, contents: Uint8Array): Promise<void> {
   finally { await fs.unlink(temporary).catch(() => {}) }
 }
 
-async function createManifest(directory: string, warnings: string[], budget: AbortSignal): Promise<Manifest> {
+/**
+ * 从官方配置构建角色清单。
+ * @param previous 旧清单；提供时会保留「新的官方清单里没有、但旧清单有」的角色，
+ *   避免赛季更替后旧赛季角色从库里消失（4.7 把 ID 从 1508 改成 150302，且下架了一批角色）。
+ */
+async function createManifest(directory: string, warnings: string[], budget: AbortSignal, previous?: Manifest | null): Promise<Manifest> {
   const config = JSON.parse((await download(CONFIG_URL, MAX_METADATA, { 'x-rpc-lang': 'zh-cn', 'x-rpc-currencywar-tourn': 'tourn' }, budget)).toString('utf8'))
   if (config.retcode !== 0 || !Array.isArray(config.data?.role_list)) throw new Error('公开角色配置无法读取')
   const roles: RoleTemplate[] = config.data.role_list.map((role: RoleTemplate) => ({ id: String(role.id), name: role.name, icon: role.icon })).filter(validRole)
   if (roles.length < 20) throw new Error('公开角色配置不完整')
+
+  // 4.7 起官方 ID 改成「角色id+赛季号」(1508→150302)，同一个角色可能同时出现在两个名单里，
+  // 所以补充角色时按「名字」去重，不能按 id。
+  const names = new Set(roles.map((role) => role.name))
+  const ids = new Set(roles.map((role) => role.id))
+
   try {
     const legacy = JSON.parse((await download(LEGACY_URL, MAX_METADATA, undefined, budget)).toString('utf8')) as Record<string, { id: string; name: string; icon: string }>
-    const current = new Set(roles.map(role => role.id))
     for (const role of Object.values(legacy)) {
-      if (!role || current.has(String(role.id)) || !/^icon\/character\/\d+\.png$/.test(role.icon)) continue
-      const template: RoleTemplate = { id: String(role.id), name: role.name === '{NICKNAME}' ? '开拓者' : role.name,
+      if (!role || !role.name || !/^icon\/character\/\d+\.png$/.test(role.icon)) continue
+      const name = role.name === '{NICKNAME}' ? '开拓者' : role.name
+      if (ids.has(String(role.id)) || names.has(name)) continue
+      const template: RoleTemplate = { id: String(role.id), name,
         icon: 'https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/' + role.icon, kind: 'character', file: `legacy-${role.id}.png` }
-      if (validRole(template)) roles.push(template)
+      if (validRole(template)) { roles.push(template); names.add(name); ids.add(String(role.id)) }
     }
   } catch { warnings.push('旧赛季补充头像暂不可用，缺少的角色仍可手填。') }
+
+  // 关键：保留旧清单里的角色，避免赛季更替后识别退化。
+  // 分两种情况：
+  //   a) 新清单完全没有这个角色（下架的联动角色如远坂凛/Saber）→ 必须保留
+  //   b) 新清单有同名角色，但官方换了图标（4.7 实测「真珠」立绘变了）→ 旧模板也保留，
+  //      这样旧截图匹配旧模板、新截图匹配新模板，两边都能认出来。
+  if (previous) {
+    let keptGone = 0
+    let keptAlt = 0
+    for (const old of previous.roles) {
+      const sameName = names.has(old.name)
+      const sameId = ids.has(old.id)
+      if (sameId) continue // 完全同一条，新清单已覆盖
+      if (sameName) {
+        // 同名但 ID 不同：视为官方换了图标/重构了条目，保留旧模板做兼容
+        const oldFile = path.join(directory, (old.file ?? `${old.id}.png`))
+        try {
+          const info = await fs.stat(oldFile)
+          if (info.isFile() && info.size > 0) { roles.push(old); keptAlt++ }
+        } catch { /* 旧头像文件不在就不保留 */ }
+        continue
+      }
+      // 新清单没有这个角色：保留（头像文件还在才有意义）
+      const oldFile = path.join(directory, (old.file ?? `${old.id}.png`))
+      try {
+        const info = await fs.stat(oldFile)
+        if (info.isFile() && info.size > 0) { roles.push(old); names.add(old.name); ids.add(old.id); keptGone++ }
+      } catch { /* 文件不在就跳过 */ }
+    }
+    if (keptGone > 0) warnings.push(`已保留 ${keptGone} 个本赛季下架的历史角色，仍可正常识别。`)
+    if (keptAlt > 0) warnings.push(`已保留 ${keptAlt} 个旧版头像作为兼容模板，旧截图仍能识别。`)
+  }
+
   const manifest: Manifest = { version: 2, roles }
   await writeCache(path.join(directory, 'manifest.json'), Buffer.from(JSON.stringify(manifest), 'utf8'))
   return manifest
