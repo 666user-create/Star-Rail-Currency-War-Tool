@@ -128,26 +128,35 @@ function loadPage(win: BrowserWindow, page: string): void {
   else win.loadFile(path.join(__dirname, `../renderer/${page}.html`))
 }
 
-function isOnScreen(x: number, y: number): boolean {
+/**
+ * 坐标是否可接受：要求窗口**至少 60% 面积**落在某个显示器工作区内。
+ * 之前用 `x >= a.x - 200` 这种宽松边界，会让 x=-20 这类大半截在屏幕外的坏值被判为合法，
+ * 于是每次启动都从坏坐标恢复、用户永远看不到桌宠。
+ */
+function isOnScreen(x: number, y: number, w = PET_W, h = PET_H): boolean {
+  const area = w * h
   return screen.getAllDisplays().some((d) => {
     const a = d.workArea
-    return x >= a.x - 200 && x <= a.x + a.width - 60 && y >= a.y - 100 && y <= a.y + a.height - 60
+    const overlapW = Math.min(x + w, a.x + a.width) - Math.max(x, a.x)
+    const overlapH = Math.min(y + h, a.y + a.height) - Math.max(y, a.y)
+    if (overlapW <= 0 || overlapH <= 0) return false
+    return (overlapW * overlapH) / area >= 0.6
   })
 }
 
-// 夹紧到任一显示器工作区内，保证桌宠始终至少有一部分可见（防"拖出屏外消失"）
+// 夹紧到最近的显示器工作区内，保证桌宠完整可见（防「拖出屏外消失」）
 function clampToScreens(x: number, y: number, w: number, h: number): { x: number; y: number } {
   const displays = screen.getAllDisplays()
   let best: { x: number; y: number } | null = null
   let bestDist = Infinity
   for (const d of displays) {
     const a = d.workArea
-    if (x >= a.x - w + 80 && x <= a.x + a.width - 80 &&
-        y >= a.y - h + 100 && y <= a.y + a.height - 60) {
-      return { x, y } // 已合法
+    // 完全在屏内的合法位置；留 8px 余量避免贴边被任务栏挡住
+    if (x >= a.x && x + w <= a.x + a.width && y >= a.y && y + h <= a.y + a.height) {
+      return { x, y }
     }
-    const cx = Math.min(Math.max(x, a.x - w + 80), a.x + a.width - 80)
-    const cy = Math.min(Math.max(y, a.y - h + 100), a.y + a.height - 60)
+    const cx = Math.min(Math.max(x, a.x), Math.max(a.x, a.x + a.width - w))
+    const cy = Math.min(Math.max(y, a.y), Math.max(a.y, a.y + a.height - h))
     const dist = (cx - x) * (cx - x) + (cy - y) * (cy - y)
     if (dist < bestDist) { bestDist = dist; best = { x: cx, y: cy } }
   }
