@@ -1,63 +1,98 @@
 /**
- * 货币战争职级（赛季 2「入画奇航」起，官方结算界面共 9 档 A0–A8）。
+ * 货币战争职级（赛季 2「入画奇航」起）。
  *
- * 来源：游戏内「职级奖励」界面。
- * 用户可能还会遇到旧赛季的自定义职级文本（如「财富造物主50」），
- * 所以这里的下拉框允许额外保留非标准值，不强制只能选列表项。
+ * 官方结算界面显示「A5 紫金1」这种格式：大段位 A0–A8 + 小段位 1/2/3。
+ * 小段位顺序：数字越大越高（紫金1 < 紫金2 < 紫金3）。
+ * 但 A8（财富造物主）是最高档，官方实测只有「A8 财富造物主」不带小段位编号，
+ * 所以 `subLevels` 用 0 表示「该档没有小段位」。
+ *
+ * 来源：游戏内「职级奖励」界面 + 结算界面实测截图（2026-11-11, 4.7）。
  */
 export interface RankOption {
   /** 稳定标识（A0–A8） */
   code: string
-  /** 界面显示名 */
+  /** 大段位名 */
   label: string
-  /** 完整显示（含编号），用于展示 */
-  full: string
+  /** 该档是否有小段位（1/2/3）。A8 没有 */
+  hasSubLevel: boolean
 }
 
 export const RANKS: RankOption[] = [
-  { code: 'A0', label: '黑铁', full: 'A0 黑铁' },
-  { code: 'A1', label: '青铜', full: 'A1 青铜' },
-  { code: 'A2', label: '翠钢', full: 'A2 翠钢' },
-  { code: 'A3', label: '钴银', full: 'A3 钴银' },
-  { code: 'A4', label: '冰钛', full: 'A4 冰钛' },
-  { code: 'A5', label: '紫金', full: 'A5 紫金' },
-  { code: 'A6', label: '投资大师', full: 'A6 投资大师' },
-  { code: 'A7', label: '资本帝王', full: 'A7 资本帝王' },
-  { code: 'A8', label: '财富造物主', full: 'A8 财富造物主' }
+  { code: 'A0', label: '黑铁', hasSubLevel: true },
+  { code: 'A1', label: '青铜', hasSubLevel: true },
+  { code: 'A2', label: '翠钢', hasSubLevel: true },
+  { code: 'A3', label: '钴银', hasSubLevel: true },
+  { code: 'A4', label: '冰钛', hasSubLevel: true },
+  { code: 'A5', label: '紫金', hasSubLevel: true },
+  { code: 'A6', label: '投资大师', hasSubLevel: true },
+  { code: 'A7', label: '资本帝王', hasSubLevel: true },
+  { code: 'A8', label: '财富造物主', hasSubLevel: false }
 ]
 
-/** 按 code 取职级；找不到返回 null。 */
+/** 小段位可选值（1 最低、3 最高） */
+export const SUB_LEVELS = [1, 2, 3] as const
+
+export interface RankValue {
+  /** 大段位 code，如 A5 */
+  code: string
+  /** 小段位，如 1；A8 或未填时为 0 */
+  sub: number
+}
+
+/** 按 code 取大段位；找不到返回 null。 */
 export function rankByCode(code: string): RankOption | null {
   const trimmed = (code ?? '').trim().toUpperCase()
   return RANKS.find((item) => item.code === trimmed) ?? null
 }
 
+/** 把 RankValue 拼成显示文本：「A5 紫金1」/「A8 财富造物主」。 */
+export function formatRank(value: RankValue | null): string {
+  if (!value) return ''
+  const rank = rankByCode(value.code)
+  if (!rank) return ''
+  return rank.hasSubLevel && value.sub > 0 ? `${rank.code} ${rank.label}${value.sub}` : `${rank.code} ${rank.label}`
+}
+
 /**
- * 把历史记录里的职级文本归一化到某个标准职级。
- * 兼容旧数据：
- * - "A5 紫金" / "紫金" / "A5"      → A5 紫金
- * - "财富造物主50" / "财富造物主"   → A8 财富造物主
- * - 无法识别                        → null（调用方保留原文，不让用户丢数据）
+ * 解析历史/手填文本为结构化的 RankValue。
+ * 兼容格式：
+ * - "A5 紫金1" / "A5紫金1" / "紫金1" / "A5"        → { code:'A5', sub:1|0 }
+ * - "财富造物主50"（旧数据，带等级数字）           → { code:'A8', sub:0 }
+ * - 无法识别                                        → null
  */
-export function matchRank(value: string): RankOption | null {
+export function parseRank(value: string): RankValue | null {
   const text = (value ?? '').trim()
   if (!text) return null
 
-  // 1) 精确 code
-  const byCode = rankByCode(text)
-  if (byCode) return byCode
-
-  // 2) 以 code 开头（"A5 紫金"）
-  const codeMatch = /^([Aa][0-8])\b/.exec(text)
-  if (codeMatch) {
-    const hit = rankByCode(codeMatch[1])
-    if (hit) return hit
+  // 1) 找大段位：优先 code，其次名称
+  let rank: RankOption | null = null
+  const codeMatch = /([Aa][0-8])\b/.exec(text)
+  if (codeMatch) rank = rankByCode(codeMatch[1])
+  if (!rank) {
+    // 从高档往低找，避免短名误匹配
+    for (let i = RANKS.length - 1; i >= 0; i--) {
+      if (text.includes(RANKS[i].label)) { rank = RANKS[i]; break }
+    }
   }
+  if (!rank) return null
 
-  // 3) 包含名称（"财富造物主50"、"A6 投资大师"）
-  // 从高档往低找，避免「投资大师」被「大师」之类的短名误匹配
-  for (let i = RANKS.length - 1; i >= 0; i--) {
-    if (text.includes(RANKS[i].label)) return RANKS[i]
+  // 2) 找小段位：该档有小段位时，取名称/code 后面的第一个 1-3 数字
+  let sub = 0
+  if (rank.hasSubLevel) {
+    // 优先匹配「紫金1」这种紧跟名称的
+    const afterName = new RegExp(`${rank.label}\\s*([1-9])`).exec(text)
+    if (afterName) {
+      const n = Number(afterName[1])
+      if (n >= 1 && n <= 3) sub = n
+    }
+    if (sub === 0) {
+      // 退而求其次：code 后面的数字
+      const afterCode = new RegExp(`${rank.code}\\s*([1-9])`, 'i').exec(text)
+      if (afterCode) {
+        const n = Number(afterCode[1])
+        if (n >= 1 && n <= 3) sub = n
+      }
+    }
   }
-  return null
+  return { code: rank.code, sub }
 }

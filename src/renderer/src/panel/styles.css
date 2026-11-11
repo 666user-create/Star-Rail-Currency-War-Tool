@@ -436,3 +436,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   font-size: 11px;
   color: #8b8fa8;
 }
+
+/* 职级：大段位 + 小段位并排 */
+.rank-row {
+  display: flex;
+  gap: 6px;
+}
+.rank-row select:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.rank-row select:last-child {
+  flex: 0 0 56px;
+}
+.rank-row select:disabled {
+  opacity: 0.45;
+}
