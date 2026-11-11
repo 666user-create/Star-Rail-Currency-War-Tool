@@ -144,6 +144,16 @@ function isOnScreen(x: number, y: number, w = PET_W, h = PET_H): boolean {
   })
 }
 
+/**
+ * 桌宠贴着工作区边缘时的内缩量（逻辑像素）。
+ *
+ * 为什么必须留这个余量：DPI 缩放会把逻辑坐标换算成物理像素后取整（1.25 倍时
+ * 212 → 265），贴边时几像素的取整误差就会让窗口底部压到任务栏下面，
+ * 表现为「桌宠只剩一条边露出来」或「完全看不见」——实测踩过 petY=600 时底部 812，
+ * 工作区底部 816，物理上只差 1px 就被任务栏吃掉。
+ */
+const EDGE_MARGIN = 10
+
 // 夹紧到最近的显示器工作区内，保证桌宠完整可见（防「拖出屏外消失」）
 function clampToScreens(x: number, y: number, w: number, h: number): { x: number; y: number } {
   const displays = screen.getAllDisplays()
@@ -151,12 +161,16 @@ function clampToScreens(x: number, y: number, w: number, h: number): { x: number
   let bestDist = Infinity
   for (const d of displays) {
     const a = d.workArea
-    // 完全在屏内的合法位置；留 8px 余量避免贴边被任务栏挡住
-    if (x >= a.x && x + w <= a.x + a.width && y >= a.y && y + h <= a.y + a.height) {
+    // 可用范围收进 EDGE_MARGIN，避免贴边被任务栏/屏幕边缘吃掉
+    const minX = a.x + EDGE_MARGIN
+    const minY = a.y + EDGE_MARGIN
+    const maxX = Math.max(minX, a.x + a.width - w - EDGE_MARGIN)
+    const maxY = Math.max(minY, a.y + a.height - h - EDGE_MARGIN)
+    if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
       return { x, y }
     }
-    const cx = Math.min(Math.max(x, a.x), Math.max(a.x, a.x + a.width - w))
-    const cy = Math.min(Math.max(y, a.y), Math.max(a.y, a.y + a.height - h))
+    const cx = Math.min(Math.max(x, minX), maxX)
+    const cy = Math.min(Math.max(y, minY), maxY)
     const dist = (cx - x) * (cx - x) + (cy - y) * (cy - y)
     if (dist < bestDist) { bestDist = dist; best = { x: cx, y: cy } }
   }
@@ -333,7 +347,32 @@ function createPetWindow(): void {
   petWindow.once('ready-to-show', show)
   setTimeout(show, 800)
   petWindow.webContents.on('did-fail-load', (_e, code, desc) => console.error('[renderer-load]', code, desc))
-  petWindow.webContents.on('render-process-gone', (_e, d) => console.error('[renderer-gone]', d.reason))
+  /**
+   * 渲染进程崩溃后自动恢复。
+   *
+   * 之前只打日志不恢复：崩溃后窗口还在但内容是白屏，用户看到的就是「桌宠突然消失」。
+   * 常见诱因是 GPU 驱动不稳定导致 WebGL 上下文丢失（Three.js 渲染直接停摆）。
+   * 这里做指数退避重载：1s → 2s → 4s，最多 3 次，避免崩溃循环把 CPU 打满。
+   */
+  let petReloadAttempts = 0
+  petWindow.webContents.on('render-process-gone', (_e, details) => {
+    console.error('[renderer-gone]', details.reason)
+    if (!petWindow || petWindow.isDestroyed()) return
+    if (details.reason === 'clean-exit') return
+    if (petReloadAttempts >= 3) {
+      console.error('[renderer-gone] 已连续崩溃 3 次，停止自动重载')
+      return
+    }
+    const delay = 1000 * 2 ** petReloadAttempts
+    petReloadAttempts++
+    console.error(`[renderer-gone] ${delay}ms 后尝试第 ${petReloadAttempts} 次重载`)
+    setTimeout(() => {
+      if (!petWindow || petWindow.isDestroyed()) return
+      try { petWindow.reload() } catch (error) { console.error('[renderer-reload]', error) }
+    }, delay)
+  })
+  // 页面成功加载后清零重试计数（说明恢复成功了）
+  petWindow.webContents.on('did-finish-load', () => { petReloadAttempts = 0 })
   petWindow.webContents.on('console-message', (...args: unknown[]) => {
     const details = args.find((a) => a && typeof a === 'object' && 'message' in (a as object)) as { message?: string } | undefined
     const msg = details?.message ?? String(args[1] ?? '')
