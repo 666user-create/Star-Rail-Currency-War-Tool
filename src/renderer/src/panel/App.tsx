@@ -25,7 +25,12 @@ function LineChart({ points }: { points: RankPoint[] }) {
   const xs = points.map((p) => p.time)
   const ys = points.map((p) => p.cumulative)
   const x0 = Math.min(...xs), x1 = Math.max(...xs)
-  const y0 = Math.min(...ys, 0), y1 = Math.max(...ys, 1)
+  // Y 轴按数据实际范围留 8% 边距：段位分值跨度可能很小（如 61→69），
+  // 从 0 起画会压成一条平线看不出进步。
+  const rawMin = Math.min(...ys), rawMax = Math.max(...ys)
+  const span = Math.max(1, rawMax - rawMin)
+  const y0 = rawMin - span * 0.08
+  const y1 = rawMax + span * 0.08
   const sx = (t: number) => pad + ((t - x0) / Math.max(1, x1 - x0)) * (w - pad * 2)
   const sy = (v: number) => h - pad - ((v - y0) / Math.max(1, y1 - y0)) * (h - pad * 2)
   const path = points.map((p, i) => `${i ? 'L' : 'M'}${sx(p.time).toFixed(1)} ${sy(p.cumulative).toFixed(1)}`).join(' ')
@@ -34,7 +39,7 @@ function LineChart({ points }: { points: RankPoint[] }) {
       <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="rgba(255,255,255,0.15)" />
       <path d={path} fill="none" stroke="var(--gold)" strokeWidth="2.5" strokeLinejoin="round" />
       <circle cx={sx(points[points.length - 1].time)} cy={sy(points[points.length - 1].cumulative)} r="4" fill="var(--gold)" />
-      <text x={pad} y={16} className="chart-note">累计职级变化 · 最近已标注赛季</text>
+      <text x={pad} y={16} className="chart-note">段位走势 · 按结算后段位</text>
     </svg>
   )
 }

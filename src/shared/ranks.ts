@@ -71,16 +71,6 @@ export function rankToScore(value: string): number | null {
   return index * SUB_LEVEL_BASE + Math.max(0, parsed.sub)
 }
 
-/**
- * 把数值还原成基准展示用的档位标签（不带小段位）。
- * 只用于图表 Y 轴刻度，精确的小段位信息由点本身携带。
- */
-export function scoreToRankLabel(score: number): string {
-  const index = Math.floor(score / SUB_LEVEL_BASE)
-  const rank = RANKS[Math.min(Math.max(index, 0), RANKS.length - 1)]
-  return rank ? `${rank.code} ${rank.label}` : ''
-}
-
 /** 把 RankValue 拼成显示文本：「A5 紫金1」/「A8 财富造物主」。 */
 export function formatRank(value: RankValue | null): string {
   if (!value) return ''
