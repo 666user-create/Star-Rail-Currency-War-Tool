@@ -95,7 +95,7 @@ export default function EditMatch({ match, onCancel, onSaved }: {
         <label>本局时长（分钟）<input type="number" min="0" step="0.1" value={form.durationMin} disabled={form.durationUnknown} onChange={(event) => edit('durationMin', event.target.value)} placeholder="如 12.5" /></label>
         <label>玩法模式<select value={form.mode} onChange={(event) => edit('mode', event.target.value)}><option value="">未知</option><option value="standard">标准博弈</option><option value="overclock">超频博弈</option></select></label>
         <label>段位变化<input type="number" step="1" value={form.rankChange} onChange={(event) => edit('rankChange', event.target.value)} placeholder="如 +1" /></label>
-        <RankPicker label="结算前段位" value={form.rankBefore} onChange={(next) => edit('rankBefore', next)} />
+        <RankPicker label="结算前段位（可选）" value={form.rankBefore} onChange={(next) => edit('rankBefore', next)} />
         <RankPicker label="结算后段位" value={form.rankAfter} onChange={(next) => edit('rankAfter', next)} />
         <label>结算评级<input value={form.rating} onChange={(event) => edit('rating', event.target.value)} placeholder="未知可留空" /></label>
         <label>队伍生命<input type="number" min="0" step="1" value={form.squadHp} onChange={(event) => edit('squadHp', event.target.value)} placeholder="未知可留空" /></label>

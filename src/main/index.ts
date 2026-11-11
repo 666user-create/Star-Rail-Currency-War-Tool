@@ -538,18 +538,51 @@ async function notifyUpdateIfAny(): Promise<void> {
   }
 }
 
-/** 长局提醒：只读本地起始时间戳，不碰屏幕。30分、40分各提醒一次；40分之后每 10 分钟提醒。 */const LONG_RUN_FIRST_SEC = 30 * 60
-const LONG_RUN_SECOND_SEC = 40 * 60
+/**
+ * 长局提醒：只读本地起始时间戳，不碰屏幕。
+ * 50 分钟提醒第一次（大多数对局早该结束了），之后每 10 分钟一次。
+ * 间隔加了随机抖动：固定节拍太像闹钟，随机一点更像桌宠在念叨。
+ */
+const LONG_RUN_FIRST_SEC = 50 * 60
+/** 之后的提醒基准间隔 */
 const LONG_RUN_REPEAT_SEC = 10 * 60
+/** 随机抖动范围：基准 ± 这么多秒（10 分钟 → 8~12 分钟随机） */
+const LONG_RUN_JITTER_SEC = 2 * 60
 let lastLongRunReminderAt = 0
+/** 下次提醒的时间点（毫秒），带随机抖动，避免每次都是同一个节拍 */
+let nextLongRunReminderAt = 0
+
+/** 生成下一次提醒时间：基准间隔 ± 抖动。 */
+function scheduleNextLongRun(from: number): number {
+  const jitter = (Math.random() * 2 - 1) * LONG_RUN_JITTER_SEC
+  return from + (LONG_RUN_REPEAT_SEC + jitter) * 1000
+}
+
 function checkLongRun(): void {
-  if (recordStartedAt === null) { lastLongRunReminderAt = 0; return }
-  const elapsedSec = (Date.now() - recordStartedAt) / 1000
+  if (recordStartedAt === null) {
+    lastLongRunReminderAt = 0
+    nextLongRunReminderAt = 0
+    return
+  }
+  const now = Date.now()
+  const elapsedSec = (now - recordStartedAt) / 1000
   if (elapsedSec < LONG_RUN_FIRST_SEC) return
-  // 30→40 分钟之间只提醒一次；40 分钟后按 10 分钟间隔反复提醒
-  const interval = elapsedSec >= LONG_RUN_SECOND_SEC ? LONG_RUN_REPEAT_SEC : LONG_RUN_SECOND_SEC - LONG_RUN_FIRST_SEC
-  if (lastLongRunReminderAt && (Date.now() - lastLongRunReminderAt) / 1000 < interval) return
-  lastLongRunReminderAt = Date.now()
+
+  // 第一次到 50 分钟：立即提醒，并安排下一次
+  if (nextLongRunReminderAt === 0) {
+    nextLongRunReminderAt = scheduleNextLongRun(now)
+    lastLongRunReminderAt = now
+    fireLongRunReminder(elapsedSec)
+    return
+  }
+  // 之后按抖动的间隔提醒
+  if (now < nextLongRunReminderAt) return
+  nextLongRunReminderAt = scheduleNextLongRun(now)
+  lastLongRunReminderAt = now
+  fireLongRunReminder(elapsedSec)
+}
+
+function fireLongRunReminder(elapsedSec: number): void {
   if (settings.quietMode) return
   petBubble?.update({ text: `老板~这局记了 ${formatDuration(elapsedSec)} 了，是忘了收工，还是真在肝？` })
   setTimeout(() => petBubble?.update(null), 6000)

@@ -1,4 +1,4 @@
-// 职级测试：大段位 A0–A8 + 小段位 1/2/3，且要兼容历史自由文本
+// 职级测试：大段位 A0–A8 + 小段位手填（各档上限不同，不设固定枚举）
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
@@ -13,7 +13,6 @@ const RANKS = [
   { code: 'A7', label: '资本帝王', hasSubLevel: true },
   { code: 'A8', label: '财富造物主', hasSubLevel: false }
 ]
-const SUB_LEVELS = [1, 2, 3]
 
 function rankByCode(code) {
   const t = (code ?? '').trim().toUpperCase()
@@ -41,11 +40,11 @@ function parseRank(value) {
   if (!rank) return null
   let sub = 0
   if (rank.hasSubLevel) {
-    const afterName = new RegExp(`${rank.label}\\s*([1-9])`).exec(text)
-    if (afterName) { const n = Number(afterName[1]); if (n >= 1 && n <= 3) sub = n }
+    const afterName = new RegExp(`${rank.label}\\s*(\\d{1,2})`).exec(text)
+    if (afterName) sub = Number(afterName[1])
     if (sub === 0) {
-      const afterCode = new RegExp(`${rank.code}\\s*([1-9])`, 'i').exec(text)
-      if (afterCode) { const n = Number(afterCode[1]); if (n >= 1 && n <= 3) sub = n }
+      const afterCode = new RegExp(`${rank.code}\\s*(\\d{1,2})`, 'i').exec(text)
+      if (afterCode) sub = Number(afterCode[1])
     }
   }
   return { code: rank.code, sub }
@@ -57,70 +56,69 @@ test('共 9 个大段位，A0–A8', () => {
   assert.equal(RANKS[8].code, 'A8')
 })
 
-test('小段位固定 1/2/3', () => {
-  assert.deepEqual(SUB_LEVELS, [1, 2, 3])
-})
-
-test('A8 财富造物主按官方没有小段位', () => {
+test('A8 财富造物主没有小段位', () => {
   assert.equal(rankByCode('A8').hasSubLevel, false)
   assert.equal(rankByCode('A7').hasSubLevel, true)
 })
 
-test('格式化：带小段位显示数字', () => {
+test('格式化：带小段位', () => {
   assert.equal(formatRank({ code: 'A5', sub: 1 }), 'A5 紫金1')
-  assert.equal(formatRank({ code: 'A5', sub: 2 }), 'A5 紫金2')
-  assert.equal(formatRank({ code: 'A6', sub: 3 }), 'A6 投资大师3')
+  assert.equal(formatRank({ code: 'A7', sub: 7 }), 'A7 资本帝王7')
 })
 
-test('格式化：A8 不带小段位编号', () => {
+test('格式化：A8 不带编号', () => {
   assert.equal(formatRank({ code: 'A8', sub: 0 }), 'A8 财富造物主')
-  assert.equal(formatRank({ code: 'A8', sub: 2 }), 'A8 财富造物主', 'A8 即使传了 sub 也不显示')
 })
 
-test('格式化：sub 为 0 时只显示大段位', () => {
-  assert.equal(formatRank({ code: 'A5', sub: 0 }), 'A5 紫金')
-})
-
-test('解析：官方结算界面的完整格式', () => {
-  // 截图里实际显示的「A5 紫金1」
+test('解析：官方结算界面的格式', () => {
   assert.deepEqual(parseRank('A5 紫金1'), { code: 'A5', sub: 1 })
-  assert.deepEqual(parseRank('A7 资本帝王2'), { code: 'A7', sub: 2 })
-  assert.deepEqual(parseRank('A0 黑铁3'), { code: 'A0', sub: 3 })
+  assert.deepEqual(parseRank('A7 资本帝王7'), { code: 'A7', sub: 7 })
 })
 
-test('解析：无空格、只有名称+数字', () => {
-  assert.deepEqual(parseRank('A5紫金1'), { code: 'A5', sub: 1 })
-  assert.deepEqual(parseRank('紫金2'), { code: 'A5', sub: 2 })
+test('回归：小段位不限于 1-3（实测资本帝王能到 7）', () => {
+  // 之前限制了 1-3，导致「资本帝王6」「资本帝王7」解析错误
+  assert.deepEqual(parseRank('资本帝王6'), { code: 'A7', sub: 6 })
+  assert.deepEqual(parseRank('资本帝王7'), { code: 'A7', sub: 7 })
+  assert.deepEqual(parseRank('A7 资本帝王6'), { code: 'A7', sub: 6 })
 })
 
-test('解析：只有大段位，小段位为 0', () => {
+test('回归：两位小段位也能解析', () => {
+  assert.deepEqual(parseRank('投资大师12'), { code: 'A6', sub: 12 })
+})
+
+test('解析：只有大段位时小段位为 0', () => {
   assert.deepEqual(parseRank('A5'), { code: 'A5', sub: 0 })
   assert.deepEqual(parseRank('紫金'), { code: 'A5', sub: 0 })
 })
 
-test('回归：真实历史数据「财富造物主50」→ A8 无小段位', () => {
-  // 数据库里的旧值，带等级数字 50
-  assert.deepEqual(parseRank('财富造物主50'), { code: 'A8', sub: 0 })
+test('回归：真实历史数据「财富造物主50」→ A8', () => {
+  assert.deepEqual(parseRank('财富造物主50'), { code: 'A8', sub: 0 }, 'A8 没有小段位，50 被忽略')
 })
 
-test('回归：小段位超范围（如 紫金9）不当作小段位', () => {
-  assert.deepEqual(parseRank('A5 紫金9'), { code: 'A5', sub: 0 }, '9 超出 1-3 不算小段位')
+test('小段位手填的合法范围：1-99', () => {
+  // 界面是输入框，限制 2 位数字（最大 99），足够覆盖所有已知档位
+  assert.deepEqual(parseRank('紫金1'), { code: 'A5', sub: 1 })
+  assert.deepEqual(parseRank('紫金3'), { code: 'A5', sub: 3 })
+  assert.deepEqual(parseRank('资本帝王7'), { code: 'A7', sub: 7 })
 })
 
 test('空值与无法识别', () => {
   assert.equal(parseRank(''), null)
   assert.equal(parseRank('   '), null)
   assert.equal(parseRank(null), null)
-  assert.equal(parseRank('某个未知职级'), null)
+  assert.equal(parseRank('未知职级'), null)
 })
 
-test('往返一致：格式化后再解析回来', () => {
-  for (const code of ['A0', 'A3', 'A5', 'A7']) {
-    for (const sub of SUB_LEVELS) {
+test('往返一致', () => {
+  for (const [code, subs] of [['A0', [1, 2, 3]], ['A5', [1, 2, 3]], ['A7', [1, 5, 7]]]) {
+    for (const sub of subs) {
       const text = formatRank({ code, sub })
-      assert.deepEqual(parseRank(text), { code, sub }, `${text} 应能解析回原值`)
+      assert.deepEqual(parseRank(text), { code, sub }, `${text} 应能往返`)
     }
   }
-  const a8 = formatRank({ code: 'A8', sub: 0 })
-  assert.deepEqual(parseRank(a8), { code: 'A8', sub: 0 })
+})
+
+test('职级名称完整（对应官方截图 A0黑铁 ~ A8财富造物主）', () => {
+  const expected = ['黑铁', '青铜', '翠钢', '钴银', '冰钛', '紫金', '投资大师', '资本帝王', '财富造物主']
+  assert.deepEqual(RANKS.map((r) => r.label), expected)
 })

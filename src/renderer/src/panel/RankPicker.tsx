@@ -1,4 +1,4 @@
-import { RANKS, SUB_LEVELS, formatRank, parseRank, rankByCode } from '../../../shared/ranks'
+import { RANKS, formatRank, parseRank, rankByCode } from '../../../shared/ranks'
 
 interface RankPickerProps {
   /** 当前值（存的是显示文本，如「A5 紫金1」；也可能是历史自由文本） */
@@ -10,14 +10,18 @@ interface RankPickerProps {
 }
 
 /**
- * 职级下拉框：大段位 A0–A8 + 小段位 1/2/3。
+ * 职级输入：大段位下拉 + 小段位手填。
  *
- * 设计要点：
- * - 官方是「A5 紫金1」这种双段结构，所以拆成两个下拉，比手打省事也不容易填错。
- * - A8（财富造物主）按官方没有小段位，选到 A8 时小段位自动变灰。
- * - 历史数据可能是自由文本（「财富造物主50」），能解析就回填到两个下拉；
- *   解析不出来的原文保留在「原值」选项里，不让用户丢信息。
- * - 多一个「自定义」选项，保留手打任意文本的能力。
+ * 依据实际游戏界面（4.7 结算页只显示「A5 紫金1」这一个职级，不显示前后对比），
+ * 所以：
+ * - 大段位 A0–A8 是固定 9 档，做成下拉最省事。
+ * - 小段位**每档上限不同**（实测资本帝王能到 7，紫金只到 3），
+ *   所以不做固定下拉，改成手填任意数字，不会把用户限制在错误范围里。
+ * - 「段位变化」单独手填（+1/+2/+3），不做自动推算——官方规则虽然公开了
+ *   生命值对应提升级数，但跨大段时的进位规则没有可靠资料，算错不如不算。
+ *
+ * 历史数据可能是自由文本（「财富造物主50」），能解析就回填；
+ * 解析不出来的原文保留在「原值」选项里，不让用户丢信息。
  */
 export function RankPicker({ value, onChange, label }: RankPickerProps): React.JSX.Element {
   const trimmed = (value ?? '').trim()
@@ -26,12 +30,22 @@ export function RankPicker({ value, onChange, label }: RankPickerProps): React.J
   const isCustom = trimmed !== '' && parsed === null
 
   const selectedCode = isCustom ? '__custom__' : (parsed?.code ?? '')
-  const selectedSub = parsed?.sub ?? 0
-  const supportsSub = rank?.hasSubLevel ?? false
+  const subText = parsed && parsed.sub > 0 ? String(parsed.sub) : ''
 
-  const emit = (code: string, sub: number): void => {
-    const next = formatRank({ code, sub })
-    onChange(next)
+  /** 大段位变化：保留已填的小段位（除非新段位明确没有小段位） */
+  const changeCode = (next: string): void => {
+    if (next === '__custom__') { onChange(trimmed || ' '); return }
+    if (next === '') { onChange(''); return }
+    const nextRank = rankByCode(next)
+    const keepSub = nextRank?.hasSubLevel ? (parsed?.sub ?? 0) : 0
+    onChange(formatRank({ code: next, sub: keepSub }))
+  }
+
+  /** 小段位变化：手填的数字，非法输入直接忽略（不写进值里） */
+  const changeSub = (raw: string): void => {
+    const text = raw.replace(/[^\d]/g, '').slice(0, 2)
+    const sub = text === '' ? 0 : Number(text)
+    if (parsed) onChange(formatRank({ code: parsed.code, sub }))
   }
 
   return (
@@ -40,14 +54,7 @@ export function RankPicker({ value, onChange, label }: RankPickerProps): React.J
       <span className="rank-row">
         <select
           value={selectedCode}
-          onChange={(event) => {
-            const next = event.target.value
-            if (next === '__custom__') { onChange(trimmed || ' '); return }
-            if (next === '') { onChange(''); return }
-            const nextRank = rankByCode(next)
-            // 切到没有小段位的档（A8）时把 sub 归零
-            emit(next, nextRank?.hasSubLevel ? (selectedSub || 1) : 0)
-          }}
+          onChange={(event) => changeCode(event.target.value)}
           aria-label={`${label}（大段位）`}
         >
           <option value="">未填写</option>
@@ -57,20 +64,15 @@ export function RankPicker({ value, onChange, label }: RankPickerProps): React.J
           {isCustom && <option value="__custom__">原值：{trimmed}</option>}
           {!isCustom && <option value="__custom__">自定义…</option>}
         </select>
-        <select
-          value={supportsSub ? String(selectedSub || 1) : ''}
-          disabled={!supportsSub}
-          onChange={(event) => {
-            const sub = Number(event.target.value)
-            if (parsed) emit(parsed.code, sub)
-          }}
+        <input
+          value={subText}
+          onChange={(event) => changeSub(event.target.value)}
+          disabled={!rank?.hasSubLevel}
+          placeholder="小段位"
+          inputMode="numeric"
           aria-label={`${label}（小段位）`}
-          title={supportsSub ? '小段位' : '该职级没有小段位'}
-        >
-          {supportsSub
-            ? SUB_LEVELS.map((n) => <option key={n} value={n}>{n}</option>)
-            : <option value="">—</option>}
-        </select>
+          title={rank?.hasSubLevel ? '小段位，可留空' : '该职级没有小段位'}
+        />
       </span>
       {isCustom && (
         <input

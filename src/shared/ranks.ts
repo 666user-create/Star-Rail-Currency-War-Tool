@@ -29,8 +29,11 @@ export const RANKS: RankOption[] = [
   { code: 'A8', label: '财富造物主', hasSubLevel: false }
 ]
 
-/** 小段位可选值（1 最低、3 最高） */
-export const SUB_LEVELS = [1, 2, 3] as const
+/**
+ * 小段位不做成固定枚举：实测每个大段的档数不同
+ * （紫金只到 3，资本帝王能到 7），官方也没公开完整表。
+ * 所以界面用输入框让用户手填，这里只在解析时接受任意正整数。
+ */
 
 export interface RankValue {
   /** 大段位 code，如 A5 */
@@ -76,22 +79,17 @@ export function parseRank(value: string): RankValue | null {
   }
   if (!rank) return null
 
-  // 2) 找小段位：该档有小段位时，取名称/code 后面的第一个 1-3 数字
+  // 2) 找小段位：该档有小段位时，取名称/code 后面的数字。
+  //    不限制上限——实测资本帝王能到 7，各档上限不同，官方未公开完整表。
   let sub = 0
   if (rank.hasSubLevel) {
-    // 优先匹配「紫金1」这种紧跟名称的
-    const afterName = new RegExp(`${rank.label}\\s*([1-9])`).exec(text)
-    if (afterName) {
-      const n = Number(afterName[1])
-      if (n >= 1 && n <= 3) sub = n
-    }
+    // 优先匹配「紫金1」「资本帝王7」这种紧跟名称的
+    const afterName = new RegExp(`${rank.label}\\s*(\\d{1,2})`).exec(text)
+    if (afterName) sub = Number(afterName[1])
     if (sub === 0) {
       // 退而求其次：code 后面的数字
-      const afterCode = new RegExp(`${rank.code}\\s*([1-9])`, 'i').exec(text)
-      if (afterCode) {
-        const n = Number(afterCode[1])
-        if (n >= 1 && n <= 3) sub = n
-      }
+      const afterCode = new RegExp(`${rank.code}\\s*(\\d{1,2})`, 'i').exec(text)
+      if (afterCode) sub = Number(afterCode[1])
     }
   }
   return { code: rank.code, sub }
