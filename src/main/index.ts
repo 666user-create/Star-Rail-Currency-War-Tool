@@ -770,6 +770,109 @@ function setupIpc(): void {
   ipcMain.handle('stats:rankCurve', (_e, season?: string | null) => repo.rankCurve(season))
   ipcMain.handle('stats:durationHist', (_e, season?: string | null) => repo.durationHistogram(season))
   ipcMain.handle('stats:hourHist', (_e, season?: string | null) => repo.hourHistogram(season))
+  // 满级贺图数据：返回 null 表示该赛季还没到 A8 满级
+  ipcMain.handle('stats:celebration', (_e, season?: string | null) => repo.celebrationData(season))
+  // 保存贺图 PNG。
+  // 踩过的坑：① foreignObject→canvas 会跨源污染，toDataURL 抛错；
+  //            ② capturePage 只能截视口内区域；
+  //            ③ 把面板窗口拉高也受屏幕高度限制（最多 816px，而卡片 1144px）。
+  // 最终方案：开一个隐藏窗口加载 celebration.html 单独渲染贺图，
+  // 用 enableLargerThanScreen 让它远超屏幕尺寸，渲染完 CDP 截图，最后销毁窗口。
+  ipcMain.handle('celebration:capture', async (_e, dataJson: string, suggestedName: string) => {
+    const parent = BrowserWindow.fromWebContents(_e.sender)
+    let offWin: BrowserWindow | null = null
+    let dbg: Electron.Debugger | null = null
+
+    try {
+      // 用 encodeURIComponent 传 JSON：base64url 的 - 和 _ 在 URL 查询里可能被改写，
+      // 直接编码原文更稳妥（数据量只有几 KB，不会有长度问题）。
+      const encoded = encodeURIComponent(String(dataJson))
+      const devUrl = process.env['ELECTRON_RENDERER_URL']
+      const url = devUrl ? `${devUrl}/celebration.html?data=${encoded}` : undefined
+
+      offWin = new BrowserWindow({
+        width: 940,
+        height: 1400,
+        show: false,
+        frame: false,
+        useContentSize: true,
+        enableLargerThanScreen: true,
+        backgroundColor: '#04060f',
+        webPreferences: {
+          preload: path.join(__dirname, '../preload/index.js'),
+          sandbox: false,
+          offscreen: true
+        }
+      })
+
+      if (url) {
+        await offWin.loadURL(url)
+      } else {
+        await offWin.loadFile(path.join(__dirname, '../renderer/celebration.html'), {
+          query: { data: encoded }
+        })
+      }
+
+      // 等 React 渲染 + 图片解码完成
+      await new Promise((r) => setTimeout(r, 1200))
+
+      // 让页面回报卡片真实高度，再把窗口撑到刚好容纳
+      const cardSize = (await offWin.webContents.executeJavaScript(
+        `(() => {
+          const card = document.querySelector('.celebration-card')
+          if (!card) return null
+          const r = card.getBoundingClientRect()
+          return { width: Math.ceil(r.width), height: Math.ceil(window.scrollY + r.bottom) }
+        })()`
+      )) as { width: number; height: number } | null
+
+      if (!cardSize) {
+        bootTrace('celebration:capture 未找到贺图卡片')
+        return null
+      }
+
+      offWin.setContentSize(Math.max(920, cardSize.width + 20), cardSize.height + 10)
+      await new Promise((r) => setTimeout(r, 700))
+
+      // CDP 截图（2x 高清）
+      dbg = offWin.webContents.debugger
+      if (!dbg.isAttached()) dbg.attach('1.3')
+      await dbg.sendCommand('Page.enable')
+      const shot = (await dbg.sendCommand('Page.captureScreenshot', {
+        format: 'png',
+        captureBeyondViewport: true,
+        clip: { x: 0, y: 0, width: cardSize.width, height: cardSize.height, scale: 2 }
+      })) as { data: string }
+
+      // 选择保存位置
+      const name = String(suggestedName || '满段贺图').replace(/[\\/:*?"<>|]/g, '_').replace(/\.png$/i, '')
+      const result = parent
+        ? await dialog.showSaveDialog(parent, {
+          title: '保存满段贺图',
+          defaultPath: path.join(app.getPath('pictures'), `${name}.png`),
+          filters: [{ name: 'PNG 图片', extensions: ['png'] }]
+        })
+        : await dialog.showSaveDialog({
+          title: '保存满段贺图',
+          defaultPath: path.join(app.getPath('pictures'), `${name}.png`),
+          filters: [{ name: 'PNG 图片', extensions: ['png'] }]
+        })
+
+      if (result.canceled || !result.filePath) return null
+      await fs.promises.writeFile(result.filePath, Buffer.from(shot.data, 'base64'))
+      return result.filePath
+    } catch (err) {
+      bootTrace(`celebration:capture 失败 ${String(err)}`)
+      return null
+    } finally {
+      try {
+        if (dbg && dbg.isAttached()) dbg.detach()
+      } catch {
+        // 忽略
+      }
+      if (offWin && !offWin.isDestroyed()) offWin.destroy()
+    }
+  })
 
   ipcMain.handle('record:isRecording', () => recordStartedAt)
   ipcMain.handle('record:start', startRecording)

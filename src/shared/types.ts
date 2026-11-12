@@ -91,13 +91,47 @@ export interface BondStat {
 export interface RankPoint {
   time: number
   /**
-   * 该局结束后玩家所在段位的可排序数值（大段序号×10 + 小段位）。
-   * 例：A0黑铁1=1、A5紫金3=53、A6投资大师7=67、A8财富造物主=80。
+   * 该局结束后玩家所在段位的可排序数值（大段序号×1000 + 小段位）。
+   * 例：A0黑铁1=1、A5紫金3=5003、A6投资大师7=6007、A8财富造物主20=8020。
    * 这是**绝对位置**，不是累加值 —— 大段间有晋级赛，累加会算错。
    */
   cumulative: number
   /** 该点对应的原始段位文本（如「A6 投资大师7」），用于图表提示 */
   label: string
+}
+
+/** 满级贺图所需的全量数据 */
+export interface CelebrationData {
+  /** 赛季名 */
+  season: string
+  /** 最终职级文本（如「A8 财富造物主20」） */
+  finalRank: string
+  /** 大段 code（如 A8） */
+  rankCode: string
+  /** 大段名（如 财富造物主） */
+  rankLabel: string
+  /** 小段位（如 20） */
+  subLevel: number
+  /** 达成时间（毫秒时间戳） */
+  achievedAt: number
+  /** 总对局 */
+  total: number
+  /** 胜场 */
+  wins: number
+  /** 负场 */
+  losses: number
+  /** 胜率 0~1 */
+  winRate: number
+  /** 总时长（秒） */
+  totalDurationSec: number
+  /** 最长连胜 */
+  bestWinStreak: number
+  /** 平均小队血量 */
+  avgSquadHp: number | null
+  /** 段位走势（每局一个点） */
+  curve: RankPoint[]
+  /** 整个赛季打了多少天 */
+  seasonDays: number
 }
 
 export interface DurationBucket {
@@ -181,6 +215,10 @@ export interface PetApi {
   rankCurve(season?: string | null): Promise<RankPoint[]>
   durationHistogram(season?: string | null): Promise<DurationBucket[]>
   hourHistogram(season?: string | null): Promise<HourBucket[]>
+  /** 满级贺图数据；未达 A8 满级时返回 null */
+  celebrationData(season?: string | null): Promise<CelebrationData | null>
+  /** 用隐藏窗口渲染贺图并导出 PNG；返回保存路径，取消返回 null */
+  saveCelebrationCapture(dataJson: string, suggestedName: string): Promise<string | null>
   isRecording(): Promise<number | null>
   recordStart(): Promise<number>
   recordEnd(): Promise<RecordingDraft | null>

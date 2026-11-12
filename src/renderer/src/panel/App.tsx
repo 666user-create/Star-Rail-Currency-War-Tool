@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import type { BondStat, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint, RecordingDraft } from '@shared/types'
+import type { BondStat, CelebrationData, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint, RecordingDraft } from '@shared/types'
 import ReviewDraft, { errorText, RESULT_LABEL, ScreenshotPreview } from './ReviewDraft'
 import { SEASONS, defaultSeason, formatStartDate, parseStartDate, resolvedSeasons, seasonStartAt } from '@shared/seasons'
 import EditMatch from './EditMatch'
+import { CelebrationCard } from './CelebrationCard'
 
 function fmtDur(sec: number | null): string {
   if (sec == null) return '未知'
@@ -85,6 +86,10 @@ export default function App() {
   const [lineups, setLineups] = useState<LineupStat[]>([])
   const [bonds, setBonds] = useState<BondStat[]>([])
   const [rank, setRank] = useState<RankPoint[]>([])
+  /** 满级贺图数据；null 表示本赛季还没到 A8 满级 */
+  const [celebration, setCelebration] = useState<CelebrationData | null>(null)
+  /** 是否正在展示贺图 */
+  const [showCelebration, setShowCelebration] = useState(false)
   const [durations, setDurations] = useState<DurationBucket[]>([])
   const [hours, setHours] = useState<HourBucket[]>([])
   const [tab, setTab] = useState<'lineup' | 'bond' | 'rank' | 'duration' | 'hour'>('lineup')
@@ -127,10 +132,11 @@ export default function App() {
       setSeasonEnds(ends)
       setCurrentSeason(season)
 
-      const [nextOverview, nextMatches, nextLineups, nextBonds, nextRank, nextDurations, nextHours, nextDrafts] = await Promise.all([
+      const [nextOverview, nextMatches, nextLineups, nextBonds, nextRank, nextDurations, nextHours, nextDrafts, nextCelebration] = await Promise.all([
         window.api.overview(season), window.api.listMatches(300, season), window.api.lineupStats(season),
         window.api.bondStats(season), window.api.rankCurve(season),
-        window.api.durationHistogram(season), window.api.hourHistogram(season), window.api.listDrafts()
+        window.api.durationHistogram(season), window.api.hourHistogram(season), window.api.listDrafts(),
+        window.api.celebrationData(season).catch(() => null)
       ])
       if (version !== reloadVersion.current) return
       setOverview(nextOverview)
@@ -141,6 +147,7 @@ export default function App() {
       setDurations(nextDurations)
       setHours(nextHours)
       setDrafts(nextDrafts)
+      setCelebration(nextCelebration)
       setError('')
     } catch (reason) {
       if (version === reloadVersion.current) setError(errorText(reason, '读取记录失败，请重试。'))
@@ -338,7 +345,17 @@ export default function App() {
           <div className="tab-body">
             {tab === 'lineup' && <WinrateBars stats={lineups} />}
             {tab === 'bond' && <WinrateBars stats={bonds.map((b) => ({ lineup: b.bond, games: b.games, wins: b.wins, winRate: b.winRate }))} />}
-            {tab === 'rank' && <LineChart points={rank} />}
+            {tab === 'rank' && (
+              <>
+                <LineChart points={rank} />
+                {/* 打到 A8 满级后，走势图下方出现战绩贺卡入口 */}
+                {celebration && (
+                  <button type="button" className="celebration-entry" onClick={() => setShowCelebration(true)}>
+                    生成满段战绩贺卡
+                  </button>
+                )}
+              </>
+            )}
             {tab === 'duration' && <VBars buckets={durations} unit="局" />}
             {tab === 'hour' && <VBars buckets={hours} unit="局" />}
           </div>
@@ -385,6 +402,7 @@ export default function App() {
         </div>
       )}
       {selectedDraft && <ReviewDraft key={selectedDraft.id} draft={selectedDraft} onClose={() => setSelectedDraftId(null)} onUpdate={updateDraft} onSaved={async () => { setSelectedDraftId(null); setNotice('已确认保存，本局已计入正式记录。'); await reload() }} onDiscarded={async () => { setSelectedDraftId(null); setNotice('草稿已丢弃，未计入统计。'); await reload() }} />}
+      {showCelebration && celebration && <CelebrationCard data={celebration} onClose={() => setShowCelebration(false)} />}
     </div>
   )
 }

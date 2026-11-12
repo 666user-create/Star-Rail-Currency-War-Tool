@@ -46,7 +46,8 @@ export default defineConfig({
           panel: resolve('src/renderer/panel.html'),
           settings: resolve('src/renderer/settings.html'),
           wizard: resolve('src/renderer/wizard.html'),
-          'tray-menu': resolve('src/renderer/tray-menu.html')
+          'tray-menu': resolve('src/renderer/tray-menu.html'),
+          celebration: resolve('src/renderer/celebration.html')
         }
       }
     }

@@ -3,9 +3,9 @@ import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { atomicReplace } from './atomicReplace.ts'
 import initSqlJs from 'sql.js'
-import type { BondStat, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint } from '@shared/types'
+import type { BondStat, CelebrationData, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint } from '@shared/types'
 // 注意用相对路径：仓库的测试用 node 直接加载 .ts，不经过打包器的别名解析
-import { rankToScore } from '../shared/ranks.ts'
+import { formatRank, isMaxRank, parseRank, rankByCode, rankToScore } from '../shared/ranks.ts'
 
 type Database = import('sql.js').Database & { close?: () => void }
 type SqlRuntime = Awaited<ReturnType<typeof initSqlJs>>
@@ -327,6 +327,67 @@ export class Repository {
       points.push({ time: row.ended_at as number, cumulative: score, label: raw })
     }
     return points
+  }
+
+  /**
+   * 汇总满级贺图需要的全部数据。
+   *
+   * 「满级」判定：该赛季里存在一条 rank_after 解析出来是 A8 且小段位 >= 20 的记录。
+   * 取**第一次**达到满级的时间和那条记录的段位作为贺图展示值。
+   * 不满足满级条件时返回 null，调用方据此不显示贺图入口。
+   */
+  celebrationData(season?: string | null): CelebrationData | null {
+    const overrides = { starts: {}, ends: {} }
+    const target = season != null && String(season).trim() !== ''
+      ? String(season).trim()
+      : this.rows("SELECT season FROM matches WHERE source!='demo' AND rank_after IS NOT NULL AND TRIM(season) NOT IN ('','未标注') ORDER BY ended_at DESC,id DESC LIMIT 1")[0]?.season
+    if (typeof target !== 'string') return null
+
+    const rows = this.rows(
+      "SELECT ended_at, rank_after FROM matches WHERE source!='demo' AND season=? ORDER BY ended_at ASC,id ASC",
+      [target]
+    )
+    if (!rows.length) return null
+
+    // 找第一次达到 A8 满级的那条记录
+    let firstMax: { at: number; raw: string } | null = null
+    for (const row of rows) {
+      const raw = String(row.rank_after ?? '').trim()
+      if (!raw) continue
+      const value = parseRank(raw)
+      if (value && isMaxRank(value)) {
+        firstMax = { at: row.ended_at as number, raw }
+        break
+      }
+    }
+    if (!firstMax) return null
+
+    const finalValue = parseRank(firstMax.raw)
+    if (!finalValue) return null
+    const rank = rankByCode(finalValue.code)
+
+    const overview = this.overview(target)
+    const curve = this.rankCurve(target)
+    const first = rows[0]?.ended_at as number
+    const seasonDays = Math.max(1, Math.ceil((firstMax.at - first) / 86_400_000))
+
+    return {
+      season: target,
+      finalRank: formatRank(finalValue),
+      rankCode: finalValue.code,
+      rankLabel: rank?.label ?? finalValue.code,
+      subLevel: finalValue.sub,
+      achievedAt: firstMax.at,
+      total: overview.total,
+      wins: overview.wins,
+      losses: overview.losses,
+      winRate: overview.winRate,
+      totalDurationSec: overview.totalDurationSec,
+      bestWinStreak: overview.bestWinStreak,
+      avgSquadHp: overview.avgSquadHp,
+      curve,
+      seasonDays
+    }
   }
 
   durationHistogram(season?: string | null): DurationBucket[] {

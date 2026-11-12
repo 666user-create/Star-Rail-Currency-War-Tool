@@ -11,6 +11,10 @@ const api: PetApi = {
   rankCurve: (season?: string | null) => ipcRenderer.invoke('stats:rankCurve', season),
   durationHistogram: (season?: string | null) => ipcRenderer.invoke('stats:durationHist', season),
   hourHistogram: (season?: string | null) => ipcRenderer.invoke('stats:hourHist', season),
+  celebrationData: (season?: string | null) => ipcRenderer.invoke('stats:celebration', season),
+  /** 用隐藏窗口渲染贺图并导出 PNG；dataJson 为 CelebrationData 的 JSON，返回保存路径（取消返回 null） */
+  saveCelebrationCapture: (dataJson: string, suggestedName: string) =>
+    ipcRenderer.invoke('celebration:capture', dataJson, suggestedName),
   isRecording: () => ipcRenderer.invoke('record:isRecording'),
   recordStart: () => ipcRenderer.invoke('record:start'),
   recordEnd: () => ipcRenderer.invoke('record:end'),
