@@ -92,12 +92,12 @@ test('所有统计排除演示，未知时长不当0计平均/直方图，未知
   assert.equal(overview.bestLossStreak, 1)
   assert.deepEqual(repository.lineupStats(), [{ lineup: '追击', games: 2, wins: 1, winRate: 0.5 }])
   // 段位曲线读「玩家实际填写的段位」（rank_after），不按血量推导。
-  // match() 默认 rankAfter='财富造物主20' → A8(序号8)×10 + 小段位20 = 100。
-  // （早期把 A8 当成没有小段位，会算成 80；现在 A8 也保留小段位，所以是 100）
+  // match() 默认 rankAfter='财富造物主20' → A8(序号8)×1000 + 小段位20 = 8020。
+  //
+  // 满级截断：三条记录都是 A8-20（已达最高段位），
+  // 按新规则曲线在第一局就封顶停止记录，所以只剩 1 个点。
   assert.deepEqual(repository.rankCurve(), [
-    { time: 601000, cumulative: 8020, label: '财富造物主20' },
-    { time: 602000, cumulative: 8020, label: '财富造物主20' },
-    { time: 603000, cumulative: 8020, label: '财富造物主20' }
+    { time: 601000, cumulative: 8020, label: '财富造物主20', result: 'win' }
   ])
   assert.deepEqual(repository.durationHistogram().map((bucket) => bucket.count), [0, 1, 0, 0, 0, 0])
   const hours = repository.hourHistogram()
@@ -155,8 +155,8 @@ test('段位曲线只取最近有段位数据的赛季，且按实际填写的�
   repository.insert(match({ season: '未来赛季', endedAt: 5000, rankAfter: null }))
   repository.insert(match({ source: 'demo', season: '演示赛季', endedAt: 6000, rankAfter: 'A8 财富造物主' }))
   assert.deepEqual(repository.rankCurve(), [
-    { time: 2000, cumulative: 5001, label: 'A5 紫金1' },
-    { time: 3000, cumulative: 5003, label: 'A5 紫金3' }
+    { time: 2000, cumulative: 5001, label: 'A5 紫金1', result: 'win' },
+    { time: 3000, cumulative: 5003, label: 'A5 紫金3', result: 'win' }
   ])
   repository.close()
 })

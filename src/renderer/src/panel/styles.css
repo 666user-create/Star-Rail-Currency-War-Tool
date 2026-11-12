@@ -184,7 +184,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 .tabs button.on { color: var(--bg); background: var(--gold); border-color: var(--gold); font-weight: 700; }
 .tab-body { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
-.chart { width: 100%; max-height: 100%; }
+.chart { width: 100%; max-height: 100%; overflow: visible; }
 .chart-note { fill: var(--muted); font-size: 11px; }
 .chart-empty { color: var(--muted); font-size: 12.5px; }
 
@@ -476,4 +476,169 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   font-size: 11px;
   color: #e8c476;
   opacity: 0.85;
+}
+.chart-axis {
+  font-size: 8px;
+  fill: rgba(232, 196, 118, .45);
+}
+
+.chart-last {
+  font-size: 9px;
+  font-weight: 700;
+  fill: rgba(244, 217, 148, .9);
+}
+/* ===== 满级状态（段位走势页）— 复用贺图美术风格 ===== */
+.rank-max-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 4px 2px;
+  gap: 0;
+  position: relative;
+}
+
+/* 徽章舞台：放射光 + 光环 + 官方 A8 徽章 */
+.rank-max-hero {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0 2px;
+}
+.rank-max-rays {
+  position: absolute;
+  inset: -30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.rank-max-rays span {
+  position: absolute;
+  width: 1.5px;
+  height: 230px;
+  transform-origin: center;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(232, 196, 118, .22) 36%,
+    rgba(255, 240, 200, .45) 50%,
+    rgba(232, 196, 118, .22) 64%,
+    transparent 100%
+  );
+}
+.rank-max-halo {
+  position: absolute;
+  width: 230px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(232, 196, 118, .20) 0%,
+    rgba(180, 130, 220, .07) 40%,
+    transparent 68%
+  );
+  filter: blur(7px);
+  pointer-events: none;
+}
+.rank-max-badge-img {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  border-radius: 10px;
+  border: 1.5px solid rgba(232, 196, 118, .45);
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, .5),
+    0 0 40px rgba(232, 196, 118, .22);
+}
+
+/* 段位名（金色渐变，同贺图） */
+.rank-max-title {
+  margin-top: 12px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  background: linear-gradient(180deg, #fffdf4 0%, #f4d994 42%, #c99b3f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 14px rgba(232, 196, 118, .38));
+}
+.rank-max-sub {
+  margin-top: 5px;
+  font-size: 10.5px;
+  letter-spacing: 3.5px;
+  color: rgba(232, 196, 118, .58);
+}
+
+/* 数据条（同贺图卡片风格） */
+.rank-max-stats {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+}
+.rank-max-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 9px 4px 8px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(232, 196, 118, .09), rgba(232, 196, 118, .025));
+  border: 1px solid rgba(232, 196, 118, .18);
+  position: relative;
+}
+.rank-max-stat::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, #e8c476, transparent);
+}
+.rank-max-stat b {
+  font-size: 17px;
+  font-weight: 800;
+  color: #f4d994;
+  line-height: 1.1;
+}
+.rank-max-stat span {
+  margin-top: 3px;
+  font-size: 9.5px;
+  letter-spacing: .8px;
+  color: rgba(232, 196, 118, .48);
+}
+
+/* 贺卡入口按钮（金色渐变，同贺图按钮） */
+.rank-max-entry {
+  margin-top: 16px;
+  width: 100%;
+  padding: 11px 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(232, 196, 118, .48);
+  background: linear-gradient(180deg, rgba(232, 196, 118, .20), rgba(232, 196, 118, .07));
+  color: #f4d994;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: all .16s;
+  box-shadow: 0 0 20px rgba(232, 196, 118, .18);
+}
+.rank-max-entry:hover {
+  background: linear-gradient(180deg, rgba(232, 196, 118, .30), rgba(232, 196, 118, .12));
+  border-color: rgba(232, 196, 118, .68);
+  box-shadow: 0 0 28px rgba(232, 196, 118, .3);
+}
+.rank-max-entry:active {
+  transform: translateY(1px);
 }

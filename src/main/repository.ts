@@ -314,7 +314,7 @@ export class Repository {
       : this.rows("SELECT season FROM matches WHERE source!='demo' AND rank_after IS NOT NULL AND TRIM(rank_after)!='' AND TRIM(season) NOT IN ('','未标注') ORDER BY ended_at DESC,id DESC LIMIT 1")[0]?.season
     if (typeof target !== 'string') return []
     const rows = this.rows(
-      "SELECT ended_at, rank_after, rank_before FROM matches WHERE source!='demo' AND season=? ORDER BY ended_at ASC,id ASC",
+      "SELECT ended_at, rank_after, rank_before, result FROM matches WHERE source!='demo' AND season=? ORDER BY ended_at ASC,id ASC",
       [target]
     )
     const points: RankPoint[] = []
@@ -324,7 +324,16 @@ export class Repository {
       if (!raw) continue
       const score = rankToScore(raw)
       if (score === null) continue
-      points.push({ time: row.ended_at as number, cumulative: score, label: raw })
+      const r = String(row.result ?? '').trim()
+      const result: RankPoint['result'] = r === 'win' || r === 'loss' || r === 'interrupted' ? r : null
+      points.push({ time: row.ended_at as number, cumulative: score, label: raw, result })
+      /*
+       * 到达 A8-20（满级）后停止记录：
+       * 满级之上没有更高段位可涨，继续往曲线上加点只会得到一条无意义的水平尾巴。
+       * 包含这一局本身（这是值得纪念的终点），之后的对局不再计入走势。
+       */
+      const parsed = parseRank(raw)
+      if (parsed && isMaxRank(parsed)) break
     }
     return points
   }

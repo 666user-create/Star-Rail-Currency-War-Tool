@@ -4,6 +4,8 @@ import ReviewDraft, { errorText, RESULT_LABEL, ScreenshotPreview } from './Revie
 import { SEASONS, defaultSeason, formatStartDate, parseStartDate, resolvedSeasons, seasonStartAt } from '@shared/seasons'
 import EditMatch from './EditMatch'
 import { CelebrationCard } from './CelebrationCard'
+// 复用贺图的官方 A8 徽章素材
+import rankBadgeUrl from '../../../../assets/rank/rank-a8.png'
 
 function fmtDur(sec: number | null): string {
   if (sec == null) return '未知'
@@ -20,27 +22,98 @@ function fmtTime(ms: number): string {
 
 /* ————— 迷你图表（纯 SVG） ————— */
 
-function LineChart({ points }: { points: RankPoint[] }) {
+function LineChart({ points, compact = false }: { points: RankPoint[]; compact?: boolean }) {
   if (points.length < 2) return <div className="chart-empty">数据还不够画曲线~</div>
-  const w = 380, h = 150, pad = 24
-  const xs = points.map((p) => p.time)
-  const ys = points.map((p) => p.cumulative)
-  const x0 = Math.min(...xs), x1 = Math.max(...xs)
-  // Y 轴按数据实际范围留 8% 边距：段位分值跨度可能很小（如 61→69），
-  // 从 0 起画会压成一条平线看不出进步。
-  const rawMin = Math.min(...ys), rawMax = Math.max(...ys)
-  const span = Math.max(1, rawMax - rawMin)
-  const y0 = rawMin - span * 0.08
-  const y1 = rawMax + span * 0.08
-  const sx = (t: number) => pad + ((t - x0) / Math.max(1, x1 - x0)) * (w - pad * 2)
-  const sy = (v: number) => h - pad - ((v - y0) / Math.max(1, y1 - y0)) * (h - pad * 2)
-  const path = points.map((p, i) => `${i ? 'L' : 'M'}${sx(p.time).toFixed(1)} ${sy(p.cumulative).toFixed(1)}`).join(' ')
+
+  /**
+   * 折线图两个关键映射（与贺图保持一致）：
+   *
+   * X 轴 —— 按「第几局」均匀分布，不按真实时间。
+   *   两局间隔可能从几分钟到几小时，用时间会把点挤在一起、其他段拉成长斜线。
+   *
+   * Y 轴 —— 转成「连续职级序号」再画，不直接用分数。
+   *   分数是「大段×1000+小段位」，A6-1→A6-9 只差 8 分、A6-9→A7-2 差 93 分，
+   *   直接线性映射会让段内变化压成平线、跨段拉成长斜线。
+   *   转成序号后：A6-1=6.1、A6-9=6.9、A7-2=7.2、A8-20=9.0，曲线才平滑。
+   */
+  const RANK_CODES = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8']
+  const ordinalOf = (score: number): number => {
+    const band = Math.max(0, Math.min(8, Math.floor(score / 1000)))
+    const sub = Math.max(0, score % 1000)
+    const maxSub = band === 8 ? 20 : 10
+    return band + Math.min(sub, maxSub) / maxSub
+  }
+
+  const w = 380, h = compact ? 100 : 176, pad = compact ? 20 : 26
+  const ords = points.map((p) => ordinalOf(p.cumulative))
+  const oMin = Math.min(...ords)
+  const oMax = Math.max(...ords)
+  const oSpan = Math.max(0.001, oMax - oMin)
+
+  const sx = (index: number): number =>
+    points.length <= 1
+      ? pad + (w - pad * 2) / 2
+      : pad + (index / (points.length - 1)) * (w - pad * 2)
+  // 顶部留 30px 给标题和末点标签，避免和折线重叠
+  const syOrd = (ord: number): number => h - pad - ((ord - oMin) / oSpan) * (h - pad - 30)
+  const sy = (score: number): number => syOrd(ordinalOf(score))
+
+  const linePath = points.map((p, i) => `${i ? 'L' : 'M'}${sx(i).toFixed(1)} ${sy(p.cumulative).toFixed(1)}`).join(' ')
+
+  // 段位刻度线
+  const minBand = Math.min(...points.map((p) => Math.floor(p.cumulative / 1000)))
+  const maxBand = Math.max(...points.map((p) => Math.floor(p.cumulative / 1000)))
+  const ticks: Array<{ label: string; y: number }> = []
+  for (let band = minBand; band <= maxBand; band++) {
+    const code = RANK_CODES[band]
+    if (!code) continue
+    const y = syOrd(band)
+    if (y >= pad - 2 && y <= h - pad + 2) ticks.push({ label: code, y })
+  }
+
+  const last = points[points.length - 1]
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="chart">
+    <svg viewBox={`0 0 ${w} ${h}`} className="chart" preserveAspectRatio="none">
+      {ticks.map((tick) => (
+        <g key={tick.label}>
+          <line x1={pad} y1={tick.y} x2={w - pad} y2={tick.y} stroke="rgba(255,255,255,0.07)" />
+          <text x={4} y={tick.y + 3.5} className="chart-axis">{tick.label}</text>
+        </g>
+      ))}
       <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="rgba(255,255,255,0.15)" />
-      <path d={path} fill="none" stroke="var(--gold)" strokeWidth="2.5" strokeLinejoin="round" />
-      <circle cx={sx(points[points.length - 1].time)} cy={sy(points[points.length - 1].cumulative)} r="4" fill="var(--gold)" />
-      <text x={pad} y={16} className="chart-note">段位走势 · 按结算后段位</text>
+      <path d={linePath} fill="none" stroke="var(--gold)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      {points.map((p, i) => {
+        /*
+         * 失败局标红。
+         * 注意：失败点的半径必须和其他点一致 —— 之前给红点加大半径，
+         * 会让眼睛觉得相邻连线"歪了"，但实际上坐标是水平的（同一 cy）。
+         * 只靠颜色区分，形状保持统一。
+         */
+        const isLoss = p.result === 'loss'
+        const isLast = i === points.length - 1
+        const color = isLoss ? '#e06c6c' : 'var(--gold)'
+        return (
+          <circle
+            key={i}
+            cx={sx(i)}
+            cy={sy(p.cumulative)}
+            r={isLast ? 3.4 : 2.2}
+            fill={isLoss || isLast ? color : 'var(--panel, #141b2e)'}
+            stroke={color}
+            strokeWidth={1.4}
+          >
+            <title>{p.label}{isLoss ? '（失败）' : ''}</title>
+          </circle>
+        )
+      })}
+      {!compact && <text x={pad} y={14} className="chart-note">段位走势 · 共 {points.length} 局</text>}
+      <text
+        x={w - pad}
+        y={Math.max(26, sy(last.cumulative) - 9)}
+        textAnchor="end"
+        className="chart-last"
+      >{compact ? last.label.replace(/^A\d\s*/, '') : last.label}</text>
     </svg>
   )
 }
@@ -346,15 +419,42 @@ export default function App() {
             {tab === 'lineup' && <WinrateBars stats={lineups} />}
             {tab === 'bond' && <WinrateBars stats={bonds.map((b) => ({ lineup: b.bond, games: b.games, wins: b.wins, winRate: b.winRate }))} />}
             {tab === 'rank' && (
-              <>
-                <LineChart points={rank} />
-                {/* 打到 A8 满级后，走势图下方出现战绩贺卡入口 */}
-                {celebration && (
-                  <button type="button" className="celebration-entry" onClick={() => setShowCelebration(true)}>
-                    生成满段战绩贺卡
+              celebration ? (
+                /*
+                 * 已满级（A8 财富造物主 20 段）：走势图不再记录后续对局，
+                 * 改成「满级战绩卡」—— 徽章 + 关键数据 + 走势缩略 + 贺卡入口。
+                 * 段位已封顶，再画一条水平尾巴没有意义。
+                 */
+                <div className="rank-max-panel">
+                  {/* 徽章区：复用贺图的官方 A8 徽章 + 放射光 + 光环 */}
+                  <div className="rank-max-hero">
+                    <div className="rank-max-rays">
+                      {Array.from({ length: 14 }, (_, i) => (
+                        <span key={i} style={{ transform: `rotate(${(180 / 14) * i}deg)`, opacity: i % 2 ? 0.4 : 0.16 }} />
+                      ))}
+                    </div>
+                    <div className="rank-max-halo" />
+                    <img className="rank-max-badge-img" src={rankBadgeUrl} alt="" />
+                  </div>
+
+                  <div className="rank-max-title">{celebration.rankLabel} {celebration.subLevel}</div>
+                  <div className="rank-max-sub">已 达 最 高 段 位 · 段 位 已 封 顶</div>
+
+                  <div className="rank-max-stats">
+                    <div className="rank-max-stat"><b>{celebration.total}</b><span>总对局</span></div>
+                    <div className="rank-max-stat"><b>{Math.round(celebration.winRate * 100)}%</b><span>胜率</span></div>
+                    <div className="rank-max-stat"><b>{Math.round(celebration.totalDurationSec / 3600)}h</b><span>总时长</span></div>
+                    <div className="rank-max-stat"><b>{celebration.bestWinStreak}</b><span>最长连胜</span></div>
+                    <div className="rank-max-stat"><b>{celebration.seasonDays}</b><span>历时(天)</span></div>
+                  </div>
+
+                  <button type="button" className="rank-max-entry" onClick={() => setShowCelebration(true)}>
+                    查看满段战绩贺卡
                   </button>
-                )}
-              </>
+                </div>
+              ) : (
+                <LineChart points={rank} />
+              )
             )}
             {tab === 'duration' && <VBars buckets={durations} unit="局" />}
             {tab === 'hour' && <VBars buckets={hours} unit="局" />}

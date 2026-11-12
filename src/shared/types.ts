@@ -98,6 +98,8 @@ export interface RankPoint {
   cumulative: number
   /** 该点对应的原始段位文本（如「A6 投资大师7」），用于图表提示 */
   label: string
+  /** 该局结果；用于在走势图上把失败局标红。未记录时为 null */
+  result: 'win' | 'loss' | 'interrupted' | null
 }
 
 /** 满级贺图所需的全量数据 */
