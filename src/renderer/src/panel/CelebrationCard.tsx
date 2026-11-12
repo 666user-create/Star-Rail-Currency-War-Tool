@@ -37,29 +37,58 @@ export function CelebrationCard({
   // 把走势图数据映射到 SVG 坐标（宽 720，高 232）
   const W = 720, H = 232, PAD_L = 46, PAD_R = 30, PAD_T = 30, PAD_B = 46
   const points = data.curve
-  const xs = points.map((p) => p.time)
-  const ys = points.map((p) => p.cumulative)
-  const x0 = xs.length ? Math.min(...xs) : 0
-  const x1 = xs.length ? Math.max(...xs) : 1
-  const y0 = ys.length ? Math.min(...ys) : 0
-  const y1 = ys.length ? Math.max(...ys) : 1
-  const span = Math.max(1, y1 - y0)
-  const sx = (t: number): number => PAD_L + ((t - x0) / Math.max(1, x1 - x0)) * (W - PAD_L - PAD_R)
-  const sy = (v: number): number => H - PAD_B - ((v - y0) / span) * (H - PAD_T - PAD_B)
-  const linePath = points.map((p, i) => `${i ? 'L' : 'M'}${sx(p.time).toFixed(1)} ${sy(p.cumulative).toFixed(1)}`).join(' ')
+  const RANK_CODES = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8']
+
+  /**
+   * 把分数压成「连续职级序号」，每个大段占 1.0。
+   *
+   * 为什么不能直接用分数：分数是「大段×1000+小段位」，
+   * A6-1→A6-9 只差 8 分，而 A6-9→A7-2 差 93 分，
+   * 直接线性映射会让段内进步几乎不可见、段间跳变拉成长斜线。
+   *
+   * 改成：大段占 1.0，段内小段位按该段实际档数等比展开
+   * （A0–A7 按 10 档算，A8 按 20 档算），这样每局都有可见的上升。
+   * 例：A6-1=6.1、A6-9=6.9、A7-2=7.2、A8-20=9.0
+   */
+  const ordinalOf = (score: number): number => {
+    const band = Math.max(0, Math.min(8, Math.floor(score / 1000)))
+    const sub = Math.max(0, score % 1000)
+    const maxSub = band === 8 ? 20 : 10
+    return band + Math.min(sub, maxSub) / maxSub
+  }
+
+  const ordinals = points.map((p) => ordinalOf(p.cumulative))
+  const oMin = ordinals.length ? Math.min(...ordinals) : 0
+  const oMax = ordinals.length ? Math.max(...ordinals) : 1
+  const oSpan = Math.max(0.001, oMax - oMin)
+
+  /** 职级序号 → Y 坐标（越大越高；SVG y 向下所以要翻转） */
+  const syOrd = (ord: number): number => H - PAD_B - ((ord - oMin) / oSpan) * (H - PAD_T - PAD_B)
+  const sy = (score: number): number => syOrd(ordinalOf(score))
+
+  /**
+   * X 轴按「第几局」均匀分布，不按真实时间。
+   * 用真实时间的话两局间隔可能从几分钟到几小时，点会疏密不均。
+   */
+  const sx = (index: number): number =>
+    points.length <= 1
+      ? PAD_L + (W - PAD_L - PAD_R) / 2
+      : PAD_L + (index / (points.length - 1)) * (W - PAD_L - PAD_R)
+  const linePath = points.map((p, i) => `${i ? 'L' : 'M'}${sx(i).toFixed(1)} ${sy(p.cumulative).toFixed(1)}`).join(' ')
   const areaPath = points.length
-    ? `${linePath} L${sx(points[points.length - 1].time).toFixed(1)} ${H - PAD_B} L${sx(points[0].time).toFixed(1)} ${H - PAD_B} Z`
+    ? `${linePath} L${sx(points.length - 1).toFixed(1)} ${H - PAD_B} L${sx(0).toFixed(1)} ${H - PAD_B} Z`
     : ''
 
-  // 段位刻度：取曲线覆盖的大段范围
+  // 段位刻度：按各段在序号轴上的位置画横线
+  const minBand = points.length ? Math.min(...points.map((p) => Math.floor(p.cumulative / 1000))) : 0
+  const maxBand = points.length ? Math.max(...points.map((p) => Math.floor(p.cumulative / 1000))) : 8
   const rankTicks: Array<{ label: string; y: number }> = []
-  const codes = ['A5', 'A6', 'A7', 'A8']
-  for (const code of codes) {
-    const idx = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'].indexOf(code)
-    const value = idx * 1000
-    if (value >= y0 - 500 && value <= y1 + 500) {
-      rankTicks.push({ label: code, y: sy(Math.max(y0, Math.min(y1, value))) })
-    }
+  for (let band = minBand; band <= maxBand; band++) {
+    const code = RANK_CODES[band] ?? ''
+    if (!code) continue
+    const y = syOrd(band)
+    // 只画落在绘图区内的刻度线
+    if (y >= PAD_T - 1 && y <= H - PAD_B + 1) rankTicks.push({ label: code, y })
   }
 
   const exportPng = async (): Promise<void> => {
@@ -190,13 +219,13 @@ export function CelebrationCard({
             {areaPath && <path d={areaPath} fill="url(#celAreaGrad)" />}
             {linePath && <path d={linePath} fill="none" stroke="url(#celLineGrad)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
             {points.map((p, i) => (
-              <circle key={i} cx={sx(p.time)} cy={sy(p.cumulative)} r={i === points.length - 1 ? 5 : 3}
+              <circle key={i} cx={sx(i)} cy={sy(p.cumulative)} r={i === points.length - 1 ? 5 : 3}
                 fill={i === points.length - 1 ? '#fffdf4' : '#0a1024'}
                 stroke={i === points.length - 1 ? '#e8c476' : 'rgba(232,196,118,.75)'}
                 strokeWidth={i === points.length - 1 ? 2.2 : 1.7} />
             ))}
             {points.length > 0 && (
-              <text x={sx(points[points.length - 1].time) - 68} y={sy(points[points.length - 1].cumulative) - 12}
+              <text x={sx(points.length - 1) - 68} y={sy(points[points.length - 1].cumulative) - 12}
                 fill="#fff8e0" fontSize="11" fontWeight="800">{data.rankCode}·{data.subLevel}</text>
             )}
           </svg>
