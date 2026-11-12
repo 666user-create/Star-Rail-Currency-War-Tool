@@ -4,7 +4,7 @@ import { SEASONS } from '@shared/seasons'
 import { RankPicker } from './RankPicker'
 import { RESULT_LABEL, errorText } from './ReviewDraft'
 
-const RESULT_OPTIONS: MatchResult[] = ['win', 'loss', 'interrupted', 'suspected']
+const RESULT_OPTIONS: MatchResult[] = ['win', 'loss', 'suspected']
 
 const localDateTime = (time: number): string => {
   const date = new Date(time)

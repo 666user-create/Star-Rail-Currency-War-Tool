@@ -58,7 +58,7 @@ function validateState(value: unknown): asserts value is RecordingState {
       typeof draft.ocrText !== 'string' || !Array.isArray(draft.warnings) ||
       draft.warnings.some((warning) => typeof warning !== 'string') ||
       (draft.error !== null && typeof draft.error !== 'string') ||
-      !draft.fields || !['win', 'loss', 'interrupted', 'suspected'].includes(draft.fields.result) ||
+      !draft.fields || !['win', 'loss', 'suspected'].includes(draft.fields.result) ||
       !Array.isArray(draft.fields.lineup) || draft.fields.lineup.some((name) => typeof name !== 'string')) {
       throw new Error('记录草稿文件损坏，原文件未改动。')
     }
@@ -98,6 +98,18 @@ export class RecordingStore {
   }
 
   getStartedAt(): number | null { return this.state.startedAt }
+
+  /**
+   * 丢弃正在进行的计时（不清空草稿）。
+   *
+   * 用途：程序启动时如果发现磁盘里还留着 startedAt，说明上次是非正常退出
+   * （崩溃/被强杀/开发时热重启），这段时间桌宠并不在工作，
+   * 继续累计会把「关着软件的时长」算进对局，不符合设计，所以直接清零。
+   */
+  discardRunningTimer(): void {
+    if (this.state.startedAt === null) return
+    this.save({ ...this.state, startedAt: null })
+  }
 
   start(now = Date.now()): number {
     if (this.state.startedAt !== null) return this.state.startedAt

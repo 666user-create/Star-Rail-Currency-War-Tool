@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import type { BondStat, CelebrationData, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint, RecordingDraft } from '@shared/types'
+import type { BondStat, CelebrationData, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint, RatingBucket, RecordingDraft } from '@shared/types'
 import ReviewDraft, { errorText, RESULT_LABEL, ScreenshotPreview } from './ReviewDraft'
 import { SEASONS, defaultSeason, formatStartDate, parseStartDate, resolvedSeasons, seasonStartAt } from '@shared/seasons'
 import EditMatch from './EditMatch'
@@ -118,6 +118,57 @@ function LineChart({ points, compact = false }: { points: RankPoint[]; compact?:
   )
 }
 
+/**
+ * 评级分布：纵向柱状图，按评级从高到低排列。
+ *
+ * 只统计填了评级的对局 —— 分母是「有评级的局数」，不是总对局数。
+ * 没填评级的局若计入分母会把各档比例稀释，看起来像自己评级很差。
+ */
+function RatingBars({ stats }: { stats: RatingBucket[] }): React.JSX.Element {
+  if (!stats.length) return <div className="chart-empty">还没有填写过评级的对局~</div>
+
+  const total = stats.reduce((sum, item) => sum + item.count, 0)
+  const max = Math.max(...stats.map((item) => item.count), 1)
+
+  // 评级配色：越高越金，越低越暗
+  const toneOf = (label: string): { bar: string; text: string } => {
+    if (label === 'SSS') return { bar: 'linear-gradient(180deg, #fff3cf, #e8c476)', text: '#fff3cf' }
+    if (label === 'SS') return { bar: 'linear-gradient(180deg, #ffe9a8, #d9b45f)', text: '#ffe9a8' }
+    if (label === 'S') return { bar: 'linear-gradient(180deg, #f0d69c, #bfa050)', text: '#f0d69c' }
+    if (label === 'A') return { bar: 'linear-gradient(180deg, #9fb4d8, #6d82a8)', text: '#9fb4d8' }
+    if (label === 'B') return { bar: 'linear-gradient(180deg, #8a93a6, #5d6472)', text: '#8a93a6' }
+    return { bar: 'linear-gradient(180deg, #7a6a72, #4d434a)', text: '#7a6a72' }
+  }
+
+  return (
+    <div className="rating-chart">
+      <div className="rating-bars">
+        {stats.map((item) => {
+          const tone = toneOf(item.label)
+          const heightPct = Math.max(6, (item.count / max) * 100)
+          return (
+            <div key={item.label} className="rating-col">
+              <div className="rating-count">{item.count}</div>
+              <div className="rating-track">
+                <div
+                  className="rating-fill"
+                  style={{ height: `${heightPct}%`, background: tone.bar }}
+                />
+              </div>
+              <div className="rating-label" style={{ color: tone.text }}>{item.label}</div>
+              <div className="rating-pct">{Math.round(item.ratio * 100)}%</div>
+            </div>
+          )
+        })}
+      </div>
+      <div className="rating-foot">
+        共 {total} 局有评级
+        {total > 0 && <span> · 胜率统计不含未填评级的对局</span>}
+      </div>
+    </div>
+  )
+}
+
 function WinrateBars({ stats }: { stats: LineupStat[] }) {
   if (!stats.length) return <div className="chart-empty">还没有对局数据~</div>
   const top = stats.slice(0, 8)
@@ -165,7 +216,11 @@ export default function App() {
   const [showCelebration, setShowCelebration] = useState(false)
   const [durations, setDurations] = useState<DurationBucket[]>([])
   const [hours, setHours] = useState<HourBucket[]>([])
-  const [tab, setTab] = useState<'lineup' | 'bond' | 'rank' | 'duration' | 'hour'>('lineup')
+  /** 评级分布（只含有评级的对局） */
+  const [ratings, setRatings] = useState<RatingBucket[]>([])
+  const [tab, setTab] = useState<'lineup' | 'bond' | 'rank' | 'duration' | 'hour' | 'rating'>('lineup')
+  /** 面板是否处于最大化（无边框窗口靠自定义按钮切换，需要跟踪状态改图标） */
+  const [maximized, setMaximized] = useState(false)
   const [detail, setDetail] = useState<Match | null>(null)
   const [editing, setEditing] = useState(false)
   const [currentSeason, setCurrentSeason] = useState<string>(() => defaultSeason())
@@ -205,11 +260,12 @@ export default function App() {
       setSeasonEnds(ends)
       setCurrentSeason(season)
 
-      const [nextOverview, nextMatches, nextLineups, nextBonds, nextRank, nextDurations, nextHours, nextDrafts, nextCelebration] = await Promise.all([
+      const [nextOverview, nextMatches, nextLineups, nextBonds, nextRank, nextDurations, nextHours, nextDrafts, nextCelebration, nextRatings] = await Promise.all([
         window.api.overview(season), window.api.listMatches(300, season), window.api.lineupStats(season),
         window.api.bondStats(season), window.api.rankCurve(season),
         window.api.durationHistogram(season), window.api.hourHistogram(season), window.api.listDrafts(),
-        window.api.celebrationData(season).catch(() => null)
+        window.api.celebrationData(season).catch(() => null),
+        window.api.ratingStats(season).catch(() => [])
       ])
       if (version !== reloadVersion.current) return
       setOverview(nextOverview)
@@ -221,6 +277,7 @@ export default function App() {
       setHours(nextHours)
       setDrafts(nextDrafts)
       setCelebration(nextCelebration)
+      setRatings(nextRatings)
       setError('')
     } catch (reason) {
       if (version === reloadVersion.current) setError(errorText(reason, '读取记录失败，请重试。'))
@@ -283,6 +340,23 @@ export default function App() {
     } catch (reason) { setError(errorText(reason, '粘贴导入失败，请重试。')) }
     finally { setImporting(false) }
   }
+  useEffect(() => {
+    // 同步初始最大化状态，并监听窗口尺寸变化（最大化/还原都会触发）
+    void window.api.panelIsMaximized().then(setMaximized).catch(() => undefined)
+    const sync = (): void => { void window.api.panelIsMaximized().then(setMaximized).catch(() => undefined) }
+    window.addEventListener('resize', sync)
+    return () => window.removeEventListener('resize', sync)
+  }, [])
+
+  /** 切换最大化，并同步按钮图标 */
+  const toggleMaximize = async (): Promise<void> => {
+    try {
+      setMaximized(await window.api.panelToggleMaximize())
+    } catch {
+      // 忽略切换失败
+    }
+  }
+
   useEffect(() => {
     const onPaste = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
@@ -362,7 +436,24 @@ export default function App() {
         <div className="title-actions">
           <button className="primary-btn" disabled={importing} onClick={() => void importScreenshot()}>{importing ? '正在导入…' : '导入结算截图'}</button>
           <button className="tb-btn" disabled={importing} title="从剪贴板粘贴截图（Ctrl+V）" onClick={() => void pasteClipboard()}>粘贴截图</button>
-          <button className="tb-btn" onClick={() => void reload()}>刷新</button>
+          {/* 无边框窗口需要自定义窗口按钮；用 SVG 而非字符，避免字体差异和"看起来像汉字"的问题 */}
+          <button className="tb-btn win-btn" title="最小化" aria-label="最小化" onClick={() => window.api.panelMinimize()}>
+            <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
+              <line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button className="tb-btn win-btn" title={maximized ? '还原' : '最大化'} aria-label={maximized ? '还原' : '最大化'} onClick={() => void toggleMaximize()}>
+            {maximized ? (
+              <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
+                <rect x="2.6" y="2.6" width="6.8" height="6.8" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M4.4 2.6 V0.9 H10.3 V6.8 H8.6" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
+                <rect x="2.2" y="2.2" width="7.6" height="7.6" fill="none" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+            )}
+          </button>
           <button className="tb-btn close" aria-label="关闭面板" onClick={() => window.close()}>✕</button>
         </div>
       </div>
@@ -373,14 +464,13 @@ export default function App() {
       {/* 总览统计 */}
       <div className="tiles">
         <div className="tile"><div className="tile-num">{overview?.total ?? '—'}</div><div className="tile-label">总局数</div></div>
-        <div className="tile"><div className="tile-num gold">{winRate}</div><div className="tile-label">胜率 · 已核实胜负</div></div>
-        <div className="tile"><div className="tile-num">{overview?.knownDurationGames ? (overview.totalDurationSec / 3600).toFixed(1) : '—'}</div><div className="tile-label">总时长(小时) · 仅已知</div></div>
-        <div className="tile"><div className="tile-num">{overview?.avgDurationSec != null ? Math.round(overview.avgDurationSec / 60) : '—'}</div><div className="tile-label">平均时长(分) · 已知胜负局</div></div>
-        <div className="tile"><div className="tile-num">{overview?.avgSquadHp != null ? Math.round(overview.avgSquadHp) : '—'}</div><div className="tile-label">平均血量 · 已知 {overview?.knownSquadHpGames ?? 0} 局</div></div>
+        <div className="tile"><div className="tile-num gold">{winRate}</div><div className="tile-label">胜率</div></div>
+        <div className="tile"><div className="tile-num">{overview?.knownDurationGames ? (overview.totalDurationSec / 3600).toFixed(1) : '—'}</div><div className="tile-label">总时长(小时)</div></div>
+        <div className="tile"><div className="tile-num">{overview?.avgDurationSec != null ? Math.round(overview.avgDurationSec / 60) : '—'}</div><div className="tile-label">平均时长(分)</div></div>
+        <div className="tile"><div className="tile-num">{overview?.avgSquadHp != null ? Math.round(overview.avgSquadHp) : '—'}</div><div className="tile-label">平均血量</div></div>
         <div className="tile"><div className="tile-num win">{overview?.bestWinStreak ?? '—'}</div><div className="tile-label">最长连胜</div></div>
         <div className="tile"><div className="tile-num loss">{overview?.bestLossStreak ?? '—'}</div><div className="tile-label">最长连败</div></div>
       </div>
-      <div className="duration-note">已知时长 {overview?.knownDurationGames ?? 0} 局，未知 {overview?.unknownDurationGames ?? 0} 局；总时长仅计已知，平均仅计有时长的已确认胜负局。「待核实」不计胜负。</div>
       {error && <div className="inline-error panel-message" role="alert">{error}<button className="tb-btn" onClick={() => void reload()}>重试</button></div>}
       {notice && <div className="inline-success panel-message" role="status">{notice}</div>}
 
@@ -414,6 +504,7 @@ export default function App() {
             <button className={tab === 'rank' ? 'on' : ''} onClick={() => setTab('rank')}>段位走势</button>
             <button className={tab === 'duration' ? 'on' : ''} onClick={() => setTab('duration')}>时长分布</button>
             <button className={tab === 'hour' ? 'on' : ''} onClick={() => setTab('hour')}>活跃时段</button>
+            <button className={tab === 'rating' ? 'on' : ''} onClick={() => setTab('rating')}>评级分布</button>
           </div>
           <div className="tab-body">
             {tab === 'lineup' && <WinrateBars stats={lineups} />}
@@ -458,6 +549,7 @@ export default function App() {
             )}
             {tab === 'duration' && <VBars buckets={durations} unit="局" />}
             {tab === 'hour' && <VBars buckets={hours} unit="局" />}
+            {tab === 'rating' && <RatingBars stats={ratings} />}
           </div>
         </div>
       </div>

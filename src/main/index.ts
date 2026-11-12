@@ -770,6 +770,8 @@ function setupIpc(): void {
   ipcMain.handle('stats:rankCurve', (_e, season?: string | null) => repo.rankCurve(season))
   ipcMain.handle('stats:durationHist', (_e, season?: string | null) => repo.durationHistogram(season))
   ipcMain.handle('stats:hourHist', (_e, season?: string | null) => repo.hourHistogram(season))
+  // 评级分布（只统计有评级的对局）
+  ipcMain.handle('stats:ratings', (_e, season?: string | null) => repo.ratingStats(season))
   // 满级贺图数据：返回 null 表示该赛季还没到 A8 满级
   ipcMain.handle('stats:celebration', (_e, season?: string | null) => repo.celebrationData(season))
   // 保存贺图 PNG。
@@ -1066,6 +1068,23 @@ function setupIpc(): void {
   })
 
   ipcMain.on('panel:toggle', () => togglePanel())
+
+  // 无边框面板窗口的最小化/最大化（窗口是 frame:false，没有系统标题栏按钮）
+  ipcMain.on('panel:minimize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    win?.minimize()
+  })
+  ipcMain.handle('panel:toggle-maximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return false
+    if (win.isMaximized()) win.unmaximize()
+    else win.maximize()
+    return win.isMaximized()
+  })
+  ipcMain.handle('panel:is-maximized', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return win?.isMaximized() ?? false
+  })
   ipcMain.on('settings:open', () => createSettingsWindow())
   ipcMain.on('app:quit', () => app.quit())
 
@@ -1206,7 +1225,22 @@ if (ownsData) app.whenReady().then(async () => {
     }
     if (draftUpdated) console.log(`[screenshot-migrate] 已更新 ${draftUpdated} 份草稿的原图路径`)
   } catch (error) { console.error('[screenshot-migrate] 路径重写失败', error) }
-  recordStartedAt = recordingStore.getStartedAt()
+  /*
+   * 启动时不恢复上次的计时状态。
+   *
+   * 如果磁盘里还留着 startedAt，说明上次是非正常退出（崩溃、强杀、开发热重启）——
+   * 这段时间桌宠根本没在运行，继续累计会把「软件关着的时间」算进对局时长，
+   * 不符合设计。软件关闭即应停止计时，所以这里直接清零。
+   *
+   * 用户主动结束计时（Ctrl+Shift+F8 或菜单）生成的草稿不受影响，草稿照常保留。
+   */
+  const staleStartedAt = recordingStore.getStartedAt()
+  if (staleStartedAt !== null) {
+    const minutes = Math.round((Date.now() - staleStartedAt) / 60000)
+    bootTrace(`[record] 丢弃上次未结束的计时（已过 ${minutes} 分钟）：软件曾关闭，不应继续累计`)
+    recordingStore.discardRunningTimer()
+  }
+  recordStartedAt = null
   setupIpc()
   // 首次启动：先走向导（选游戏路径/截图目录/解包模型），完成后才创建桌宠
   setupWizardIpc({

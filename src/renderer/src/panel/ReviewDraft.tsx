@@ -4,7 +4,7 @@ import { SEASONS } from '@shared/seasons'
 import { RankPicker } from './RankPicker'
 
 export const RESULT_LABEL: Record<MatchResult, string> = {
-  win: '胜利', loss: '失败', interrupted: '中断', suspected: '待核实'
+  win: '胜利', loss: '失败', suspected: '待核实'
 }
 
 export function errorText(error: unknown, fallback: string): string {

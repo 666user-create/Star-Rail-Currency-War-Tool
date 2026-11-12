@@ -3,7 +3,7 @@ import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { atomicReplace } from './atomicReplace.ts'
 import initSqlJs from 'sql.js'
-import type { BondStat, CelebrationData, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint } from '@shared/types'
+import type { BondStat, CelebrationData, DurationBucket, HourBucket, LineupStat, Match, OverviewStats, RankPoint, RatingBucket } from '@shared/types'
 // 注意用相对路径：仓库的测试用 node 直接加载 .ts，不经过打包器的别名解析
 import { formatRank, isMaxRank, parseRank, rankByCode, rankToScore } from '../shared/ranks.ts'
 
@@ -235,7 +235,6 @@ export class Repository {
     const r = this.rows(`SELECT COUNT(*) AS total,
       SUM(CASE WHEN result='win' THEN 1 ELSE 0 END) AS wins,
       SUM(CASE WHEN result='loss' THEN 1 ELSE 0 END) AS losses,
-      SUM(CASE WHEN result='interrupted' THEN 1 ELSE 0 END) AS interrupted,
       COALESCE(SUM(duration_sec),0) AS totalDur,
       COALESCE(SUM(CASE WHEN result IN ('win','loss') AND duration_sec IS NOT NULL THEN duration_sec END),0) AS validDur,
       SUM(CASE WHEN result IN ('win','loss') AND duration_sec IS NOT NULL THEN 1 ELSE 0 END) AS validN,
@@ -253,7 +252,7 @@ export class Repository {
     }
     const wins = (r.wins as number) ?? 0, losses = (r.losses as number) ?? 0
     return {
-      total: (r.total as number) ?? 0, wins, losses, interrupted: (r.interrupted as number) ?? 0,
+      total: (r.total as number) ?? 0, wins, losses,
       winRate: wins + losses > 0 ? wins / (wins + losses) : 0, totalDurationSec: (r.totalDur as number) ?? 0,
       avgDurationSec: (r.validN as number) > 0 ? (r.validDur as number) / (r.validN as number) : null,
       bestWinStreak: bestWin, bestLossStreak: bestLoss,
@@ -325,7 +324,7 @@ export class Repository {
       const score = rankToScore(raw)
       if (score === null) continue
       const r = String(row.result ?? '').trim()
-      const result: RankPoint['result'] = r === 'win' || r === 'loss' || r === 'interrupted' ? r : null
+      const result: RankPoint['result'] = r === 'win' || r === 'loss' ? r : null
       points.push({ time: row.ended_at as number, cumulative: score, label: raw, result })
       /*
        * 到达 A8-20（满级）后停止记录：
@@ -397,6 +396,41 @@ export class Repository {
       curve,
       seasonDays
     }
+  }
+
+  /**
+   * 评级分布：只统计「有评级」的对局。
+   *
+   * 评级是结算界面给的综合评价（SSS/SS/S/A/B/C…），不是每局都会填，
+   * 所以分母只算填了评级的局，不能把没填的当 0 计入，
+   * 否则各档比例会被稀释、看起来像"评级很差"。
+   *
+   * 排序按评级从高到低（SSS → SS → S → A → B → C），未知档位排末尾按名称排。
+   */
+  ratingStats(season?: string | null): RatingBucket[] {
+    const w = this.where(season, {
+      clause: "result IN ('win','loss') AND rating IS NOT NULL AND TRIM(rating)!=''",
+      params: []
+    })
+    const rows = this.rows(
+      `SELECT UPPER(TRIM(rating)) AS r, COUNT(*) AS n, SUM(CASE WHEN result='win' THEN 1 ELSE 0 END) AS w FROM matches${w.sql} GROUP BY UPPER(TRIM(rating))`,
+      w.params
+    )
+    if (!rows.length) return []
+    const total = rows.reduce((sum, row) => sum + (row.n as number), 0)
+    const order = ['SSS', 'SS', 'S', 'A', 'B', 'C', 'D']
+    const rankOf = (label: string): number => {
+      const index = order.indexOf(label)
+      return index < 0 ? order.length : index
+    }
+    return rows
+      .map((row) => ({
+        label: String(row.r),
+        count: row.n as number,
+        wins: (row.w as number) ?? 0,
+        ratio: total > 0 ? (row.n as number) / total : 0
+      }))
+      .sort((a, b) => rankOf(a.label) - rankOf(b.label) || b.count - a.count)
   }
 
   durationHistogram(season?: string | null): DurationBucket[] {

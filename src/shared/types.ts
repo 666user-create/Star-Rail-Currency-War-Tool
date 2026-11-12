@@ -1,4 +1,4 @@
-export type MatchResult = 'win' | 'loss' | 'interrupted' | 'suspected'
+export type MatchResult = 'win' | 'loss' | 'suspected'
 export type MatchSource = 'demo' | 'manual' | 'ocr'
 
 export interface Match {
@@ -59,7 +59,6 @@ export interface OverviewStats {
   total: number
   wins: number
   losses: number
-  interrupted: number
   winRate: number
   totalDurationSec: number
   avgDurationSec: number | null
@@ -99,7 +98,7 @@ export interface RankPoint {
   /** 该点对应的原始段位文本（如「A6 投资大师7」），用于图表提示 */
   label: string
   /** 该局结果；用于在走势图上把失败局标红。未记录时为 null */
-  result: 'win' | 'loss' | 'interrupted' | null
+  result: 'win' | 'loss' | null
 }
 
 /** 满级贺图所需的全量数据 */
@@ -144,6 +143,18 @@ export interface DurationBucket {
 export interface HourBucket {
   hour: number
   count: number
+}
+
+/** 评级分布的一格。评级来自结算界面的 SSS/SS/S/A/B/C 等档位 */
+export interface RatingBucket {
+  /** 评级名（SSS / SS / S / A / B / C …） */
+  label: string
+  /** 该评级的对局数 */
+  count: number
+  /** 该评级占「有评级对局」的比例 0~1 */
+  ratio: number
+  /** 该评级里的胜场数 */
+  wins: number
 }
 
 export type DialogueEvent =
@@ -217,6 +228,8 @@ export interface PetApi {
   rankCurve(season?: string | null): Promise<RankPoint[]>
   durationHistogram(season?: string | null): Promise<DurationBucket[]>
   hourHistogram(season?: string | null): Promise<HourBucket[]>
+  /** 评级分布（只统计有评级的对局） */
+  ratingStats(season?: string | null): Promise<RatingBucket[]>
   /** 满级贺图数据；未达 A8 满级时返回 null */
   celebrationData(season?: string | null): Promise<CelebrationData | null>
   /** 用隐藏窗口渲染贺图并导出 PNG；返回保存路径，取消返回 null */
@@ -261,6 +274,12 @@ export interface PetApi {
   sprite(): Promise<string | null>
   officialModel(): Promise<{ obj: string; tex: string; cool: string; warm: string } | null>
   panelToggle(): void
+  /** 最小化面板窗口 */
+  panelMinimize(): void
+  /** 切换最大化/还原，返回切换后的最大化状态 */
+  panelToggleMaximize(): Promise<boolean>
+  /** 查询面板是否处于最大化 */
+  panelIsMaximized(): Promise<boolean>
   /** setShape 区域（窗口相对坐标），覆盖本体、动效头顶和菜单；气泡使用独立窗口。 */
   petShape(rects: PetRect[]): void
   petBubble(content: PetBubbleContent | null): void

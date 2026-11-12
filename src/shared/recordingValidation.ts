@@ -13,7 +13,7 @@ export function validateDraftInput(value: unknown): DraftInput {
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < min || value > max) throw new Error(`请检查${label}`)
     return value
   }
-  if (!['win', 'loss', 'interrupted', 'suspected'].includes(input.result)) throw new Error('请选择本局结果')
+  if (!['win', 'loss', 'suspected'].includes(input.result)) throw new Error('请选择本局结果')
   if (!Number.isSafeInteger(input.endedAt) || input.endedAt < 0 || input.endedAt > Date.now() + 86400000) throw new Error('请检查结束时间')
   const durationSec = nullableInteger(input.durationSec, '对局时长', 0, Math.floor(input.endedAt / 1000))
   if (!Array.isArray(input.lineup) || input.lineup.length > 40 || input.lineup.some(item => typeof item !== 'string' || item.length > 80)) throw new Error('请检查阵容')

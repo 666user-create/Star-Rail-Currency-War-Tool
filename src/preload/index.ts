@@ -11,6 +11,7 @@ const api: PetApi = {
   rankCurve: (season?: string | null) => ipcRenderer.invoke('stats:rankCurve', season),
   durationHistogram: (season?: string | null) => ipcRenderer.invoke('stats:durationHist', season),
   hourHistogram: (season?: string | null) => ipcRenderer.invoke('stats:hourHist', season),
+  ratingStats: (season?: string | null) => ipcRenderer.invoke('stats:ratings', season),
   celebrationData: (season?: string | null) => ipcRenderer.invoke('stats:celebration', season),
   /** 用隐藏窗口渲染贺图并导出 PNG；dataJson 为 CelebrationData 的 JSON，返回保存路径（取消返回 null） */
   saveCelebrationCapture: (dataJson: string, suggestedName: string) =>
@@ -69,6 +70,10 @@ const api: PetApi = {
   sprite: () => ipcRenderer.invoke('pet:sprite'),
   officialModel: () => ipcRenderer.invoke('pet:officialModel'),
   panelToggle: () => ipcRenderer.send('panel:toggle'),
+  /** 面板窗口控制：无边框窗口需要自定义最小化/最大化按钮 */
+  panelMinimize: () => ipcRenderer.send('panel:minimize'),
+  panelToggleMaximize: () => ipcRenderer.invoke('panel:toggle-maximize') as Promise<boolean>,
+  panelIsMaximized: () => ipcRenderer.invoke('panel:is-maximized') as Promise<boolean>,
   petShape: (rects) => ipcRenderer.send('pet:shape', rects),
   petBubble: (content) => ipcRenderer.send('pet:bubble', content),
   bubbleView: () => ipcRenderer.invoke('bubble:view'),
