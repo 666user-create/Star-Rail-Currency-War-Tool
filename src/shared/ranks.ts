@@ -1,39 +1,59 @@
 /**
  * 货币战争职级（赛季 2「入画奇航」起）。
  *
- * 官方结算界面显示「A5 紫金1」这种格式：大段位 A0–A8 + 小段位 1/2/3。
- * 小段位顺序：数字越大越高（紫金1 < 紫金2 < 紫金3）。
- * 但 A8（财富造物主）是最高档，官方实测只有「A8 财富造物主」不带小段位编号，
- * 所以 `subLevels` 用 0 表示「该档没有小段位」。
+ * 官方结算界面显示「A5 紫金1」这种格式：大段位 A0–A8 + 小段位。
  *
- * 来源：游戏内「职级奖励」界面 + 结算界面实测截图（2026-11-11, 4.7）。
+ * 关于小段位：**所有大段都允许填小段位**。
+ * 早期版本按「A8 是最高档、截图上没带编号」把 A8 设成不可填，是错的
+ * ——官方截图只是没显示，不代表不能有（实测 A6 能到 9）。
+ * 现在统一允许填任意数字。
+ *
+ * 来源：游戏内「职级奖励」界面 + 结算界面实测截图（2026-11-11/12, 4.7）。
  */
 export interface RankOption {
   /** 稳定标识（A0–A8） */
   code: string
   /** 大段位名 */
   label: string
-  /** 该档是否有小段位（1/2/3）。A8 没有 */
-  hasSubLevel: boolean
 }
 
 export const RANKS: RankOption[] = [
-  { code: 'A0', label: '黑铁', hasSubLevel: true },
-  { code: 'A1', label: '青铜', hasSubLevel: true },
-  { code: 'A2', label: '翠钢', hasSubLevel: true },
-  { code: 'A3', label: '钴银', hasSubLevel: true },
-  { code: 'A4', label: '冰钛', hasSubLevel: true },
-  { code: 'A5', label: '紫金', hasSubLevel: true },
-  { code: 'A6', label: '投资大师', hasSubLevel: true },
-  { code: 'A7', label: '资本帝王', hasSubLevel: true },
-  { code: 'A8', label: '财富造物主', hasSubLevel: false }
+  { code: 'A0', label: '黑铁' },
+  { code: 'A1', label: '青铜' },
+  { code: 'A2', label: '翠钢' },
+  { code: 'A3', label: '钴银' },
+  { code: 'A4', label: '冰钛' },
+  { code: 'A5', label: '紫金' },
+  { code: 'A6', label: '投资大师' },
+  { code: 'A7', label: '资本帝王' },
+  { code: 'A8', label: '财富造物主' }
 ]
 
 /**
- * 小段位不做成固定枚举：实测每个大段的档数不同
- * （紫金只到 3，资本帝王能到 7），官方也没公开完整表。
- * 所以界面用输入框让用户手填，这里只在解析时接受任意正整数。
+ * 小段位上限。
+ *
+ * **只限制 A8（财富造物主）最多 20 档**——这是官方真正的满级点，
+ * 到了就该提示「已到达最高段位」。
+ *
+ * 其他大段不设上限，用户填多少算多少（乐观设计：
+ * 各档实际档数官方没公开，与其猜错卡住用户，不如放开）。
+ * 明显离谱的输入（比如五位数字）由输入框自身限制为最多两位。
  */
+export const MAX_SUB_A8 = 20
+
+/** 取某档的小段位上限；非 A8 返回 Infinity（不限制）。 */
+export function maxSubLevel(code: string): number {
+  const key = (code ?? '').trim().toUpperCase()
+  return key === 'A8' ? MAX_SUB_A8 : Number.POSITIVE_INFINITY
+}
+
+/** 小段位是否已满（用于「到达最高段位」判定）。 */
+export function isMaxRank(value: RankValue | null): boolean {
+  if (!value) return false
+  const rank = rankByCode(value.code)
+  if (!rank) return false
+  return rank.code === 'A8' && value.sub >= MAX_SUB_A8
+}
 
 export interface RankValue {
   /** 大段位 code，如 A5 */
@@ -49,13 +69,12 @@ export function rankByCode(code: string): RankOption | null {
 }
 
 /**
- * 每档大段内的小段位基数（用于把「A6 投资大师7」压成一个可排序的标量）。
+ * 每档大段内的小段位基数（把「A6 投资大师7」压成一个可排序标量用）。
  *
- * 为什么取 10 而不是实测档数：各档上限不同且官方未公开（紫金 3、资本帝王至少 7），
- * 取 10 留足余量，保证「A6 任意小段」永远排在「A7 任意小段」之前。
- * 玩家实际能填到的小段位不可能超过 10，所以不会出现跨档串位。
+ * 取 1000：只要大于任何一档可能填到的小段位数，就不会出现跨档倒挂。
+ * A8 硬上限 20，其他档位用户自由填（乐观设计，不预设上限），1000 足够。
  */
-const SUB_LEVEL_BASE = 10
+const SUB_LEVEL_BASE = 1000
 
 /**
  * 把职级压成可排序的数值：大段序号 × 10 + 小段位。
@@ -71,12 +90,12 @@ export function rankToScore(value: string): number | null {
   return index * SUB_LEVEL_BASE + Math.max(0, parsed.sub)
 }
 
-/** 把 RankValue 拼成显示文本：「A5 紫金1」/「A8 财富造物主」。 */
+/** 把 RankValue 拼成显示文本：「A5 紫金1」/「A8 财富造物主3」。 */
 export function formatRank(value: RankValue | null): string {
   if (!value) return ''
   const rank = rankByCode(value.code)
   if (!rank) return ''
-  return rank.hasSubLevel && value.sub > 0 ? `${rank.code} ${rank.label}${value.sub}` : `${rank.code} ${rank.label}`
+  return value.sub > 0 ? `${rank.code} ${rank.label}${value.sub}` : `${rank.code} ${rank.label}`
 }
 
 /**
@@ -102,10 +121,10 @@ export function parseRank(value: string): RankValue | null {
   }
   if (!rank) return null
 
-  // 2) 找小段位：该档有小段位时，取名称/code 后面的数字。
-  //    不限制上限——实测资本帝王能到 7，各档上限不同，官方未公开完整表。
+  // 2) 找小段位：取名称/code 后面的数字。所有大段都允许有小段位。
+  //    上限由各档 MAX_SUB 决定（A8 为 20，其余按实测放宽），这里只负责解析。
   let sub = 0
-  if (rank.hasSubLevel) {
+  {
     // 优先匹配「紫金1」「资本帝王7」这种紧跟名称的
     const afterName = new RegExp(`${rank.label}\\s*(\\d{1,2})`).exec(text)
     if (afterName) sub = Number(afterName[1])
@@ -115,5 +134,5 @@ export function parseRank(value: string): RankValue | null {
       if (afterCode) sub = Number(afterCode[1])
     }
   }
-  return { code: rank.code, sub }
+  return { code: rank.code, sub: Math.min(sub, maxSubLevel(rank.code)) }
 }

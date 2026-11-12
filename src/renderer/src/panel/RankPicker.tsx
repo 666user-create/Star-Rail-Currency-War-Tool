@@ -1,4 +1,4 @@
-import { RANKS, formatRank, parseRank, rankByCode } from '../../../shared/ranks'
+import { RANKS, formatRank, maxSubLevel, parseRank, rankByCode } from '../../../shared/ranks'
 
 interface RankPickerProps {
   /** 当前值（存的是显示文本，如「A5 紫金1」；也可能是历史自由文本） */
@@ -32,21 +32,32 @@ export function RankPicker({ value, onChange, label }: RankPickerProps): React.J
   const selectedCode = isCustom ? '__custom__' : (parsed?.code ?? '')
   const subText = parsed && parsed.sub > 0 ? String(parsed.sub) : ''
 
-  /** 大段位变化：保留已填的小段位（除非新段位明确没有小段位） */
+  /** 大段位变化：保留已填的小段位（所有大段都允许有小段位） */
   const changeCode = (next: string): void => {
     if (next === '__custom__') { onChange(trimmed || ' '); return }
     if (next === '') { onChange(''); return }
-    const nextRank = rankByCode(next)
-    const keepSub = nextRank?.hasSubLevel ? (parsed?.sub ?? 0) : 0
-    onChange(formatRank({ code: next, sub: keepSub }))
+    onChange(formatRank({ code: next, sub: parsed?.sub ?? 0 }))
   }
 
-  /** 小段位变化：手填的数字，非法输入直接忽略（不写进值里） */
+  /**
+   * 小段位变化：手填数字。
+   * - A8 有硬上限 20（官方满级），超出直接夹到 20 并提示
+   * - 其他大段不设上限，用户填多少算多少（乐观设计）
+   */
   const changeSub = (raw: string): void => {
-    const text = raw.replace(/[^\d]/g, '').slice(0, 2)
-    const sub = text === '' ? 0 : Number(text)
+    const text = raw.replace(/[^\d]/g, '').slice(0, 3)
+    if (text === '') {
+      if (parsed) onChange(formatRank({ code: parsed.code, sub: 0 }))
+      return
+    }
+    const cap = parsed ? maxSubLevel(parsed.code) : Number.POSITIVE_INFINITY
+    const sub = Math.min(Number(text), cap)
     if (parsed) onChange(formatRank({ code: parsed.code, sub }))
   }
+
+  const subLimit = parsed ? maxSubLevel(parsed.code) : Number.POSITIVE_INFINITY
+  const limited = Number.isFinite(subLimit)
+  const atLimit = parsed != null && limited && parsed.sub >= subLimit
 
   return (
     <label>
@@ -67,13 +78,20 @@ export function RankPicker({ value, onChange, label }: RankPickerProps): React.J
         <input
           value={subText}
           onChange={(event) => changeSub(event.target.value)}
-          disabled={!rank?.hasSubLevel}
-          placeholder="小段位"
+          disabled={!parsed}
+          placeholder={limited ? `最多${subLimit}` : '小段位'}
           inputMode="numeric"
           aria-label={`${label}（小段位）`}
-          title={rank?.hasSubLevel ? '小段位，可留空' : '该职级没有小段位'}
+          title={
+            !parsed ? '请先选大段位'
+              : limited ? `最多 ${subLimit} 档，超出会按 ${subLimit} 计算`
+                : '小段位，可留空'
+          }
         />
       </span>
+      {atLimit && (
+        <span className="rank-max-hint">已达上限（{parsed?.code} 满级 {subLimit}）</span>
+      )}
       {isCustom && (
         <input
           value={trimmed}

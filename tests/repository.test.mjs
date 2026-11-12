@@ -91,13 +91,13 @@ test('所有统计排除演示，未知时长不当0计平均/直方图，未知
   assert.equal(overview.bestWinStreak, 1)
   assert.equal(overview.bestLossStreak, 1)
   assert.deepEqual(repository.lineupStats(), [{ lineup: '追击', games: 2, wins: 1, winRate: 0.5 }])
-  // 段位曲线改为读「玩家实际填写的段位」（rank_after），不按血量推导。
-  // 本测试三条记录都用 match() 的默认 rankAfter='财富造物主20' → A8 = 80 分。
-  // （A8 无小段位，尾部数字被忽略）
+  // 段位曲线读「玩家实际填写的段位」（rank_after），不按血量推导。
+  // match() 默认 rankAfter='财富造物主20' → A8(序号8)×10 + 小段位20 = 100。
+  // （早期把 A8 当成没有小段位，会算成 80；现在 A8 也保留小段位，所以是 100）
   assert.deepEqual(repository.rankCurve(), [
-    { time: 601000, cumulative: 80, label: '财富造物主20' },
-    { time: 602000, cumulative: 80, label: '财富造物主20' },
-    { time: 603000, cumulative: 80, label: '财富造物主20' }
+    { time: 601000, cumulative: 8020, label: '财富造物主20' },
+    { time: 602000, cumulative: 8020, label: '财富造物主20' },
+    { time: 603000, cumulative: 8020, label: '财富造物主20' }
   ])
   assert.deepEqual(repository.durationHistogram().map((bucket) => bucket.count), [0, 1, 0, 0, 0, 0])
   const hours = repository.hourHistogram()
@@ -155,8 +155,8 @@ test('段位曲线只取最近有段位数据的赛季，且按实际填写的�
   repository.insert(match({ season: '未来赛季', endedAt: 5000, rankAfter: null }))
   repository.insert(match({ source: 'demo', season: '演示赛季', endedAt: 6000, rankAfter: 'A8 财富造物主' }))
   assert.deepEqual(repository.rankCurve(), [
-    { time: 2000, cumulative: 51, label: 'A5 紫金1' },
-    { time: 3000, cumulative: 53, label: 'A5 紫金3' }
+    { time: 2000, cumulative: 5001, label: 'A5 紫金1' },
+    { time: 3000, cumulative: 5003, label: 'A5 紫金3' }
   ])
   repository.close()
 })
@@ -171,7 +171,7 @@ test('段位曲线：按玩家实际填写的结算后段位绘制（大段序�
   repository.insert(match({ season, endedAt: 3000, rankAfter: '投资大师7' }))
   repository.insert(match({ season, endedAt: 4000, rankAfter: 'A6 投资大师9' }))
   const curve = repository.rankCurve(season)
-  assert.deepEqual(curve.map((p) => p.cumulative), [61, 64, 67, 69], '直接反映真实段位位置')
+  assert.deepEqual(curve.map((p) => p.cumulative), [6001, 6004, 6007, 6009], '直接反映真实段位位置')
   assert.deepEqual(curve.map((p) => p.label), ['A6 投资大师1', 'A6 投资大师4', '投资大师7', 'A6 投资大师9'])
   repository.close()
 })
@@ -184,7 +184,7 @@ test('段位曲线：跨大段时数值跨越（晋级赛也体现在跳变里�
   repository.insert(match({ season, endedAt: 2000, rankAfter: 'A6 投资大师1' })) // 61，跨大段跳 8
   repository.insert(match({ season, endedAt: 3000, rankAfter: 'A7 资本帝王1' })) // 71
   const curve = repository.rankCurve(season)
-  assert.deepEqual(curve.map((p) => p.cumulative), [53, 61, 71])
+  assert.deepEqual(curve.map((p) => p.cumulative), [5003, 6001, 7001])
   // 关键：A5 任意小段都必须低于 A6 任意小段
   assert.ok(curve[0].cumulative < curve[1].cumulative)
   repository.close()
@@ -201,7 +201,7 @@ test('段位曲线：没填段位的记录被跳过，不瞎画', async (t) => {
   repository.insert(match({ season, endedAt: 4000, rankAfter: 'A5 紫金2', rankBefore: null }))
   const curve = repository.rankCurve(season)
   assert.equal(curve.length, 2, '没填段位的点不出现')
-  assert.deepEqual(curve.map((p) => p.cumulative), [51, 52])
+  assert.deepEqual(curve.map((p) => p.cumulative), [5001, 5002])
   repository.close()
 })
 
@@ -212,7 +212,7 @@ test('段位曲线：结算后没填时回落到结算前段位', async (t) => {
   repository.insert(match({ season, endedAt: 1000, rankAfter: 'A5 紫金1' }))
   repository.insert(match({ season, endedAt: 2000, rankAfter: null, rankBefore: 'A5 紫金2' }))
   const curve = repository.rankCurve(season)
-  assert.deepEqual(curve.map((p) => p.cumulative), [51, 52], '用结算前位置补上')
+  assert.deepEqual(curve.map((p) => p.cumulative), [5001, 5002], '用结算前位置补上')
   repository.close()
 })
 

@@ -468,3 +468,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   background: rgba(139, 143, 168, 0.08);
   border-color: rgba(139, 143, 168, 0.18);
 }
+
+/* 小段位达到上限时的提示 */
+.rank-max-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #e8c476;
+  opacity: 0.85;
+}
