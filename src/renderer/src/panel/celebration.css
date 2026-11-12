@@ -90,10 +90,14 @@
 }
 .cel-badge-img {
   position: relative; z-index: 2;
-  /* 按容器宽度自适应，保持原始比例，绝不裁切 */
-  width: 100%; max-width: 460px; height: auto;
+  width: 100%; max-width: 430px; height: auto;
   object-fit: contain;
-  filter: drop-shadow(0 8px 36px rgba(232, 196, 118, .45)) saturate(1.06);
+  /* 官方原版截图；两侧残余像素用圆角裁掉，翼尖完整保留 */
+  border-radius: 16px;
+  border: 2px solid rgba(232, 196, 118, .5);
+  box-shadow:
+    0 14px 50px rgba(0, 0, 0, .55),
+    0 0 70px rgba(232, 196, 118, .22);
 }
 .cel-badge-svg {
   position: relative; z-index: 2;
