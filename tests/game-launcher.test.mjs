@@ -1,4 +1,4 @@
-// 「货币战争启动!」的启动方式解析测试 —— 统一走官方启动器
+// 「货币战争启动!」的启动方式解析测试 —— 统一走官方启动器（米哈游启动器 HYP.exe）
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -7,7 +7,7 @@ import path from 'node:path'
 import { resolveGameLauncher } from '../src/main/gameLauncher.ts'
 
 /** 造一个临时的游戏目录，模拟官方布局 */
-function makeGameTree(t, withGame = true, withLauncher = true) {
+function makeGameTree(t, withGame = true, withLauncher = true, withHyp = false) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'star-rail-launch-'))
   t.after(() => fs.rmSync(root, { recursive: true, force: true }))
   if (withGame) {
@@ -16,27 +16,36 @@ function makeGameTree(t, withGame = true, withLauncher = true) {
     fs.writeFileSync(path.join(gameDir, 'StarRail.exe'), '')
   }
   if (withLauncher) fs.writeFileSync(path.join(root, 'launcher.exe'), '')
+  if (withHyp) fs.writeFileSync(path.join(root, 'HYP.exe'), '')
   return root
 }
 
-test('统一：有 launcher.exe 时优先官方启动器（即便游戏 exe 也在）', (t) => {
-  const root = makeGameTree(t)
+test('统一：优先米哈游启动器 HYP.exe（即便 launcher.exe 和游戏 exe 也在）', (t) => {
+  const root = makeGameTree(t, true, true, true)
+  const resolved = resolveGameLauncher(root)
+  assert.ok(resolved)
+  assert.equal(resolved.viaLauncher, true)
+  assert.equal(resolved.exe, path.join(root, 'HYP.exe'))
+})
+
+test('没有 HYP.exe 时退回游戏根下的 launcher.exe', (t) => {
+  const root = makeGameTree(t, true, true, false)
   const resolved = resolveGameLauncher(root)
   assert.ok(resolved)
   assert.equal(resolved.viaLauncher, true)
   assert.equal(resolved.exe, path.join(root, 'launcher.exe'))
 })
 
-test('统一：只有游戏 exe、没有启动器时才回退到游戏 exe', (t) => {
-  const root = makeGameTree(t, true, false)
+test('连 launcher.exe 都没有时，才回退到游戏 exe', (t) => {
+  const root = makeGameTree(t, true, false, false)
   const resolved = resolveGameLauncher(root)
   assert.ok(resolved)
   assert.equal(resolved.viaLauncher, false)
   assert.equal(resolved.exe, path.join(root, 'Game', 'StarRail.exe'))
 })
 
-test('填 Game 目录也能定位到上级的 launcher.exe', (t) => {
-  const root = makeGameTree(t)
+test('填 Game 目录也能定位到上级的启动器', (t) => {
+  const root = makeGameTree(t, true, true, false)
   const resolved = resolveGameLauncher(path.join(root, 'Game'))
   assert.ok(resolved)
   assert.equal(resolved.viaLauncher, true)
@@ -44,7 +53,7 @@ test('填 Game 目录也能定位到上级的 launcher.exe', (t) => {
 })
 
 test('填 exe 完整路径也能定位', (t) => {
-  const root = makeGameTree(t)
+  const root = makeGameTree(t, true, true, false)
   const resolved = resolveGameLauncher(path.join(root, 'launcher.exe'))
   assert.ok(resolved)
   assert.equal(resolved.viaLauncher, true)

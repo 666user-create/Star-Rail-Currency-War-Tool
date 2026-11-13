@@ -113,7 +113,7 @@ export default function App() {
             <button className="ghost" onClick={pickGame} type="button">浏览…</button>
           </div>
           <p className="hint">
-            「货币战争启动!」统一走官方启动器：官方已封死直接启动游戏 exe，启动后会打开启动器界面，还需再点一次「开始游戏」。
+            「货币战争启动!」统一走米哈游启动器（HYP.exe）：官方已封死直接启动游戏 exe，启动后会打开启动器界面，还需再点一次「开始游戏」。
           </p>
           <div className="row">
             <button className="ghost" onClick={detect} disabled={detecting} type="button">

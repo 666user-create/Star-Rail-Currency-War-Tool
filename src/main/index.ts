@@ -1121,9 +1121,10 @@ function setupIpc(): void {
   })
 
   // 「货币战争启动!」：解析游戏启动器并启动（不是打开文件夹）
-  // 统一走官方 launcher.exe：官方已封死直接启动游戏 exe，唯一受支持入口
-  // 就是官方启动器（会打开启动器界面，再手动点一次「开始游戏」）。
-  // 详见 gameLauncher.ts 的说明。两者 manifest 都要求管理员，都会走 ShellExecute 弹 UAC。
+  // 统一走官方启动器：官方已封死直接启动游戏 exe，唯一受支持入口是
+  // 米哈游启动器（HYP.exe，位于 <盘>:\miHoYo Launcher\<版本>\）。
+  // 它会打开启动器界面，还需再手动点一次「开始游戏」。详见 gameLauncher.ts。
+  // 各 exe manifest 都要求管理员，都会走 ShellExecute 弹 UAC。
   ipcMain.handle('game:launch', async () => {
     const target = resolveGameLauncher(settings.gamePath)
     if (!target) return false
