@@ -27,7 +27,7 @@ export function normalizeSettings(value: unknown): AppSettings {
     idleTalk: typeof source.idleTalk === 'boolean' ? source.idleTalk : true,
     activity: source.activity === 'low' || source.activity === 'high' ? source.activity : 'normal'
   }
-  if (source.launchMode === 'game' || source.launchMode === 'launcher') result.launchMode = source.launchMode
+  /** 启动方式固定走官方启动器，不再作为设置项（见 gameLauncher.ts） */
   if (typeof source.archiveName === 'string' && source.archiveName.trim()) {
     result.archiveName = source.archiveName.trim().slice(0, 40)
   }

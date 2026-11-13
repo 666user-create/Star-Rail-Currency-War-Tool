@@ -1121,11 +1121,11 @@ function setupIpc(): void {
   })
 
   // 「货币战争启动!」：解析游戏启动器并启动（不是打开文件夹）
-  // 官方已封死直接启动游戏 exe（会弹「现在已经不支持」），唯一受支持入口是
-  // 官方 launcher.exe —— 它打开启动器界面，还需要再手动点一次「开始游戏」。
+  // 统一走官方 launcher.exe：官方已封死直接启动游戏 exe，唯一受支持入口
+  // 就是官方启动器（会打开启动器界面，再手动点一次「开始游戏」）。
   // 详见 gameLauncher.ts 的说明。两者 manifest 都要求管理员，都会走 ShellExecute 弹 UAC。
   ipcMain.handle('game:launch', async () => {
-    const target = resolveGameLauncher(settings.gamePath, settings.launchMode ?? 'launcher')
+    const target = resolveGameLauncher(settings.gamePath)
     if (!target) return false
     try {
       // shell.openPath 走 ShellExecute：既能启动 exe，也会在需要时正确触发 UAC 提权
@@ -1388,7 +1388,7 @@ if (ownsData) app.whenReady().then(async () => {
   setupWizardIpc({
     getSettings: () => settings,
     applyConfig: (config) => {
-      updateSettings({ gamePath: config.gamePath, screenshotDir: config.screenshotDir, launchMode: config.launchMode })
+      updateSettings({ gamePath: config.gamePath, screenshotDir: config.screenshotDir })
     }
   })
   if (!hasCompletedWizard()) {

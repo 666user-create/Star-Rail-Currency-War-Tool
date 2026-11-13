@@ -86,14 +86,7 @@
           <label class="field-label" for="path">游戏本体路径（用于「货币战争启动!」按钮）</label>
           <input type="text" id="path" placeholder="例如 D:\Games\Star Rail\StarRail.exe" autocomplete="off" />
         </div>
-        <div>
-          <label class="field-label" for="launch-mode">启动方式</label>
-          <select id="launch-mode">
-            <option value="launcher">通过官方启动器（推荐，唯一受支持入口）</option>
-            <option value="game">直接启动游戏（部分旧版本可用，新版会提示不支持）</option>
-          </select>
-          <div class="hint">官方已封死直接启动游戏 exe，推荐用官方 launcher.exe。它打开启动器界面，还需再点一次「开始游戏」才会进入游戏。</div>
-        </div>
+        <div class="hint" style="margin-top:-4px;">「货币战争启动!」统一走官方启动器：官方已封死直接启动游戏 exe，启动后会打开启动器界面，还需再点一次「开始游戏」。</div>
         <div class="quiet">
           <label class="check"><input type="checkbox" id="quiet" />安静模式</label>
           <div class="hint">暂停主动动作和台词，仍回应点击和记录操作</div>
@@ -154,7 +147,6 @@
       const form = document.getElementById('settings-form')
       const fields = document.getElementById('settings-fields')
       const input = document.getElementById('path')
-      const launchMode = document.getElementById('launch-mode')
       const quiet = document.getElementById('quiet')
       const screenshotDir = document.getElementById('screenshot-dir')
       const pickDir = document.getElementById('pick-dir')
@@ -184,7 +176,6 @@
       }
       const applySettings = (settings) => {
         input.value = settings.gamePath || ''
-        launchMode.value = settings.launchMode === 'game' ? 'game' : 'launcher'
         quiet.checked = settings.quietMode === true
         screenshotDir.value = settings.screenshotDir || ''
         idleAnimations.checked = settings.idleAnimations !== false
@@ -247,7 +238,6 @@
         try {
           const settings = await window.api.setSettings({
             gamePath: input.value.trim(),
-            launchMode: launchMode.value,
             screenshotDir: screenshotDir.value.trim(),
             quietMode: quiet.checked,
             idleAnimations: idleAnimations.checked,

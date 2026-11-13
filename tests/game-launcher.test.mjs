@@ -1,4 +1,4 @@
-// 「货币战争启动!」的启动方式解析测试
+// 「货币战争启动!」的启动方式解析测试 —— 统一走官方启动器
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -19,7 +19,7 @@ function makeGameTree(t, withGame = true, withLauncher = true) {
   return root
 }
 
-test('默认：优先官方启动器（官方已封死直启游戏 exe）', (t) => {
+test('统一：有 launcher.exe 时优先官方启动器（即便游戏 exe 也在）', (t) => {
   const root = makeGameTree(t)
   const resolved = resolveGameLauncher(root)
   assert.ok(resolved)
@@ -27,7 +27,7 @@ test('默认：优先官方启动器（官方已封死直启游戏 exe）', (t) 
   assert.equal(resolved.exe, path.join(root, 'launcher.exe'))
 })
 
-test('默认：只有游戏 exe、没有启动器时才回退到游戏 exe', (t) => {
+test('统一：只有游戏 exe、没有启动器时才回退到游戏 exe', (t) => {
   const root = makeGameTree(t, true, false)
   const resolved = resolveGameLauncher(root)
   assert.ok(resolved)
@@ -35,23 +35,7 @@ test('默认：只有游戏 exe、没有启动器时才回退到游戏 exe', (t)
   assert.equal(resolved.exe, path.join(root, 'Game', 'StarRail.exe'))
 })
 
-test('launchMode=game：优先游戏 exe，启动器仅作兜底', (t) => {
-  const root = makeGameTree(t)
-  const resolved = resolveGameLauncher(root, 'game')
-  assert.ok(resolved)
-  assert.equal(resolved.viaLauncher, false)
-  assert.equal(resolved.exe, path.join(root, 'Game', 'StarRail.exe'))
-})
-
-test('launchMode=launcher 且只有启动器：用启动器', (t) => {
-  const root = makeGameTree(t, false, true)
-  const resolved = resolveGameLauncher(root, 'launcher')
-  assert.ok(resolved)
-  assert.equal(resolved.viaLauncher, true)
-  assert.equal(resolved.exe, path.join(root, 'launcher.exe'))
-})
-
-test('填 Game 目录也能定位到启动器（在 Game 的上级找）', (t) => {
+test('填 Game 目录也能定位到上级的 launcher.exe', (t) => {
   const root = makeGameTree(t)
   const resolved = resolveGameLauncher(path.join(root, 'Game'))
   assert.ok(resolved)

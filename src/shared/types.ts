@@ -179,19 +179,8 @@ export type PetActivity = 'low' | 'normal' | 'high'
 
 export interface AppSettings {
   gamePath: string
-  /**
-   * 「货币战争启动!」用哪种方式启动游戏：
-   * - 'launcher'：启动官方 launcher.exe（唯一受支持入口，打开启动器界面，
-   *   还需再手动点一次「开始游戏」）。**默认值**。
-   * - 'game'：直接启动 Game\StarRail.exe。官方新版已封死，会弹「现在已经不支持」，
-   *   仅部分仍允许直启的旧版本可用。
-   *
-   * 默认 'launcher'：官方开始菜单的快捷方式也只指向 launcher.exe 且不带参数，
-   * 直启游戏 exe 已不受支持。
-   */
   /** 当前使用的存档名（多账号/多存档用）。默认 main */
   archiveName?: string
-  launchMode?: 'game' | 'launcher'
   recordSeason?: string
   /** 用户填写的赛季开始时间：赛季 id → 毫秒时间戳（优先于代码内置值） */
   seasonStarts?: Record<string, number>
@@ -352,7 +341,7 @@ export interface PetApi {
   /** 运行模型提取；进度通过 onWizardProgress 推送 */
   runExtraction(gamePath: string): Promise<void>
   onWizardProgress(listener: (event: { line: string; percent: number }) => void): () => void
-  completeWizard(config: { gamePath: string; screenshotDir: string; launchMode?: 'game' | 'launcher' }): Promise<void>
+  completeWizard(config: { gamePath: string; screenshotDir: string }): Promise<void>
   // —— 自定义托盘菜单 ——
   trayMenuState(): Promise<TrayMenuState>
   onTrayMenuState(listener: (state: TrayMenuState) => void): () => void
