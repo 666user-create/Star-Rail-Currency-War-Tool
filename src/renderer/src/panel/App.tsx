@@ -62,6 +62,9 @@ function RankHealth({ matches, onOpen }: { matches: Match[]; onOpen: (match: Mat
 // 复用贺图的官方 A8 徽章素材
 import rankBadgeUrl from '../../../../assets/rank/rank-a8.png'
 
+/** 评级筛选/分布用的固定顺序（从高到低） */
+const RATING_ORDER = ['SSS', 'SS', 'S', 'A', 'B', 'C']
+
 function fmtDur(sec: number | null): string {
   if (sec == null) return '未知'
   const m = Math.round(sec / 60)
@@ -609,6 +612,8 @@ export default function App() {
   const [editing, setEditing] = useState(false)
   /** 删除中：防止重复点击 */
   const [deleting, setDeleting] = useState(false)
+  /** 导出中：防止重复点击 */
+  const [exporting, setExporting] = useState(false)
   const [currentSeason, setCurrentSeason] = useState<string>(() => defaultSeason())
   // 用户填写的赛季时间（覆盖代码内置值）
   const [seasonStarts, setSeasonStarts] = useState<Record<string, number>>({})
@@ -617,6 +622,8 @@ export default function App() {
   const [seasonDatePrompt, setSeasonDatePrompt] = useState<{ seasonId: string; label: string; value: string } | null>(null)
   const [drafts, setDrafts] = useState<RecordingDraft[]>([])
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null)
+  /** 记录列表的评级筛选：空串 = 全部 */
+  const [ratingFilter, setRatingFilter] = useState<string>('')
   const [importing, setImporting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -750,6 +757,22 @@ export default function App() {
       setError(errorText(reason, '删除失败，请重试。'))
     } finally {
       setDeleting(false)
+    }
+  }
+
+  /** 导出全部战绩为 CSV（弹系统保存框） */
+  const exportCsv = async (): Promise<void> => {
+    if (exporting) return
+    setExporting(true)
+    setError('')
+    try {
+      const res = await window.api.exportCsv()
+      if (res.ok) setNotice(`已导出 ${res.count ?? 0} 局到 ${res.path ?? '指定位置'}。`)
+      else if (!res.canceled) setError(res.error ?? '导出失败。')
+    } catch (reason) {
+      setError(errorText(reason, '导出失败。'))
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -915,8 +938,24 @@ export default function App() {
         {/* 对局列表 */}
         <div className="card list-card">
           <div className="card-title">正式记录 <span className="muted">（点行查看详情与原图）</span></div>
+          {/* 工具条：评级筛选 + 导出，和列表标题同行，不占额外大块空间 */}
+          <div className="list-toolbar">
+            <label className="filter-label" htmlFor="rating-filter">评级</label>
+            <select
+              id="rating-filter"
+              className="filter-select"
+              value={ratingFilter}
+              onChange={(e) => setRatingFilter(e.target.value)}
+            >
+              <option value="">全部</option>
+              {RATING_ORDER.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <button type="button" className="tb-btn" disabled={exporting || !matches.length} onClick={() => void exportCsv()}>
+              {exporting ? '正在导出…' : '导出 CSV'}
+            </button>
+          </div>
           <div className="match-list">
-            {matches.map((m) => (
+            {matches.filter((m) => !ratingFilter || (m.rating ?? '') === ratingFilter).map((m) => (
               <button type="button" key={m.id} className={`match-row r-${m.result}`} onClick={() => { setDetail(m); setEditing(false) }}>
                 <span className="m-time">{fmtTime(m.startedAt ?? m.endedAt)}</span>
                 <span className={`m-badge b-${m.result}`}>{RESULT_LABEL[m.result]}</span>

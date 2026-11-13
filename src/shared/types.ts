@@ -189,6 +189,8 @@ export interface AppSettings {
    * 默认 'launcher'：官方开始菜单的快捷方式也只指向 launcher.exe 且不带参数，
    * 直启游戏 exe 已不受支持。
    */
+  /** 当前使用的存档名（多账号/多存档用）。默认 main */
+  archiveName?: string
   launchMode?: 'game' | 'launcher'
   recordSeason?: string
   /** 用户填写的赛季开始时间：赛季 id → 毫秒时间戳（优先于代码内置值） */
@@ -204,6 +206,18 @@ export interface AppSettings {
   petX?: number
   petY?: number
   petStyle?: 'official' | 'sprite' | 'svg' | '3d'
+}
+
+/** 一个存档（对应一个账号的数据库）的信息 */
+export interface ArchiveInfo {
+  /** 存档名（main 为默认存档） */
+  name: string
+  /** 该存档的对局数 */
+  count: number
+  /** 数据库文件大小（字节） */
+  size: number
+  /** 创建时间（毫秒） */
+  createdAt: number
 }
 
 /** 窗口相对坐标矩形（setShape 区域单元） */
@@ -283,6 +297,20 @@ export interface PetApi {
   onDraftFocus(listener: (id: string) => void): () => void
   onRecordingChange(listener: (change: RecordingChange) => void): () => void
   launchGame(): Promise<boolean>
+  /** 导出全部战绩为 CSV，返回保存路径与导出条数 */
+  exportCsv(): Promise<{ ok: boolean; canceled?: boolean; path?: string; count?: number; error?: string }>
+  /** 备份当前数据库到用户指定位置 */
+  backupData(): Promise<{ ok: boolean; canceled?: boolean; path?: string; error?: string }>
+  /** 用备份文件恢复当前数据库 */
+  restoreData(): Promise<{ ok: boolean; canceled?: boolean; error?: string }>
+  /** 列出所有存档（多账号） */
+  listArchives(): Promise<ArchiveInfo[]>
+  /** 新建一个空存档 */
+  createArchive(name: string): Promise<{ ok: boolean; name?: string; error?: string }>
+  /** 切换到指定存档（会清空当前账号的计时与草稿） */
+  switchArchive(name: string): Promise<{ ok: boolean; name?: string; error?: string }>
+  /** 删除指定存档（不能删当前使用的） */
+  deleteArchive(name: string): Promise<{ ok: boolean; error?: string }>
   getSettings(): Promise<AppSettings>
   setSettings(patch: Partial<AppSettings>): Promise<AppSettings>
   /** 打开文件夹选择器，返回选中路径（取消返回 null） */

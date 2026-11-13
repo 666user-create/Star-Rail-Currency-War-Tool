@@ -161,6 +161,14 @@ export class RecordingStore {
     this.save({ ...this.state, startedAt: null, accumulatedSec: 0 })
   }
 
+  /**
+   * 清空全部：进行中的计时 + 所有待确认草稿。
+   * 用于切换存档（换账号）—— 草稿和计时都属于当前账号，换账号后不该残留。
+   */
+  clearAll(): void {
+    this.save({ version: 1, startedAt: null, accumulatedSec: 0, drafts: [] })
+  }
+
   start(now = Date.now()): number {
     if (this.state.startedAt !== null) return this.state.startedAt
     if (!validTime(now)) throw new Error('开始时间无效。')

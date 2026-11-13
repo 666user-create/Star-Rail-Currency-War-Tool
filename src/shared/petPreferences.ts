@@ -28,6 +28,9 @@ export function normalizeSettings(value: unknown): AppSettings {
     activity: source.activity === 'low' || source.activity === 'high' ? source.activity : 'normal'
   }
   if (source.launchMode === 'game' || source.launchMode === 'launcher') result.launchMode = source.launchMode
+  if (typeof source.archiveName === 'string' && source.archiveName.trim()) {
+    result.archiveName = source.archiveName.trim().slice(0, 40)
+  }
   if (typeof source.petX === 'number' && Number.isFinite(source.petX)) result.petX = source.petX
   if (typeof source.petY === 'number' && Number.isFinite(source.petY)) result.petY = source.petY
   if (source.petStyle === 'official' || source.petStyle === 'sprite' || source.petStyle === 'svg' || source.petStyle === '3d') result.petStyle = source.petStyle

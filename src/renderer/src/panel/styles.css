@@ -147,6 +147,33 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .card-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
 .muted { color: var(--muted); font-weight: 400; font-size: 11px; }
 
+/* 列表工具条：评级筛选 + 导出，紧凑排在标题下方 */
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.filter-label {
+  font-size: 11.5px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+.filter-select {
+  flex: 0 0 auto;
+  min-width: 92px;
+  background: rgba(255, 255, 255, .05);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.filter-select:focus { outline: none; border-color: var(--gold-dim); }
+.list-toolbar .tb-btn { margin-left: auto; }
+
 /* 对局列表 */
 .match-list { overflow-y: auto; flex: 1; }
 .match-row {

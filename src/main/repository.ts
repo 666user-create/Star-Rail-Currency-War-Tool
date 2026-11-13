@@ -246,6 +246,56 @@ export class Repository {
   }
 
   /**
+   * 导出全部对局为 CSV 文本。
+   *
+   * 供「导出战绩」用：CSV 用 Excel / WPS 可直接打开。
+   * 字段里可能含逗号、引号、换行，按 RFC 4180 转义。
+   */
+  exportCsv(): string {
+    const rows = this.rows(
+      "SELECT id, started_at, ended_at, duration_sec, result, lineup_json, bonds_json, rank_change, season, note, mode, rank_before, rank_after, rating, squad_hp FROM matches WHERE source!='demo' ORDER BY ended_at DESC, id DESC"
+    )
+    const esc = (v: unknown): string => {
+      const s = v == null ? '' : String(v)
+      return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+    }
+    const header = ['局号', '开始时间', '结束时间', '时长(分)', '结果', '结算前段位', '结算后段位', '段位变化', '评级', '阵容', '羁绊', '赛季', '模式', '备注']
+    const lines = [header.map(esc).join(',')]
+    for (const r of rows) {
+      const lineup = this.parseJsonArray(r.lineup_json)
+      const bonds = this.parseJsonArray(r.bonds_json)
+      lines.push([
+        r.id,
+        r.started_at == null ? '' : new Date(r.started_at as number).toLocaleString('zh-CN'),
+        new Date(r.ended_at as number).toLocaleString('zh-CN'),
+        r.duration_sec == null ? '' : Math.round((r.duration_sec as number) / 60),
+        r.result,
+        r.rank_before ?? '',
+        r.rank_after ?? '',
+        r.rank_change ?? '',
+        r.rating ?? '',
+        lineup.join('·'),
+        bonds.join('·'),
+        r.season,
+        r.mode ?? '',
+        r.note ?? ''
+      ].map(esc).join(','))
+    }
+    return '﻿' + lines.join('\r\n') // BOM 让 Excel 正确识别 UTF-8
+  }
+
+  /** 把 JSON 数组字段解析成字符串数组（兼容旧数据里的非数组） */
+  private parseJsonArray(raw: unknown): string[] {
+    if (!raw) return []
+    try {
+      const parsed = JSON.parse(String(raw))
+      return Array.isArray(parsed) ? parsed.map((x) => String(x)) : []
+    } catch {
+      return []
+    }
+  }
+
+  /**
    * 赛季总览统计。
    *
    * cutoff：可选的时间/序号截止点，只统计「这一局及之前」的记录。
@@ -528,6 +578,9 @@ export class Repository {
     for (const row of this.rows(`SELECT started_at AS t FROM matches${w.sql}`, w.params)) buckets[new Date(row.t as number).getHours()].count++
     return buckets
   }
+
+  /** 当前数据库文件路径（备份/恢复、存档切换用） */
+  getDbPath(): string { return this.dbPath }
 
   close(): void { this.db.close?.() }
 }

@@ -10,6 +10,7 @@ import { checkForUpdate, markNotified, openDownloadPage, wasNotified } from './u
 import { TrayMenuController } from './trayMenu'
 import { createWizardWindow, hasCompletedWizard, setupWizardIpc } from './wizard'
 import { resolveGameLauncher } from './gameLauncher'
+import { archiveDbPath, createArchive, deleteArchive, listArchives } from './archives'
 import { defaultSeason } from '../shared/seasons'
 import { normalizeSettings } from '../shared/petPreferences'
 import { validateDraftInput } from '../shared/recordingValidation'
@@ -761,6 +762,30 @@ async function readClipboardImage(): Promise<string | null> {
   return null
 }
 
+/**
+ * 切换到指定存档（多账号用）。
+ *
+ * 会关闭当前库、打开目标存档的库，并清空当前账号的进行中计时与待确认草稿
+ * （这些都属于当前账号，换账号后不该残留）。
+ */
+async function switchArchive(name: string): Promise<void> {
+  const clean = String(name ?? '').trim()
+  if (!clean) throw new Error('存档名不能为空')
+  try {
+    if (repo) repo.close()
+  } catch { /* 可能尚未初始化 */ }
+  repo = await Repository.create(archiveDbPath(clean))
+  // 当前账号的计时与草稿随账号一起切换，清掉避免串号
+  recordingStore?.clearAll()
+  recordStartedAt = null
+  settings.archiveName = clean
+  saveSettings(settings)
+  // 让所有窗口重新拉数据
+  publishRecords()
+  publishRecording(null)
+  publishPetVisibility()
+}
+
 function setupIpc(): void {
   // 赛季隔离：面板切换赛季后，列表与所有统计只统计该赛季（传 null/undefined 表示不隔离）
   ipcMain.handle('record:list', (_e, limit?: number, season?: string | null) => repo.list(limit, false, season))
@@ -776,6 +801,115 @@ function setupIpc(): void {
   ipcMain.handle('stats:ratings', (_e, season?: string | null) => repo.ratingStats(season))
   // 删除一条战绩（UI 侧需二次确认）
   ipcMain.handle('record:remove', (_e, id: number) => repo.remove(id))
+
+  // 导出全部战绩为 CSV（Excel/WPS 可直接打开）
+  ipcMain.handle('record:exportCsv', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')
+    const res = win
+      ? await dialog.showSaveDialog(win, {
+          title: '导出战绩（CSV）',
+          defaultPath: `货币战争战绩-${stamp}.csv`,
+          filters: [{ name: 'CSV 文件', extensions: ['csv'] }]
+        })
+      : await dialog.showSaveDialog({
+          title: '导出战绩（CSV）',
+          defaultPath: `货币战争战绩-${stamp}.csv`,
+          filters: [{ name: 'CSV 文件', extensions: ['csv'] }]
+        })
+    if (res.canceled || !res.filePath) return { ok: false, canceled: true }
+    try {
+      fs.writeFileSync(res.filePath, repo.exportCsv(), 'utf8')
+      return { ok: true, path: res.filePath, count: repo.list(5000, false, null).length }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : '导出失败' }
+    }
+  })
+
+  // —— 数据备份 / 恢复 ——
+  // 备份：把当前库 + 设置复制到用户选的位置
+  ipcMain.handle('data:backup', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')
+    const res = win
+      ? await dialog.showSaveDialog(win, {
+          title: '选择备份保存位置',
+          defaultPath: `货币战争备份-${stamp}.db`,
+          filters: [{ name: '数据库', extensions: ['db'] }]
+        })
+      : await dialog.showSaveDialog({
+          title: '选择备份保存位置',
+          defaultPath: `货币战争备份-${stamp}.db`,
+          filters: [{ name: '数据库', extensions: ['db'] }]
+        })
+    if (res.canceled || !res.filePath) return { ok: false, canceled: true }
+    try {
+      fs.copyFileSync(repo.getDbPath(), res.filePath)
+      return { ok: true, path: res.filePath }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : '备份失败' }
+    }
+  })
+
+  // 恢复：用选中的 .db 覆盖当前库，然后重新加载
+  ipcMain.handle('data:restore', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const res = win
+      ? await dialog.showOpenDialog(win, {
+          title: '选择要恢复的备份（.db）',
+          properties: ['openFile'],
+          filters: [{ name: '数据库', extensions: ['db'] }]
+        })
+      : await dialog.showOpenDialog({
+          title: '选择要恢复的备份（.db）',
+          properties: ['openFile'],
+          filters: [{ name: '数据库', extensions: ['db'] }]
+        })
+    if (res.canceled || !res.filePaths[0]) return { ok: false, canceled: true }
+    try {
+      // 先关闭当前库，再覆盖文件，再重新打开，避免句柄占用导致写入失败
+      repo.close()
+      fs.copyFileSync(res.filePaths[0], repo.getDbPath())
+      repo = await Repository.create(repo.getDbPath())
+      recordingStore?.clearAll()
+      recordStartedAt = null
+      publishRecords()
+      publishRecording(null)
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : '恢复失败' }
+    }
+  })
+
+  // —— 多存档（多账号）——
+  ipcMain.handle('data:archives', async () => listArchives())
+
+  ipcMain.handle('data:archive-create', async (_e, name: string) => {
+    try {
+      const created = await createArchive(name)
+      return { ok: true, name: created }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : '创建存档失败' }
+    }
+  })
+
+  ipcMain.handle('data:archive-switch', async (_e, name: string) => {
+    try {
+      await switchArchive(name)
+      return { ok: true, name: String(name).trim() }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : '切换存档失败' }
+    }
+  })
+
+  ipcMain.handle('data:archive-delete', async (_e, name: string) => {
+    try {
+      deleteArchive(name, settings.archiveName)
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : '删除存档失败' }
+    }
+  })
   // 满级贺图数据：返回 null 表示该赛季还没到 A8 满级
   ipcMain.handle('stats:celebration', (_e, season?: string | null) => repo.celebrationData(season))
   // 保存贺图 PNG。
@@ -1211,7 +1345,8 @@ if (ownsData) app.whenReady().then(async () => {
   process.on('unhandledRejection', (error) => { crashLog('unhandledRejection', error); console.error(error) })
   try {
   settings = loadSettings()
-  repo = await Repository.create()
+  // 按当前存档打开对应数据库（多账号：不同存档不同库）
+  repo = await Repository.create(archiveDbPath(settings.archiveName ?? 'main'))
   recordingStore = new RecordingStore(path.join(app.getPath('userData'), 'recording-state.json'))
   migrateScreenshots()
   // 迁移后把已保存记录里的旧绝对路径改到新目录，否则详情页读不到原图

@@ -309,3 +309,21 @@ test('满级之后所有统计停止：满级后的对局不计入满级卡（�
   assert.equal(repository.overview(S).total, 3)
   repository.close()
 })
+
+test('导出战绩为 CSV：包含表头与全部对局，字段正确转义', async (t) => {
+  const { file } = fixture(t)
+  const repository = await Repository.create(file)
+  repository.insert(match({ season: 'S1', endedAt: 1000, rankBefore: 'A5 紫金1', rankAfter: 'A6 投资大师1', rating: 'SSS', lineup: ['追击', '燃血'], bonds: ['连击'], note: '普通,带逗号' }))
+  repository.insert(match({ season: 'S1', endedAt: 2000, rankBefore: 'A6 投资大师1', rankAfter: 'A6 投资大师4', rating: 'A', result: 'loss' }))
+
+  const csv = repository.exportCsv()
+  const lines = csv.split('\r\n')
+  assert.ok(csv.startsWith('﻿'), 'CSV 应以 BOM 开头，方便 Excel 识别 UTF-8')
+  assert.equal(lines[0].replace(/^\uFEFF/, ''), '局号,开始时间,结束时间,时长(分),结果,结算前段位,结算后段位,段位变化,评级,阵容,羁绊,赛季,模式,备注')
+  assert.equal(lines.length, 3, '表头 + 2 局')
+  // 含逗号的字段要被引号包裹（倒序：2000 局在前，1000 局在后）
+  assert.ok(lines[1].includes('A'), '第一局（2000）评级 A')
+  assert.ok(lines[2].includes('SSS'), '第二局（1000）评级 SSS')
+  assert.ok(lines[2].includes('"普通,带逗号"'), '含逗号的备注应被引号转义')
+  repository.close()
+})

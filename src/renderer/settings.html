@@ -42,6 +42,40 @@
       .status { color: #a8acc1; font-size: 12px; line-height: 1.5; }
       .status.ok { color: #6fcf97; }
       .status.error { color: #ff9292; }
+      /* 数据区块 */
+      .data-section {
+        padding: 12px;
+        background: #151c35;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 9px;
+      }
+      .section-head {
+        font-size: 12.5px;
+        font-weight: 700;
+        color: #e8c476;
+        margin-bottom: 8px;
+      }
+      .row-btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .row-btns input[type="text"] { flex: 1; min-width: 0; }
+      .archive-current {
+        font-size: 12px;
+        color: #a8acc1;
+        margin-bottom: 6px;
+      }
+      .archive-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+      .archive-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.04);
+        font-size: 12px;
+      }
+      .archive-item.current { background: rgba(232, 196, 118, 0.12); }
+      .archive-name { flex: 1; min-width: 0; color: #e8e6f0; }
+      .archive-meta { color: #8b8fa8; font-size: 11px; white-space: nowrap; }
+      .archive-item button { flex: 0 0 auto; }
     </style>
   </head>
   <body>
@@ -84,6 +118,26 @@
             <option value="normal" selected>适中（40–90秒）</option>
             <option value="high">高（20–45秒）</option>
           </select>
+        </div>
+
+        <!-- 数据：备份/恢复 + 多存档（多账号） -->
+        <div class="data-section">
+          <div class="section-head">数据</div>
+
+          <div class="row-btns">
+            <button id="backup" class="ghost" type="button">备份数据库</button>
+            <button id="restore" class="ghost" type="button">恢复备份</button>
+          </div>
+          <div class="hint">备份会把你的战绩数据库复制到指定位置；恢复会用选中的备份覆盖当前数据库（请先备份当前数据）。</div>
+
+          <div class="section-head" style="margin-top:14px;">存档（多账号）</div>
+          <div class="archive-current" id="archive-current">当前存档：读取中…</div>
+          <ul class="archive-list" id="archive-list"></ul>
+          <div class="row-btns">
+            <input type="text" id="archive-name" placeholder="新存档名（如：小号）" autocomplete="off" />
+            <button id="archive-create" class="ghost" type="button">新建存档</button>
+          </div>
+          <div class="hint">每个存档是一份独立的战绩库，切换存档会清空当前账号的进行中计时与草稿，换账号时用。</div>
         </div>
       </fieldset>
       <div class="save-row">
@@ -211,6 +265,97 @@
           updateControls()
         }
       })
+      // —— 数据：备份 / 恢复 ——
+      const backupBtn = document.getElementById('backup')
+      const restoreBtn = document.getElementById('restore')
+      backupBtn.addEventListener('click', async () => {
+        showStatus('正在备份…')
+        const res = await window.api.backupData()
+        if (res.ok) showStatus(`已备份到 ${res.path}`, 'ok')
+        else if (!res.canceled) showStatus(res.error || '备份失败。', 'error')
+      })
+      restoreBtn.addEventListener('click', async () => {
+        if (!window.confirm('恢复会用选中的备份覆盖当前数据库，当前战绩将丢失。确定继续吗？')) return
+        showStatus('正在恢复…')
+        const res = await window.api.restoreData()
+        if (res.ok) { showStatus('已恢复，正在重新加载…', 'ok'); await loadArchives(); void loadSettings() }
+        else if (!res.canceled) showStatus(res.error || '恢复失败。', 'error')
+      })
+
+      // —— 多存档（多账号） ——
+      const archiveCurrent = document.getElementById('archive-current')
+      const archiveList = document.getElementById('archive-list')
+      const archiveNameInput = document.getElementById('archive-name')
+      const archiveCreateBtn = document.getElementById('archive-create')
+
+      const renderArchives = (archives, currentName) => {
+        archiveCurrent.textContent = '当前存档：' + (currentName || 'main')
+        archiveList.innerHTML = ''
+        if (!archives.length) {
+          archiveList.innerHTML = '<li class="hint" style="padding:4px 0;">还没有其他存档</li>'
+          return
+        }
+        for (const a of archives) {
+          const li = document.createElement('li')
+          li.className = 'archive-item' + (a.name === currentName ? ' current' : '')
+          const name = document.createElement('span')
+          name.className = 'archive-name'
+          name.textContent = a.name + (a.name === currentName ? '（当前）' : '')
+          const meta = document.createElement('span')
+          meta.className = 'archive-meta'
+          meta.textContent = `${a.count} 局`
+          li.appendChild(name)
+          li.appendChild(meta)
+          if (a.name !== currentName) {
+            const use = document.createElement('button')
+            use.className = 'ghost'
+            use.textContent = '切换'
+            use.addEventListener('click', async () => {
+              if (!window.confirm(`切换到存档「${a.name}」？当前账号的进行中计时与草稿会被清空。`)) return
+              showStatus('正在切换…')
+              const res = await window.api.switchArchive(a.name)
+              if (res.ok) { showStatus(`已切换到「${res.name}」`, 'ok'); await loadArchives(); void loadSettings() }
+              else showStatus(res.error || '切换失败。', 'error')
+            })
+            li.appendChild(use)
+            const del = document.createElement('button')
+            del.className = 'ghost'
+            del.textContent = '删除'
+            del.addEventListener('click', async () => {
+              if (!window.confirm(`删除存档「${a.name}」？该存档的战绩将无法恢复。`)) return
+              const res = await window.api.deleteArchive(a.name)
+              if (res.ok) { showStatus('已删除存档', 'ok'); await loadArchives() }
+              else showStatus(res.error || '删除失败。', 'error')
+            })
+            li.appendChild(del)
+          }
+          archiveList.appendChild(li)
+        }
+      }
+
+      const loadArchives = async () => {
+        const current = (await window.api.getSettings()).archiveName || 'main'
+        try {
+          const archives = await window.api.listArchives()
+          renderArchives(archives, current)
+        } catch {
+          archiveCurrent.textContent = '当前存档：读取失败'
+        }
+      }
+
+      archiveCreateBtn.addEventListener('click', async () => {
+        const name = archiveNameInput.value.trim()
+        if (!name) { showStatus('请输入存档名。', 'error'); return }
+        const res = await window.api.createArchive(name)
+        if (res.ok) {
+          archiveNameInput.value = ''
+          showStatus(`已创建存档「${res.name}」`, 'ok')
+          await loadArchives()
+        } else showStatus(res.error || '创建失败。', 'error')
+      })
+
+      void loadArchives()
+
       window.addEventListener('beforeunload', () => {
         clearTimeout(statusTimer)
         unsubscribe()

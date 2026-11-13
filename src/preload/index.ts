@@ -52,6 +52,13 @@ const api: PetApi = {
     return () => ipcRenderer.removeListener('record:changed', handler)
   },
   launchGame: () => ipcRenderer.invoke('game:launch'),
+  exportCsv: () => ipcRenderer.invoke('record:exportCsv'),
+  backupData: () => ipcRenderer.invoke('data:backup'),
+  restoreData: () => ipcRenderer.invoke('data:restore'),
+  listArchives: () => ipcRenderer.invoke('data:archives'),
+  createArchive: (name: string) => ipcRenderer.invoke('data:archive-create', name),
+  switchArchive: (name: string) => ipcRenderer.invoke('data:archive-switch', name),
+  deleteArchive: (name: string) => ipcRenderer.invoke('data:archive-delete', name),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('settings:set', patch),
   pickScreenshotDir: () => ipcRenderer.invoke('settings:pick-screenshot-dir'),
