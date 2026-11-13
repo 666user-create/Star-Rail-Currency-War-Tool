@@ -40,12 +40,11 @@ export function RankPicker({ value, onChange, label }: RankPickerProps): React.J
   }
 
   /**
-   * 小段位变化：手填数字。
-   * - A8 有硬上限 20（官方满级），超出直接夹到 20 并提示
-   * - 其他大段不设上限，用户填多少算多少（乐观设计）
+   * 小段位变化：手填数字，按该大段的官方档数夹住。
+   * 档数表：A0-2=3 / A3=5 / A4=7 / A5-7=9 / A8=20。
    */
   const changeSub = (raw: string): void => {
-    const text = raw.replace(/[^\d]/g, '').slice(0, 3)
+    const text = raw.replace(/[^\d]/g, '').slice(0, 2)
     if (text === '') {
       if (parsed) onChange(formatRank({ code: parsed.code, sub: 0 }))
       return
@@ -84,13 +83,13 @@ export function RankPicker({ value, onChange, label }: RankPickerProps): React.J
           aria-label={`${label}（小段位）`}
           title={
             !parsed ? '请先选大段位'
-              : limited ? `最多 ${subLimit} 档，超出会按 ${subLimit} 计算`
+              : limited ? `${parsed.code} 共 ${subLimit} 档，超出会按 ${subLimit} 计算`
                 : '小段位，可留空'
           }
         />
       </span>
       {atLimit && (
-        <span className="rank-max-hint">已达上限（{parsed?.code} 满级 {subLimit}）</span>
+        <span className="rank-max-hint">已达上限（{parsed?.code} 满档 {subLimit}）</span>
       )}
       {isCustom && (
         <input

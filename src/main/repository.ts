@@ -230,8 +230,36 @@ export class Repository {
     })
   }
 
-  overview(season?: string | null): OverviewStats {
-    const w = this.where(season)
+  /**
+   * 删除一条战绩。
+   *
+   * 这是不可恢复操作，UI 侧必须二次确认。
+   * 返回被删记录（用于提示「已删除第 X 局」），不存在则返回 null。
+   */
+  remove(id: number): Match | null {
+    const existing = this.byId(id)
+    if (!existing) return null
+    return this.commit((database) => {
+      database.run('DELETE FROM matches WHERE id=?', [id])
+      return existing
+    })
+  }
+
+  /**
+   * 赛季总览统计。
+   *
+   * cutoff：可选的时间/序号截止点，只统计「这一局及之前」的记录。
+   * 满级（A8·20）之后的对局不再影响段位走势，对应地也不应计入
+   * 满级卡/贺卡的「总对局、胜率、时长、连胜」——否则会出现
+   * 「走势只有 16 局，卡片却写 17 局」的矛盾。
+   */
+  overview(season?: string | null, cutoff?: { endedAt: number; id: number }): OverviewStats {
+    const w = this.where(
+      season,
+      cutoff
+        ? { clause: '(ended_at < ? OR (ended_at = ? AND id <= ?))', params: [cutoff.endedAt, cutoff.endedAt, cutoff.id] }
+        : undefined
+    )
     const r = this.rows(`SELECT COUNT(*) AS total,
       SUM(CASE WHEN result='win' THEN 1 ELSE 0 END) AS wins,
       SUM(CASE WHEN result='loss' THEN 1 ELSE 0 END) AS losses,
@@ -317,6 +345,35 @@ export class Repository {
       [target]
     )
     const points: RankPoint[] = []
+    /*
+     * 曲线起点：第一条记录的「结算前段位」。
+     *
+     * 每局只填了结算后段位，所以第一条记录的 rank_after 已经是打完这局之后的段位，
+     * 用它当起点会丢掉「开局时的段位 → 第一局结束」这一跳（实测少了紫金1→投资大师1）。
+     * 把 rank_before 补成一个起点，低段位才会计入走势。
+     *
+     * 但要校验合理性：只有「起点段位 < 第一局结算后段位」才补。
+     * 历史数据里存在 rank_before 填错的情况（比结算后还高，如 财富造物主19 → A5 紫金1），
+     * 那种直接跳过，否则曲线会先掉下来再爬，完全错乱。
+     */
+    const firstBefore = String(rows[0]?.rank_before ?? '').trim()
+    const firstAfter = String(rows[0]?.rank_after ?? '').trim()
+    if (firstBefore) {
+      const startScore = rankToScore(firstBefore)
+      const firstScore = firstAfter ? rankToScore(firstAfter) : null
+      const reasonable = startScore !== null && (firstScore === null || startScore < firstScore)
+      if (reasonable) {
+        points.push({
+          // 起点放在第一局开始前（用结束时间减一毫秒，保证排序在前）
+          time: (rows[0].ended_at as number) - 1,
+          cumulative: startScore as number,
+          // 起点没有「上一局」，本身也不代表一局
+          before: null,
+          label: firstBefore,
+          result: null
+        })
+      }
+    }
     for (const row of rows) {
       // 优先用结算后段位；结算后没填但填了结算前的，用结算前的位置（至少能标出所在段）
       const raw = String(row.rank_after ?? '').trim() || String(row.rank_before ?? '').trim()
@@ -325,7 +382,19 @@ export class Repository {
       if (score === null) continue
       const r = String(row.result ?? '').trim()
       const result: RankPoint['result'] = r === 'win' || r === 'loss' ? r : null
-      points.push({ time: row.ended_at as number, cumulative: score, label: raw, result })
+      /*
+       * before：这一局自己填的「结算前段位」。
+       * 算「本把涨了几小段」要用它，不能用上一局的结算后段位 ——
+       * 玩家会补录/修正段位，两者可能不一致，用上一局算会得出错误涨幅。
+       */
+      const beforeScore = rankToScore(String(row.rank_before ?? '').trim())
+      points.push({
+        time: row.ended_at as number,
+        cumulative: score,
+        before: beforeScore,
+        label: raw,
+        result
+      })
       /*
        * 到达 A8-20（满级）后停止记录：
        * 满级之上没有更高段位可涨，继续往曲线上加点只会得到一条无意义的水平尾巴。
@@ -352,19 +421,19 @@ export class Repository {
     if (typeof target !== 'string') return null
 
     const rows = this.rows(
-      "SELECT ended_at, rank_after FROM matches WHERE source!='demo' AND season=? ORDER BY ended_at ASC,id ASC",
+      "SELECT id, ended_at, rank_after FROM matches WHERE source!='demo' AND season=? ORDER BY ended_at ASC,id ASC",
       [target]
     )
     if (!rows.length) return null
 
-    // 找第一次达到 A8 满级的那条记录
-    let firstMax: { at: number; raw: string } | null = null
+    // 找第一次达到 A8 满级的那条记录（连 id 一起记下，作为统计截止点）
+    let firstMax: { id: number; at: number; raw: string } | null = null
     for (const row of rows) {
       const raw = String(row.rank_after ?? '').trim()
       if (!raw) continue
       const value = parseRank(raw)
       if (value && isMaxRank(value)) {
-        firstMax = { at: row.ended_at as number, raw }
+        firstMax = { id: row.id as number, at: row.ended_at as number, raw }
         break
       }
     }
@@ -374,7 +443,12 @@ export class Repository {
     if (!finalValue) return null
     const rank = rankByCode(finalValue.code)
 
-    const overview = this.overview(target)
+    /*
+     * 达到满级后「所有统计都停止」：
+     * 满级之后的对局不再计入总对局/胜率/时长/连胜 ——
+     * 和段位走势的截断保持一致（走势也只画到满级那一局）。
+     */
+    const overview = this.overview(target, { endedAt: firstMax.at, id: firstMax.id })
     const curve = this.rankCurve(target)
     const first = rows[0]?.ended_at as number
     const seasonDays = Math.max(1, Math.ceil((firstMax.at - first) / 86_400_000))

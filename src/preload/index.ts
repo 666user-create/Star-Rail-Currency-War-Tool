@@ -4,6 +4,8 @@ import type { AppSettings, DraftInput, PetApi, PetBubbleView, RecordingChange } 
 const api: PetApi = {
   listMatches: (limit?: number, season?: string | null) => ipcRenderer.invoke('record:list', limit, season),
   getMatch: (id: number) => ipcRenderer.invoke('record:get', id),
+  /** 删除一条战绩；返回被删记录（不存在返回 null） */
+  removeMatch: (id: number) => ipcRenderer.invoke('record:remove', id),
   seasons: () => ipcRenderer.invoke('stats:seasons'),
   overview: (season?: string | null) => ipcRenderer.invoke('stats:overview', season),
   lineupStats: (season?: string | null) => ipcRenderer.invoke('stats:lineups', season),

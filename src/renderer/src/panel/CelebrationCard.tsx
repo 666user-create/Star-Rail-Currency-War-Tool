@@ -3,6 +3,7 @@ import type { CelebrationData } from '@shared/types'
 // 官方 A8 职级徽章（从游戏内截图裁出）。走 vite 资源导入，构建时会被内联/打包进产物，
 // 不依赖 publicDir（本项目为了不把模型素材打进包里，显式关掉了 publicDir）。
 import rankBadgeUrl from '../../../../assets/rank/rank-a8.png'
+import { RankRibbon } from './RankRibbon'
 import './celebration.css'
 
 /**
@@ -34,62 +35,7 @@ export function CelebrationCard({
   const achievedDate = new Date(data.achievedAt)
   const dateText = `${achievedDate.getFullYear()}.${String(achievedDate.getMonth() + 1).padStart(2, '0')}.${String(achievedDate.getDate()).padStart(2, '0')}`
 
-  // 把走势图数据映射到 SVG 坐标（宽 720，高 232）
-  const W = 720, H = 232, PAD_L = 46, PAD_R = 30, PAD_T = 30, PAD_B = 46
-  const points = data.curve
-  const RANK_CODES = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8']
-
-  /**
-   * 把分数压成「连续职级序号」，每个大段占 1.0。
-   *
-   * 为什么不能直接用分数：分数是「大段×1000+小段位」，
-   * A6-1→A6-9 只差 8 分，而 A6-9→A7-2 差 93 分，
-   * 直接线性映射会让段内进步几乎不可见、段间跳变拉成长斜线。
-   *
-   * 改成：大段占 1.0，段内小段位按该段实际档数等比展开
-   * （A0–A7 按 10 档算，A8 按 20 档算），这样每局都有可见的上升。
-   * 例：A6-1=6.1、A6-9=6.9、A7-2=7.2、A8-20=9.0
-   */
-  const ordinalOf = (score: number): number => {
-    const band = Math.max(0, Math.min(8, Math.floor(score / 1000)))
-    const sub = Math.max(0, score % 1000)
-    const maxSub = band === 8 ? 20 : 10
-    return band + Math.min(sub, maxSub) / maxSub
-  }
-
-  const ordinals = points.map((p) => ordinalOf(p.cumulative))
-  const oMin = ordinals.length ? Math.min(...ordinals) : 0
-  const oMax = ordinals.length ? Math.max(...ordinals) : 1
-  const oSpan = Math.max(0.001, oMax - oMin)
-
-  /** 职级序号 → Y 坐标（越大越高；SVG y 向下所以要翻转） */
-  const syOrd = (ord: number): number => H - PAD_B - ((ord - oMin) / oSpan) * (H - PAD_T - PAD_B)
-  const sy = (score: number): number => syOrd(ordinalOf(score))
-
-  /**
-   * X 轴按「第几局」均匀分布，不按真实时间。
-   * 用真实时间的话两局间隔可能从几分钟到几小时，点会疏密不均。
-   */
-  const sx = (index: number): number =>
-    points.length <= 1
-      ? PAD_L + (W - PAD_L - PAD_R) / 2
-      : PAD_L + (index / (points.length - 1)) * (W - PAD_L - PAD_R)
-  const linePath = points.map((p, i) => `${i ? 'L' : 'M'}${sx(i).toFixed(1)} ${sy(p.cumulative).toFixed(1)}`).join(' ')
-  const areaPath = points.length
-    ? `${linePath} L${sx(points.length - 1).toFixed(1)} ${H - PAD_B} L${sx(0).toFixed(1)} ${H - PAD_B} Z`
-    : ''
-
-  // 段位刻度：按各段在序号轴上的位置画横线
-  const minBand = points.length ? Math.min(...points.map((p) => Math.floor(p.cumulative / 1000))) : 0
-  const maxBand = points.length ? Math.max(...points.map((p) => Math.floor(p.cumulative / 1000))) : 8
-  const rankTicks: Array<{ label: string; y: number }> = []
-  for (let band = minBand; band <= maxBand; band++) {
-    const code = RANK_CODES[band] ?? ''
-    if (!code) continue
-    const y = syOrd(band)
-    // 只画落在绘图区内的刻度线
-    if (y >= PAD_T - 1 && y <= H - PAD_B + 1) rankTicks.push({ label: code, y })
-  }
+  // 走势图数据由 RankRibbon 组件渲染（每局色带）
 
   const exportPng = async (): Promise<void> => {
     if (saving) return
@@ -118,9 +64,12 @@ export function CelebrationCard({
   }, [onClose])
 
   /**
-   * 缩放策略：面板窗口高度通常装不下完整贺图（1123px vs ~760px 可用）。
-   * 用 scale 等比缩到合适高度，但限制最小 0.62（再小文字就看不清了），
-   * 缩不够的部分靠 overlay 滚动查看。导出时按原始尺寸渲染，不影响清晰度。
+   * 缩放策略：优先按「宽度」铺满面板，其次才受高度约束。
+   *
+   * 之前只按高度算：1123px 高的贺图在 ~760px 高的面板里被缩到 0.62，
+   * 900px 宽只剩 560px，看起来又窄又小。
+   * 改成「宽度优先」：面板多宽贺图就尽量多宽（上限原始尺寸），
+   * 高度装不下的部分由 overlay 竖向滚动，不影响清晰度。
    */
   const [scale, setScale] = useState(1)
   useEffect(() => {
@@ -130,10 +79,15 @@ export function CelebrationCard({
       const node = cardRef.current
       if (!node) return
       const overlay = node.closest('.celebration-overlay') as HTMLElement | null
+      const availW = (overlay?.clientWidth ?? window.innerWidth) - 48
       const availH = (overlay?.clientHeight ?? window.innerHeight) - 24 - 56 - 30
       // 用 offsetHeight（未被 transform 影响）
+      const cardW = node.offsetWidth || 900
       const cardH = node.offsetHeight || 1123
-      const next = Math.min(1, Math.max(0.62, availH / cardH))
+      const byW = availW / cardW
+      const byH = availH / cardH
+      // 宽度优先（取两者较大值），但绝不放大超过原始尺寸
+      const next = Math.min(1, Math.max(0.62, Math.max(byW, byH)))
       setScale(next)
     }
     compute()
@@ -195,43 +149,17 @@ export function CelebrationCard({
           <div className="cel-stat"><div className="cel-stat-num">{data.bestWinStreak}</div><div className="cel-stat-label">最长连胜</div></div>
         </div>
 
-        <div className="cel-chart-box">
+                <div className="cel-chart-box">
           <div className="cel-chart-head">
             <span>段位走势</span>
-            <em>共 {data.curve.length} 局 · 每局节点</em>
+            {/* curve[0] 是合成起点，不是一局 → 局数要减 1 */}
+            <em>封顶前 {Math.max(0, data.curve.length - 1)} 局 · 每局一根</em>
           </div>
-          <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
-            <defs>
-              <linearGradient id="celLineGrad" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#6f5320" /><stop offset="60%" stopColor="#e8c476" /><stop offset="100%" stopColor="#fff8e0" />
-              </linearGradient>
-              <linearGradient id="celAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="rgba(232,196,118,.26)" /><stop offset="100%" stopColor="rgba(232,196,118,0)" />
-              </linearGradient>
-            </defs>
-            {rankTicks.map((tick) => (
-              <g key={tick.label}>
-                <line x1={PAD_L} y1={tick.y} x2={W - PAD_R} y2={tick.y} stroke="rgba(255,255,255,.06)" />
-                <text x={10} y={tick.y + 5} fill="rgba(232,196,118,.45)" fontSize="10">{tick.label}</text>
-              </g>
-            ))}
-            <line x1={PAD_L} y1={H - PAD_B} x2={W - PAD_R} y2={H - PAD_B} stroke="rgba(255,255,255,.10)" />
-            {areaPath && <path d={areaPath} fill="url(#celAreaGrad)" />}
-            {linePath && <path d={linePath} fill="none" stroke="url(#celLineGrad)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
-            {points.map((p, i) => (
-              <circle key={i} cx={sx(i)} cy={sy(p.cumulative)} r={i === points.length - 1 ? 5 : 3}
-                fill={i === points.length - 1 ? '#fffdf4' : '#0a1024'}
-                stroke={i === points.length - 1 ? '#e8c476' : 'rgba(232,196,118,.75)'}
-                strokeWidth={i === points.length - 1 ? 2.2 : 1.7} />
-            ))}
-            {points.length > 0 && (
-              <text x={sx(points.length - 1) - 68} y={sy(points[points.length - 1].cumulative) - 12}
-                fill="#fff8e0" fontSize="11" fontWeight="800">{data.rankCode}·{data.subLevel}</text>
-            )}
-          </svg>
+          {/* 静态导出用 wrap：换行成多行，局数多了也不会被裁掉 */}
+          <RankRibbon points={data.curve} compact wrap />
         </div>
 
-        <div className="cel-footer">
+<div className="cel-footer">
           <div className="cel-f-line" />
           <div className="cel-f-main">货 币 战 争 桌 宠</div>
           <div className="cel-f-sub">数据仅存本地 · 非米哈游官方作品</div>

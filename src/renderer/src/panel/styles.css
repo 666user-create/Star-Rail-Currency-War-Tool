@@ -70,15 +70,7 @@ button:disabled { cursor: default; opacity: 0.5; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .primary-btn { background: var(--gold); color: var(--bg); border: 1px solid var(--gold); border-radius: 7px; padding: 5px 13px; font-size: 12px; font-weight: 700; cursor: pointer; }
 /* 次要按钮：与主按钮同尺寸，仅换配色 */
-.primary-btn.ghost {
-  background: transparent;
-  color: var(--gold);
-  border: 1px solid rgba(232, 196, 118, .5);
-}
-.primary-btn.ghost:hover {
-  background: rgba(232, 196, 118, .12);
-  border-color: var(--gold);
-}
+
 .tb-btn.danger { color: var(--loss); }
 .inline-error, .inline-success, .inline-status { border-radius: 8px; padding: 9px 11px; font-size: 12px; line-height: 1.6; }
 .inline-error { background: rgba(224,114,114,0.09); border: 1px solid rgba(224,114,114,0.28); color: #f1a1a1; overflow-wrap: anywhere; }
@@ -120,15 +112,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .draft-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 7px; font-size: 12px; }
 /* 草稿区右上角的导入/粘贴按钮 */
 .draft-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.draft-actions .primary-btn {
-  min-height: 30px;
-  padding: 0 16px;
-  font-size: 12.5px;
-  border-radius: 7px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
 
 .draft-count { display: inline-block; padding: 0 6px; margin-left: 3px; border-radius: 9px; background: rgba(232,196,118,0.13); color: var(--gold); font-family: var(--mono); }
 .draft-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 3px; }
@@ -145,6 +128,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   grid-template-columns: 1.25fr 1fr;
   gap: 12px;
   min-height: 0;
+  min-width: 0;
+}
+/* grid 子项也必须可收缩：否则内部宽 SVG（如段位色带 100 局 4xxx px）会把整列撑爆 */
+.main-grid > * {
+  min-width: 0;
+  max-width: 100%;
 }
 .card {
   background: var(--panel);
@@ -510,17 +499,30 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   fill: rgba(244, 217, 148, .9);
 }
 /* ===== 满级状态（段位走势页）— 复用贺图美术风格 ===== */
+/*
+ * 满级卡竖向滚动：内容按原始尺寸从上往下自然铺开，
+ * 超高时整个面板出现竖向滚动条（用户明确要的交互，不再把徽章/统计压扁居中）。
+ */
 .rank-max-panel {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
   height: 100%;
-  padding: 4px 2px;
+  padding: 18px 10px 28px;
   gap: 0;
   position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
+.rank-max-panel::-webkit-scrollbar { width: 8px; }
+.rank-max-panel::-webkit-scrollbar-thumb {
+  background: rgba(232, 196, 118, .25);
+  border-radius: 4px;
+}
+.rank-max-panel::-webkit-scrollbar-thumb:hover { background: rgba(232, 196, 118, .4); }
+.rank-max-panel::-webkit-scrollbar-track { background: transparent; }
 
 /* 徽章舞台：放射光 + 光环 + 官方 A8 徽章 */
 .rank-max-hero {
@@ -960,78 +962,264 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .hour-clock-foot span {
   color: rgba(232, 196, 118, .55);
 }
-
-/* ===== 日历热力图 ===== */
-.heatmap-wrap {
+/* ===== 日历热力图（GitHub 贡献图风格） ===== */
+.heatmap-panel {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   width: 100%;
   height: 100%;
   min-height: 0;
-  padding: 2px;
+  padding: 4px;
+}
+.heatmap-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted, rgba(255, 255, 255, .5));
+  letter-spacing: .3px;
+}
+.heatmap-summary b {
+  color: #f4d994;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.heatmap-summary .sep {
+  color: rgba(255, 255, 255, .2);
+  margin: 0 2px;
+}
+.heatmap-grid {
+  flex: 0 0 auto;
+  display: block;
+}
+.heatmap-wd,
+.heatmap-mo {
+  font-size: 10.5px;
+  fill: rgba(255, 255, 255, .35);
+  font-family: var(--mono);
+}
+.heatmap-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, .3);
+}
+.heatmap-legend-row i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+.heatmap-pager-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 10px;
+  color: rgba(232, 196, 118, .65);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.heatmap-pager-inline button {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(232, 196, 118, .3);
+  background: transparent;
+  color: var(--gold);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.heatmap-pager-inline button:hover:not(:disabled) {
+  background: rgba(232, 196, 118, .15);
+}
+.heatmap-pager-inline button:disabled {
+  opacity: .25;
+  cursor: default;
+}
+
+/* 点击某天后的详情 */
+.heatmap-day-detail {
+  width: 100%;
+  max-width: 520px;
+  border: 1px solid rgba(232, 196, 118, .2);
+  border-radius: 8px;
+  background: rgba(232, 196, 118, .045);
+  padding: 9px 12px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.heatmap-day-head {
+  display: flex;
+  align-items: center;
   gap: 10px;
+  margin-bottom: 7px;
+  font-size: 12px;
+}
+.heatmap-day-head b {
+  color: #f4d994;
+  font-size: 13px;
+}
+.heatmap-day-head span {
+  color: var(--muted, rgba(255, 255, 255, .5));
+}
+.heatmap-day-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, .38);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.heatmap-day-close:hover {
+  color: var(--gold);
+  background: rgba(232, 196, 118, .1);
+}
+.heatmap-day-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.heatmap-day-chip {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .06);
+  color: rgba(255, 255, 255, .72);
+  white-space: nowrap;
+}
+.heatmap-day-chip.win {
+  background: rgba(196, 148, 62, .22);
+  color: #f4d994;
+}
+.heatmap-day-chip.loss {
+  background: rgba(224, 108, 108, .2);
+  color: #e88c8c;
+}
+
+/* 草稿区的导入/粘贴按钮：与页签同一套视觉语言，两个都是金色实心 */
+.draft-actions .draft-btn {
+  background: var(--gold);
+  border: 1px solid var(--gold);
+  color: var(--bg);
+  border-radius: 16px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  min-width: 92px;
+  transition: background .15s;
+}
+.draft-actions .draft-btn:hover:not(:disabled) {
+  background: #f0d089;
+}
+
+/* ===== 日历热力图（补齐文字与容器样式） ===== */
+.heatmap-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  gap: 8px;
+  padding: 4px;
 }
 .heatmap-caption {
   flex: 0 0 auto;
   font-size: 12px;
-  color: var(--muted, rgba(255, 255, 255, .5));
+  color: rgba(232, 196, 118, .72);
   letter-spacing: .5px;
 }
 .heatmap-scroll {
   flex: 1;
   min-height: 0;
-  overflow: auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
+  overflow: auto;
+  width: 100%;
 }
 .heatmap-svg {
-  width: 100%;
-  height: auto;
-  max-height: 100%;
+  flex: 0 0 auto;
   display: block;
 }
+/* 星期 / 月份标签：提高对比度，别和深色背景糊在一起 */
 .heatmap-weekday,
 .heatmap-month {
   font-size: 11px;
-  fill: rgba(255, 255, 255, .34);
+  fill: rgba(232, 196, 118, .68);
   font-family: var(--mono);
+  font-weight: 500;
+}
+.heatmap-month {
+  fill: rgba(232, 196, 118, .62);
+}
+.heatmap-legend {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: rgba(232, 196, 118, .55);
+  white-space: nowrap;
+}
+.heatmap-legend i {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 2.5px;
 }
 
-/* 点击某天后的详情条 */
+/* 点击某天后的详情：每局一行，四列对齐 */
 .heatmap-detail {
   flex: 0 0 auto;
-  border: 1px solid rgba(232, 196, 118, .22);
+  width: 100%;
+  max-width: 480px;
+  border: 1px solid rgba(232, 196, 118, .18);
   border-radius: 8px;
-  background: rgba(232, 196, 118, .05);
-  padding: 10px 12px;
-  max-height: 150px;
+  background: rgba(10, 16, 32, .55);
+  padding: 9px 12px;
+  max-height: 168px;
   overflow-y: auto;
 }
 .heatmap-detail-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 8px;
-  font-size: 12.5px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  font-size: 12px;
 }
 .heatmap-detail-head b {
   color: #f4d994;
-  font-size: 13.5px;
+  font-size: 13px;
 }
 .heatmap-detail-head span {
-  color: var(--muted, rgba(255, 255, 255, .5));
+  color: rgba(255, 255, 255, .42);
 }
 .heatmap-detail-close {
   margin-left: auto;
   background: none;
   border: none;
-  color: rgba(255, 255, 255, .4);
-  font-size: 13px;
+  color: rgba(255, 255, 255, .34);
+  font-size: 12px;
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
+  line-height: 1;
 }
 .heatmap-detail-close:hover {
   color: var(--gold);
@@ -1039,57 +1227,72 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 .heatmap-detail-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 5px;
 }
-.heatmap-chip {
+.heatmap-game-row {
+  display: grid;
+  grid-template-columns: 44px 32px 1fr 46px;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  padding: 3px 0;
+}
+.heatmap-game-time {
+  color: rgba(255, 255, 255, .5);
+  font-family: var(--mono);
   font-size: 11px;
-  padding: 4px 9px;
-  border-radius: 5px;
+}
+.heatmap-game-result {
+  text-align: center;
+  border-radius: 4px;
+  padding: 2px 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, .5);
   background: rgba(255, 255, 255, .06);
-  color: rgba(255, 255, 255, .72);
-  white-space: nowrap;
 }
-.heatmap-chip.win {
-  background: rgba(232, 196, 118, .16);
+.heatmap-game-result.win {
   color: #f4d994;
+  background: rgba(232, 196, 118, .18);
 }
-.heatmap-chip.loss {
-  background: rgba(224, 108, 108, .18);
+.heatmap-game-result.loss {
   color: #e88c8c;
+  background: rgba(224, 108, 108, .16);
+}
+.heatmap-game-rank {
+  color: rgba(255, 255, 255, .78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.heatmap-game-rating {
+  text-align: right;
+  color: rgba(232, 196, 118, .68);
+  font-family: var(--mono);
+  font-size: 11px;
 }
 
-.heatmap-legend {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 5px;
-  font-size: 10.5px;
-  color: rgba(255, 255, 255, .32);
-}
-.heatmap-legend i {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-}
-﻿/* ===== 活跃时段：极坐标玫瑰图 ===== */
+/* ===== 活跃时段：极坐标玫瑰图 ===== */
 .rose-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 10px;
+  width: 100%;
+  height: 100%;
 }
 .rose-svg {
   flex: 0 0 auto;
   display: block;
 }
+/* 时刻标签：必须比背景亮得多，否则在深色底上几乎看不见 */
 .rose-tick {
-  font-size: 11px;
-  fill: rgba(232, 196, 118, .55);
+  font-size: 11.5px;
+  fill: rgba(232, 196, 118, .82);
   font-family: var(--mono);
+  font-weight: 500;
 }
 .rose-center-num {
   font-size: 26px;
@@ -1098,11 +1301,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 .rose-center-label {
   font-size: 10px;
-  fill: rgba(232, 196, 118, .45);
+  fill: rgba(232, 196, 118, .55);
 }
 .rose-foot {
+  flex: 0 0 auto;
   font-size: 12px;
-  color: var(--muted, rgba(255, 255, 255, .5));
+  color: rgba(232, 196, 118, .6);
   letter-spacing: .5px;
 }
 .rose-foot b {
@@ -1112,45 +1316,275 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .rose-foot span {
   color: rgba(232, 196, 118, .55);
 }
-﻿/* 热力图底部：图例 + 分页 */
-.heatmap-footer {
-  flex: 0 0 auto;
+
+/* 满级卡里的封顶前走势 */
+.rank-max-curve {
+  width: 100%;
+  border: 1px solid rgba(232, 196, 118, .15);
+  border-radius: 7px;
+  background: rgba(8, 13, 28, .5);
+  padding: 8px 10px 4px;
+}
+.rank-max-curve-head {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-}
-.heatmap-pager {
-  display: flex;
   align-items: center;
-  gap: 6px;
+  font-size: 10.5px;
+  letter-spacing: 1.5px;
+  color: rgba(232, 196, 118, .55);
+  margin-bottom: 4px;
 }
-.heatmap-page-btn {
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  border: 1px solid rgba(232, 196, 118, .3);
-  background: transparent;
-  color: var(--gold);
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-  display: inline-flex;
+.rank-max-curve-head em {
+  font-style: normal;
+  font-size: 10px;
+  color: rgba(232, 196, 118, .34);
+}
+.rank-max-curve .chart {
+  width: 100%;
+  display: block;
+}
+
+/* ===== 段位走势：每局色带 ===== */
+/* 段位 tab 容器：体检区在上，图在下 */
+.rank-tab {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  gap: 8px;
+}
+.rank-tab-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
   align-items: center;
   justify-content: center;
 }
-.heatmap-page-btn:hover:not(:disabled) {
+
+/* 段位数据体检：只在发现问题时出现 */
+.rank-health {
+  flex: 0 0 auto;
+  border: 1px solid rgba(224, 168, 96, .35);
+  background: rgba(224, 168, 96, .08);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.rank-health-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.rank-health-head b {
+  font-size: 12px;
+  color: #f0c07a;
+}
+.rank-health-head span {
+  font-size: 11px;
+  color: rgba(255, 255, 255, .48);
+}
+.rank-health-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rank-health-row {
+  display: grid;
+  grid-template-columns: 82px 76px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .04);
+  color: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.rank-health-row:hover {
   background: rgba(232, 196, 118, .14);
-  border-color: var(--gold);
 }
-.heatmap-page-btn:disabled {
-  opacity: .28;
-  cursor: default;
-}
-.heatmap-page-info {
-  font-size: 10.5px;
-  color: rgba(232, 196, 118, .6);
+.rank-health-date {
+  color: rgba(255, 255, 255, .45);
   font-family: var(--mono);
-  min-width: 32px;
-  text-align: center;
+  font-size: 11px;
+}
+.rank-health-field {
+  color: rgba(255, 255, 255, .55);
+}
+.rank-health-raw {
+  color: #f4d994;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rank-health-reason {
+  color: #e8a06c;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.rank-health-more {
+  font-size: 11px;
+  color: rgba(255, 255, 255, .4);
+  padding-left: 4px;
+}
+.rank-ribbon {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  /* 关键：flex 子项默认 min-width:auto 会被内部宽 SVG 撑爆，
+     必须允许收缩，滚动才由 .rank-ribbon-scroll 接管 */
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  gap: 8px;
+  padding: 2px;
+}
+.rank-ribbon-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.rank-ribbon-title {
+  font-size: 14px;
+  color: rgba(232, 196, 118, .72);
+  letter-spacing: .5px;
+}
+.rank-ribbon-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, .34);
+}
+.rank-ribbon-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: rgba(255, 255, 255, .5);
+}
+.rank-ribbon-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.rank-ribbon-legend-item i {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+.rank-ribbon-legend-item i.loss {
+  background: repeating-linear-gradient(45deg, rgba(208, 80, 80, .75) 0 3px, rgba(208, 80, 80, .35) 3px 6px);
+  border: 1px solid rgba(208, 80, 80, .5);
+}
+.rank-ribbon-legend-item i.max {
+  background: transparent;
+  border: 1.5px dashed #fff3cf;
+  border-radius: 3px;
+}
+/* 关键：固定条宽 + 横向滚动（局数多了不压窄） */
+.rank-ribbon-scroll {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 100%;
+  /* min-width:0 让它在 flex 列里可收缩，否则内部 4230px 的 SVG 会把整条链都撑爆 */
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid rgba(255, 255, 255, .06);
+  border-radius: 8px;
+  background: rgba(6, 10, 22, .35);
+}
+.rank-ribbon-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.rank-ribbon-scroll::-webkit-scrollbar-thumb {
+  background: rgba(232, 196, 118, .25);
+  border-radius: 4px;
+}
+.rank-ribbon-scroll::-webkit-scrollbar-thumb:hover { background: rgba(232, 196, 118, .4); }
+.rank-ribbon-scroll::-webkit-scrollbar-track { background: transparent; }
+.rank-ribbon-inner {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  /* 不加 min-width：宽度由内容决定，容器负责滚动 */
+}
+.rank-ribbon-inner svg { display: block; flex: 0 0 auto; }
+/*
+ * 关键：保持 SVG 的固有像素宽度，不要缩到容器宽。
+ * 之前写成 width:100% → 17 根条被压进 464px，条变窄、字跟着变小、
+ * 横向滚动也不触发（用户反复反馈"字太小"的根因）。
+ */
+.rank-ribbon-svg {
+  display: block;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  height: auto;
+}
+
+/* 条上标注（字号按可读性放大，滚动条负责容纳更大的图） */
+.rb-flag {
+  font-size: 15px;
+  font-weight: 700;
+  fill: #fff3cf;
+}
+.rb-gain {
+  font-size: 16px;
+  font-weight: 700;
+  fill: rgba(244, 217, 148, .9);
+}
+/* 跨大段那一局：旗帜下面再标本把涨幅（之前只有旗帜，看不出涨了几段） */
+.rb-gain-cross {
+  font-size: 15px;
+  font-weight: 800;
+  fill: #fff3cf;
+}
+.rb-loss {
+  font-size: 14px;
+  font-weight: 700;
+  fill: #e88c8c;
+}
+.rb-num {
+  font-size: 13px;
+  fill: rgba(255, 255, 255, .45);
+}
+.rb-start {
+  font-size: 13px;
+  fill: rgba(255, 255, 255, .5);
+}
+/* 起点条顶部的起始段位（如「紫金1」），说明这根条代表开局位置 */
+.rb-start-rank {
+  font-size: 14px;
+  font-weight: 700;
+  fill: rgba(232, 196, 118, .9);
+}
+.rb-max {
+  font-size: 13.5px;
+  font-weight: 700;
+  fill: #fff3cf;
+}
+
+/* 贺卡导出用：换行成多行，不需要滚动条 */
+.rank-ribbon-wrapped {
+  width: auto;
+  height: auto;
+  align-items: center;
+  justify-content: center;
+}
+.rank-ribbon-wrapped .rank-ribbon-svg {
+  display: block;
+  margin: 0 auto;
+  /* 换行模式没有滚动，按卡片可用宽度等比缩放 */
+  max-width: 100%;
+  height: auto;
 }

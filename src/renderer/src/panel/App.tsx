@@ -4,6 +4,60 @@ import ReviewDraft, { errorText, RESULT_LABEL, ScreenshotPreview } from './Revie
 import { SEASONS, defaultSeason, formatStartDate, parseStartDate, resolvedSeasons, seasonStartAt } from '@shared/seasons'
 import EditMatch from './EditMatch'
 import { CelebrationCard } from './CelebrationCard'
+// 段位展示统一去掉 A 前缀（历史数据写法不一，混着显示会忽有忽无）
+import { displayRank, maxSubLevel, parseRank } from '@shared/ranks'
+import { RankRibbon } from './RankRibbon'
+
+/**
+ * 段位数据体检：列出不符合官方档数表的记录。
+ *
+ * 检查两类问题：
+ * 1. 小段位超出该大段档数（例如 A8 只有 20 档却填了 50）
+ * 2. 没填小段位（sub=0）—— 涨幅会算不出来，显示「—」
+ *
+ * 每行可点击跳到该局详情去改。没有问题时整块不渲染，不占版面。
+ */
+function RankHealth({ matches, onOpen }: { matches: Match[]; onOpen: (match: Match) => void }): React.JSX.Element | null {
+  const issues: Array<{ match: Match; field: string; raw: string; reason: string }> = []
+  for (const m of matches) {
+    const fields: Array<[string, string | null]> = [['结算前段位', m.rankBefore], ['结算后段位', m.rankAfter]]
+    for (const [field, raw] of fields) {
+      const text = String(raw ?? '').trim()
+      if (!text) continue
+      const value = parseRank(text)
+      if (!value) { issues.push({ match: m, field, raw: text, reason: '无法识别' }); continue }
+      const cap = maxSubLevel(value.code)
+      if (Number.isFinite(cap) && value.sub > cap) {
+        issues.push({ match: m, field, raw: text, reason: value.code + ' 最多 ' + cap + ' 档' })
+      } else if (value.sub === 0) {
+        issues.push({ match: m, field, raw: text, reason: '没填小段位' })
+      }
+    }
+  }
+  if (!issues.length) return null
+
+  const shown = issues.slice(0, 6)
+  return (
+    <div className="rank-health">
+      <div className="rank-health-head">
+        <b>段位数据体检</b>
+        <span>{issues.length} 处需要确认（小段位超出该档档数或没填）</span>
+      </div>
+      <div className="rank-health-list">
+        {shown.map((item, i) => (
+          <button key={i} type="button" className="rank-health-row" onClick={() => onOpen(item.match)}>
+            <span className="rank-health-date">{fmtTime(item.match.endedAt)}</span>
+            <span className="rank-health-field">{item.field}</span>
+            <span className="rank-health-raw">{item.raw}</span>
+            <span className="rank-health-reason">{item.reason}</span>
+          </button>
+        ))}
+        {issues.length > shown.length && <span className="rank-health-more">还有 {issues.length - shown.length} 处…</span>}
+      </div>
+    </div>
+  )
+}
+
 // 复用贺图的官方 A8 徽章素材
 import rankBadgeUrl from '../../../../assets/rank/rank-a8.png'
 
@@ -20,110 +74,22 @@ function fmtTime(ms: number): string {
   return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-/* ————— 迷你图表（纯 SVG） ————— */
-
-function LineChart({ points, compact = false }: { points: RankPoint[]; compact?: boolean }) {
-  if (points.length < 2) return <div className="chart-empty">数据还不够画曲线~</div>
-
-  /**
-   * 折线图两个关键映射（与贺图保持一致）：
-   *
-   * X 轴 —— 按「第几局」均匀分布，不按真实时间。
-   *   两局间隔可能从几分钟到几小时，用时间会把点挤在一起、其他段拉成长斜线。
-   *
-   * Y 轴 —— 转成「连续职级序号」再画，不直接用分数。
-   *   分数是「大段×1000+小段位」，A6-1→A6-9 只差 8 分、A6-9→A7-2 差 93 分，
-   *   直接线性映射会让段内变化压成平线、跨段拉成长斜线。
-   *   转成序号后：A6-1=6.1、A6-9=6.9、A7-2=7.2、A8-20=9.0，曲线才平滑。
-   */
-  const RANK_CODES = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8']
-  const ordinalOf = (score: number): number => {
-    const band = Math.max(0, Math.min(8, Math.floor(score / 1000)))
-    const sub = Math.max(0, score % 1000)
-    const maxSub = band === 8 ? 20 : 10
-    return band + Math.min(sub, maxSub) / maxSub
-  }
-
-  const w = 380, h = compact ? 100 : 176, pad = compact ? 20 : 26
-  const ords = points.map((p) => ordinalOf(p.cumulative))
-  const oMin = Math.min(...ords)
-  const oMax = Math.max(...ords)
-  const oSpan = Math.max(0.001, oMax - oMin)
-
-  const sx = (index: number): number =>
-    points.length <= 1
-      ? pad + (w - pad * 2) / 2
-      : pad + (index / (points.length - 1)) * (w - pad * 2)
-  // 顶部留 30px 给标题和末点标签，避免和折线重叠
-  const syOrd = (ord: number): number => h - pad - ((ord - oMin) / oSpan) * (h - pad - 30)
-  const sy = (score: number): number => syOrd(ordinalOf(score))
-
-  const linePath = points.map((p, i) => `${i ? 'L' : 'M'}${sx(i).toFixed(1)} ${sy(p.cumulative).toFixed(1)}`).join(' ')
-
-  // 段位刻度线
-  const minBand = Math.min(...points.map((p) => Math.floor(p.cumulative / 1000)))
-  const maxBand = Math.max(...points.map((p) => Math.floor(p.cumulative / 1000)))
-  const ticks: Array<{ label: string; y: number }> = []
-  for (let band = minBand; band <= maxBand; band++) {
-    const code = RANK_CODES[band]
-    if (!code) continue
-    const y = syOrd(band)
-    if (y >= pad - 2 && y <= h - pad + 2) ticks.push({ label: code, y })
-  }
-
-  const last = points[points.length - 1]
-
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="chart" preserveAspectRatio="none">
-      {ticks.map((tick) => (
-        <g key={tick.label}>
-          <line x1={pad} y1={tick.y} x2={w - pad} y2={tick.y} stroke="rgba(255,255,255,0.07)" />
-          <text x={4} y={tick.y + 3.5} className="chart-axis">{tick.label}</text>
-        </g>
-      ))}
-      <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="rgba(255,255,255,0.15)" />
-      <path d={linePath} fill="none" stroke="var(--gold)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-      {points.map((p, i) => {
-        /*
-         * 失败局标红。
-         * 注意：失败点的半径必须和其他点一致 —— 之前给红点加大半径，
-         * 会让眼睛觉得相邻连线"歪了"，但实际上坐标是水平的（同一 cy）。
-         * 只靠颜色区分，形状保持统一。
-         */
-        const isLoss = p.result === 'loss'
-        const isLast = i === points.length - 1
-        const color = isLoss ? '#e06c6c' : 'var(--gold)'
-        return (
-          <circle
-            key={i}
-            cx={sx(i)}
-            cy={sy(p.cumulative)}
-            r={isLast ? 3.4 : 2.2}
-            fill={isLoss || isLast ? color : 'var(--panel, #141b2e)'}
-            stroke={color}
-            strokeWidth={1.4}
-          >
-            <title>{p.label}{isLoss ? '（失败）' : ''}</title>
-          </circle>
-        )
-      })}
-      {!compact && <text x={pad} y={14} className="chart-note">段位走势 · 共 {points.length} 局</text>}
-      <text
-        x={w - pad}
-        y={Math.max(26, sy(last.cumulative) - 9)}
-        textAnchor="end"
-        className="chart-last"
-      >{compact ? last.label.replace(/^A\d\s*/, '') : last.label}</text>
-    </svg>
-  )
+/**
+ * 详情里展示段位 + 本档进度：如「资本帝王9（9/9）」「财富造物主3（3/20）」。
+ *
+ * 各档档数不同（A0-2=3 / A3=5 / A4=7 / A5-7=9 / A8=20），
+ * 只写「资本帝王9」看不出这是该档最后一档，补上分母才直观。
+ */
+function rankWithProgress(raw: string | null | undefined): string {
+  const text = displayRank(raw) || '未知'
+  const value = raw ? parseRank(raw) : null
+  if (!value || value.sub <= 0) return text
+  const cap = maxSubLevel(value.code)
+  return Number.isFinite(cap) ? `${text}（${value.sub}/${cap}）` : text
 }
 
-/**
- * 评级分布：纵向柱状图，按评级从高到低排列。
- *
- * 只统计填了评级的对局 —— 分母是「有评级的局数」，不是总对局数。
- * 没填评级的局若计入分母会把各档比例稀释，看起来像自己评级很差。
- */
+/* ————— 迷你图表（纯 SVG） ————— */
+
 /**
  * 评级分布：横向条形图。
  *
@@ -242,11 +208,26 @@ function CalendarHeatmap({ matches }: { matches: Match[] }): React.JSX.Element {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  // 起点退回本周周日，终点推到本周周六（满一周，避免最后一行缺角）
+  /*
+   * 时间范围：从第一局那周开始，往后铺够 8 周（约 2 个月）。
+   *
+   * 两个约束在打架：
+   * ① 起点不能早于第一局 —— 否则左边一大片空白（用户抱怨"起始日期太早"）
+   * ② 又不能只画 1~2 周 —— 那样只有一列，格子再大也是根竖条
+   *
+   * 折中：起点锁在第一局所在周，往后至少铺 8 周形成完整的日历块。
+   * 右边那些未来格子不画（保留空间），看起来是个规整的月历形状。
+   */
+  const MIN_WEEKS = 8
   const start = new Date(first)
-  start.setDate(start.getDate() - start.getDay())
-  const end = new Date(today)
-  end.setDate(end.getDate() + (6 - end.getDay()))
+  start.setDate(start.getDate() - start.getDay())   // 退回本周周日
+  const end = new Date(start)
+  end.setDate(end.getDate() + MIN_WEEKS * 7 - 1)    // 往后铺 8 周
+
+  // 若数据本身超过 8 周，就铺到本周周六
+  const thisWeekEnd = new Date(today)
+  thisWeekEnd.setDate(thisWeekEnd.getDate() + (6 - thisWeekEnd.getDay()))
+  if (end < thisWeekEnd) end.setTime(thisWeekEnd.getTime())
 
   const days: Array<{ date: Date; key: string; count: number; week: number; weekday: number; future: boolean }> = []
   const cursor = new Date(start)
@@ -266,9 +247,17 @@ function CalendarHeatmap({ matches }: { matches: Match[] }): React.JSX.Element {
     cursor.setDate(cursor.getDate() + 1)
   }
 
-  // 格子放大：22px 宽，比之前的 11px 好点得多
-  const CELL = 18
-  const GAP = 4
+  /*
+   * 格子尺寸自适应（保持原布局，只调格子大小）：
+   * 目标是整体宽度约 470px。
+   *
+   * 上下限都收紧过：之前放到 44px 会变成一块块大色块，格子边缘太抢眼。
+   * 26px 是兼顾"格子够大能点"和"整体像日历"的尺寸。
+   */
+  const TARGET_W = 470
+  const baseCell = Math.floor((TARGET_W - 24 + 4) / Math.max(1, Math.ceil(days.length / 7)) - 4)
+  const CELL = Math.max(16, Math.min(26, baseCell))
+  const GAP = 3
   const LEFT = 24
   const TOP = 18
   /*
@@ -324,10 +313,11 @@ function CalendarHeatmap({ matches }: { matches: Match[] }): React.JSX.Element {
 
       <div className="heatmap-scroll">
         <svg
+          width={W}
+          height={H}
           viewBox={`0 0 ${W} ${H}`}
           className="heatmap-svg"
-          style={{ minWidth: Math.min(minCellTotal, 620) }}
-          preserveAspectRatio="xMinYMin meet"
+          preserveAspectRatio="xMidYMid meet"
         >
           {/* 星期标签 */}
           {[{ i: 1, t: '一' }, { i: 3, t: '三' }, { i: 5, t: '五' }].map(({ i, t }) => (
@@ -345,8 +335,8 @@ function CalendarHeatmap({ matches }: { matches: Match[] }): React.JSX.Element {
               <text key={m.label + m.x} x={m.x - firstWeek * (CELL + GAP)} y={TOP - 7} className="heatmap-month">{m.label}</text>
             ))}
 
-          {/* 每天一格：只画当前页 */}
-          {visibleDays.map((d) => (d.future ? null : (
+          {/* 每天一格：未来的日期也画（淡色占位），保证网格是完整的 8 周块 */}
+          {visibleDays.map((d) => (
             <rect
               key={d.key}
               x={LEFT + (d.week - firstWeek) * (CELL + GAP)}
@@ -354,15 +344,15 @@ function CalendarHeatmap({ matches }: { matches: Match[] }): React.JSX.Element {
               width={CELL}
               height={CELL}
               rx={4}
-              fill={colorOf(d.count)}
+              fill={d.future ? 'rgba(255, 255, 255, .022)' : colorOf(d.count)}
               stroke={pickedDay === d.key ? '#fff3cf' : 'none'}
               strokeWidth={pickedDay === d.key ? 2 : 0}
               style={{ cursor: d.count > 0 ? 'pointer' : 'default' }}
-              onClick={() => setPickedDay((prev) => (prev === d.key ? null : d.key))}
+              onClick={() => { if (!d.future) setPickedDay((prev) => (prev === d.key ? null : d.key)) }}
             >
-              <title>{`${d.date.getMonth() + 1}月${d.date.getDate()}日：${d.count} 局`}</title>
+              <title>{d.future ? '' : `${d.date.getMonth() + 1}月${d.date.getDate()}日：${d.count} 局`}</title>
             </rect>
-          )))}
+          ))}
         </svg>
       </div>
 
@@ -376,15 +366,23 @@ function CalendarHeatmap({ matches }: { matches: Match[] }): React.JSX.Element {
           </div>
           <div className="heatmap-detail-list">
             {picked.length === 0 && <span className="muted">这天没有对局</span>}
-            {picked.map((m) => (
-              <span key={m.id} className={`heatmap-chip ${m.result === 'win' ? 'win' : m.result === 'loss' ? 'loss' : ''}`}>
-                {new Date(m.endedAt as number).getHours().toString().padStart(2, '0')}:{new Date(m.endedAt as number).getMinutes().toString().padStart(2, '0')}
-                {' '}
-                {m.result === 'win' ? '胜' : m.result === 'loss' ? '负' : '?'}
-                {m.rating ? ` ${m.rating}` : ''}
-                {m.rankAfter ? ` · ${m.rankAfter}` : ''}
-              </span>
-            ))}
+            {picked.map((m) => {
+              const t = new Date(m.endedAt as number)
+              const hh = String(t.getHours()).padStart(2, '0')
+              const mm = String(t.getMinutes()).padStart(2, '0')
+              const isWin = m.result === 'win'
+              const isLoss = m.result === 'loss'
+              return (
+                <div key={m.id} className="heatmap-game-row">
+                  <span className="heatmap-game-time">{hh}:{mm}</span>
+                  <span className={`heatmap-game-result ${isWin ? 'win' : isLoss ? 'loss' : ''}`}>
+                    {isWin ? '胜' : isLoss ? '负' : '?'}
+                  </span>
+                  <span className="heatmap-game-rank">{displayRank(m.rankAfter) || '—'}</span>
+                  <span className="heatmap-game-rating">{m.rating || '—'}</span>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
@@ -608,6 +606,8 @@ export default function App() {
   const [maximized, setMaximized] = useState(false)
   const [detail, setDetail] = useState<Match | null>(null)
   const [editing, setEditing] = useState(false)
+  /** 删除中：防止重复点击 */
+  const [deleting, setDeleting] = useState(false)
   const [currentSeason, setCurrentSeason] = useState<string>(() => defaultSeason())
   // 用户填写的赛季时间（覆盖代码内置值）
   const [seasonStarts, setSeasonStarts] = useState<Record<string, number>>({})
@@ -713,6 +713,45 @@ export default function App() {
     finally { setImporting(false) }
   }
   // 剪贴板粘贴导入：Win+Shift+S 截好结算图 → 面板 Ctrl+V / 点"粘贴截图"直达草稿
+  /**
+   * 删除一条战绩。
+   *
+   * 不可恢复，所以带二次确认；确认文案带上具体时间和结果，
+   * 避免用户在列表里点错了才发现删的是另一局。
+   */
+  /**
+   * 某局在本赛季里的「第几局」（从 1 开始，按结束时间正序）。
+   *
+   * 不能用数据库自增 id：删过记录后 id 会留空洞（55,56,57…90,91…），
+   * 用户看到"第 55 局"会以为自己打了 55 把。这里按时间重新编号，
+   * 删掉中间某局后，后面的序号会自动往前补。
+   */
+  const sequenceOf = (match: Match): number => {
+    const ordered = [...matches].sort((a, b) => a.endedAt - b.endedAt || a.id - b.id)
+    const index = ordered.findIndex((m) => m.id === match.id)
+    return index < 0 ? 0 : index + 1
+  }
+
+  const removeMatch = async (match: Match): Promise<void> => {
+    if (deleting) return
+    const when = new Date(match.endedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    const res = match.result === 'win' ? '胜利' : match.result === 'loss' ? '失败' : '待核实'
+    if (!window.confirm(`确定删除这一局吗？\n\n${when} · ${res}\n\n删除后无法恢复，相关统计和走势图都会更新。`)) return
+    setDeleting(true)
+    setError('')
+    try {
+      await window.api.removeMatch(match.id)
+      setDetail(null)
+      setEditing(false)
+      setNotice('已删除该局，统计已更新。')
+      await reload()
+    } catch (reason) {
+      setError(errorText(reason, '删除失败，请重试。'))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const pasteClipboard = async () => {
     if (importing) return
     setImporting(true)
@@ -903,7 +942,10 @@ export default function App() {
             {tab === 'lineup' && <WinrateBars stats={lineups} />}
             {tab === 'bond' && <WinrateBars stats={bonds.map((b) => ({ lineup: b.bond, games: b.games, wins: b.wins, winRate: b.winRate }))} />}
             {tab === 'rank' && (
-              celebration ? (
+              <div className="rank-tab">
+                <RankHealth matches={matches} onOpen={(m) => { setDetail(m); setEditing(false) }} />
+                <div className="rank-tab-main">
+              {celebration ? (
                 /*
                  * 已满级（A8 财富造物主 20 段）：走势图不再记录后续对局，
                  * 改成「满级战绩卡」—— 徽章 + 关键数据 + 走势缩略 + 贺卡入口。
@@ -932,13 +974,29 @@ export default function App() {
                     <div className="rank-max-stat"><b>{celebration.seasonDays}</b><span>历时(天)</span></div>
                   </div>
 
+                  {/*
+                    封顶前的完整走势。
+                    满级后不继续画折线，但走过的路要保留 ——
+                    之前删掉这里导致"从 A5 打上来"的过程完全看不到。
+                  */}
+                  <div className="rank-max-curve">
+                    <div className="rank-max-curve-head">
+                      <span>封顶前走势</span>
+                      {/* curve[0] 是合成起点，不是一局 → 局数要减 1，否则和实际条数对不上 */}
+                      <em>{Math.max(0, celebration.curve.length - 1)} 局</em>
+                    </div>
+                    <RankRibbon points={celebration.curve} compact />
+                  </div>
+
                   <button type="button" className="rank-max-entry" onClick={() => setShowCelebration(true)}>
                     查看满段战绩贺卡
                   </button>
                 </div>
               ) : (
-                <LineChart points={rank} />
-              )
+                <RankRibbon points={rank} />
+              )}
+                </div>
+              </div>
             )}
             {tab === 'duration' && <VBars buckets={durations} unit="局" axisCaption="对局时长（分钟）" />}
             {tab === 'hour' && <HourClock buckets={hours} />}
@@ -957,9 +1015,10 @@ export default function App() {
         <div className="modal-mask" onClick={() => { setDetail(null); setEditing(false) }}>
           <div className="modal detail-modal" role="dialog" aria-modal="true" aria-label="对局详情" onClick={(e) => e.stopPropagation()}>
             <div className="modal-title">
-              第 {detail.id} 局 · {fmtTime(detail.endedAt)}
+              第 {sequenceOf(detail)} 局 · {fmtTime(detail.endedAt)}
               <div className="title-actions">
                 <button className="tb-btn" onClick={() => setEditing(true)} disabled={editing}>修改</button>
+                <button className="tb-btn danger" onClick={() => void removeMatch(detail)} disabled={editing || deleting}>删除</button>
                 <button className="tb-btn close" onClick={() => setDetail(null)}>✕</button>
               </div>
             </div>
@@ -973,8 +1032,8 @@ export default function App() {
               <div><label>时长</label>{fmtDur(detail.durationSec)}</div>
               <div><label>段位变化</label>{detail.rankChange ?? '—'}</div>
               <div><label>玩法模式</label>{detail.mode === 'standard' ? '标准博弈' : detail.mode === 'overclock' ? '超频博弈' : '未知'}</div>
-              <div><label>结算前段位</label>{detail.rankBefore || '未知'}</div>
-              <div><label>结算后段位</label>{detail.rankAfter || '未知'}</div>
+              <div><label>结算前段位</label>{rankWithProgress(detail.rankBefore)}</div>
+              <div><label>结算后段位</label>{rankWithProgress(detail.rankAfter)}</div>
               <div><label>结算评级</label>{detail.rating || '未知'}</div>
               <div><label>队伍生命</label>{detail.squadHp ?? '未知'}</div>
               <div><label>赛季</label>{detail.season || '未标注'}</div>

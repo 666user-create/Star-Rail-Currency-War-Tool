@@ -471,11 +471,25 @@ function createSettingsWindow(): void {
 function togglePanel(): void {
   if (!panelWindow) createPanelWindow()
   if (!petWindow || !panelWindow) return
+  /*
+   * 最小化状态下按快捷键/托盘打开，应该是「恢复」而不是「隐藏」。
+   * 注意 Electron 里最小化的窗口 isVisible() 仍返回 true，
+   * 所以必须先判 isMinimized()，否则会把它 hide 掉，看起来像"点了没反应"。
+   */
+  if (panelWindow.isMinimized()) { panelWindow.restore(); panelWindow.focus(); return }
   if (panelWindow.isVisible()) { panelWindow.hide(); return }
   showPanel()
 }
 
-function showPanel(): void {
+/**
+ * 显示面板。
+ *
+ * focus=false 用于「结束计时自动弹出」这条路径：面板会出现，但不抢焦点。
+ * 玩家通常在全屏游戏里按 Ctrl+Shift+F8 结束计时，如果这里 focus()，
+ * 会把游戏踢出全屏、切不回游戏 —— 历史上正是这个原因让自动弹面板被下掉过。
+ * 用户主动打开（托盘 / 快捷键 / 第二次启动）才抢焦点。
+ */
+function showPanel(options: { focus?: boolean } = {}): void {
   if (!panelWindow) createPanelWindow()
   if (!petWindow || !panelWindow || captureInProgress) return
   // 在桌宠所在显示器上居中显示。
@@ -489,8 +503,23 @@ function showPanel(): void {
   const x = Math.round(workArea.x + (workArea.width - pw) / 2)
   const y = Math.round(workArea.y + (workArea.height - ph) / 2)
   panelWindow.setBounds({ x, y, width: pw, height: ph })
-  panelWindow.show()
-  panelWindow.focus()
+  /*
+   * 面板不能置顶。
+   *
+   * 之前为了"切回游戏后面板被压在下面"给它设了 alwaysOnTop，
+   * 结果反了：面板钉在最上层，alt+tab 和点任务栏都切不走它，
+   * 只能手动最小化 —— 更难受。
+   * 面板是普通窗口，跟其他应用一样参与正常的 Z 序和 alt+tab。
+   */
+  panelWindow.setAlwaysOnTop(false)
+  if (panelWindow.isMinimized()) panelWindow.restore()
+  if (options.focus === false) {
+    // 不抢焦点：游戏不会被踢出全屏，用户想用时再 alt+tab / 点任务栏过来
+    panelWindow.showInactive()
+  } else {
+    panelWindow.show()
+    panelWindow.focus()
+  }
 }
 
 function publishRecording(match: Match | null = null): void {
@@ -695,9 +724,10 @@ function endRecording(): Promise<RecordingDraft | null> {
   publishRecording()
   publishRecords()
   // 自助截图模式：结束只冻结时长，不自动截屏（全屏下抓屏会黑）。
-  // 但面板照常自动打开，落在"等你导入/粘贴截图"的核对状态。
+  // 面板照常自动打开，落在"等你导入/粘贴截图"的核对状态；
+  // 但**不抢焦点** —— 玩家这时通常还在全屏游戏里，抢焦点会把游戏踢出去、切不回来。
   setPetVisible(true)
-  showPanel()
+  showPanel({ focus: false })
   // 面板打开后自动选中这条新草稿，用户可直接导入/粘贴截图
   setTimeout(() => {
     if (panelWindow && !panelWindow.isDestroyed() && !panelWindow.webContents.isDestroyed()) {
@@ -774,6 +804,8 @@ function setupIpc(): void {
   ipcMain.handle('stats:hourHist', (_e, season?: string | null) => repo.hourHistogram(season))
   // 评级分布（只统计有评级的对局）
   ipcMain.handle('stats:ratings', (_e, season?: string | null) => repo.ratingStats(season))
+  // 删除一条战绩（UI 侧需二次确认）
+  ipcMain.handle('record:remove', (_e, id: number) => repo.remove(id))
   // 满级贺图数据：返回 null 表示该赛季还没到 A8 满级
   ipcMain.handle('stats:celebration', (_e, season?: string | null) => repo.celebrationData(season))
   // 保存贺图 PNG。
@@ -795,8 +827,8 @@ function setupIpc(): void {
       const url = devUrl ? `${devUrl}/celebration.html?data=${encoded}` : undefined
 
       offWin = new BrowserWindow({
-        width: 940,
-        height: 1400,
+        width: 1140,
+        height: 1500,
         show: false,
         frame: false,
         useContentSize: true,

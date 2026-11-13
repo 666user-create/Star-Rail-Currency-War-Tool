@@ -25,7 +25,9 @@
 .celebration-saved { font-size: 12px; color: #8fd18f; }
 
 .celebration-card {
-  position: relative; box-sizing: border-box; width: 900px; padding: 58px 58px 0;
+  position: relative; box-sizing: border-box;
+  /* 面板宽 1282px，贺图加到 1100px 更舒展（之前 900px 显示出来只有七成宽，显窄） */
+  width: 1100px; padding: 58px 58px 0;
   /* flex 容器会压缩子元素高度 → 必须禁止收缩，否则卡片被压扁、下半截内容被裁掉 */
   flex: 0 0 auto;
   transform-origin: top center;

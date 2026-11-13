@@ -95,6 +95,16 @@ export interface RankPoint {
    * 这是**绝对位置**，不是累加值 —— 大段间有晋级赛，累加会算错。
    */
   cumulative: number
+  /**
+   * 该局**开始时**的段位分数（来自 rank_before）。
+   *
+   * 用来算「这一把涨了多少小段」时必须用它，而不是上一局的结算后段位 ——
+   * 两者可能不一致（玩家会补录/修正段位），用上一局算会得出错误涨幅
+   * （实例：某局 before=A8财富造物主3(8003)、after=财富造物主6(8006)，
+   *  真实涨幅 +3，用上一局的 8000 算却成了 +6）。
+   * 未填写时为 null，此时才回落到上一局的结算后段位。
+   */
+  before: number | null
   /** 该点对应的原始段位文本（如「A6 投资大师7」），用于图表提示 */
   label: string
   /** 该局结果；用于在走势图上把失败局标红。未记录时为 null */
@@ -219,6 +229,8 @@ export type TrayMenuAction = 'toggle-pet' | 'toggle-quiet' | 'open-panel' | 'ope
 export interface PetApi {
   listMatches(limit?: number, season?: string | null): Promise<Match[]>
   getMatch(id: number): Promise<Match | null>
+  /** 删除一条战绩；返回被删记录（不存在返回 null） */
+  removeMatch(id: number): Promise<Match | null>
   /** 库里出现过的赛季名（用于界面提示） */
   seasons(): Promise<string[]>
   /** 以下统计均可传 season 做隔离；不传则统计全部 */

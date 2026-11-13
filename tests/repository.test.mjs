@@ -94,9 +94,14 @@ test('所有统计排除演示，未知时长不当0计平均/直方图，未知
   // match() 默认 rankAfter='财富造物主20' → A8(序号8)×1000 + 小段位20 = 8020。
   //
   // 满级截断：三条记录都是 A8-20（已达最高段位），
-  // 按新规则曲线在第一局就封顶停止记录，所以只剩 1 个点。
+  // 按新规则曲线在第一局就封顶停止记录。
+  //
+  // 起点：新增「第一条记录的结算前段位」作为曲线起点（match() 默认 rankBefore='财富造物主19'），
+  // 这样低段位也能计入走势；时间戳取第一局 ended_at - 1 保证排在最前。
   assert.deepEqual(repository.rankCurve(), [
-    { time: 601000, cumulative: 8020, label: '财富造物主20', result: 'win' }
+    // 起点是合成点（第一局的结算前段位），本身不代表一局 → before 为 null
+    { time: 600999, cumulative: 8019, before: null, label: '财富造物主19', result: null },
+    { time: 601000, cumulative: 8020, before: 8019, label: '财富造物主20', result: 'win' }
   ])
   // 分档：<30 / 30-40 / 40-50 / 50-60 / 60-70 / >70（分钟）
   // 本测试里有一局 600 秒 = 10 分钟，落在「<30」档
@@ -156,8 +161,9 @@ test('段位曲线只取最近有段位数据的赛季，且按实际填写的�
   repository.insert(match({ season: '未来赛季', endedAt: 5000, rankAfter: null }))
   repository.insert(match({ source: 'demo', season: '演示赛季', endedAt: 6000, rankAfter: 'A8 财富造物主' }))
   assert.deepEqual(repository.rankCurve(), [
-    { time: 2000, cumulative: 5001, label: 'A5 紫金1', result: 'win' },
-    { time: 3000, cumulative: 5003, label: 'A5 紫金3', result: 'win' }
+    // before 取该局自己填的结算前段位（match() 默认 rankBefore='财富造物主19' → 8019）
+    { time: 2000, cumulative: 5001, before: 8019, label: 'A5 紫金1', result: 'win' },
+    { time: 3000, cumulative: 5003, before: 8019, label: 'A5 紫金3', result: 'win' }
   ])
   repository.close()
 })
@@ -278,4 +284,28 @@ test('损坏的旧数据库不会被空库静默覆盖', async (t) => {
   fs.writeFileSync(file, original)
   await assert.rejects(Repository.create(file))
   assert.deepEqual(fs.readFileSync(file), original)
+})
+
+test('满级之后所有统计停止：满级后的对局不计入满级卡（局数/胜率/时长/连胜）', async (t) => {
+  const { file } = fixture(t)
+  const repository = await Repository.create(file)
+  const S = '满级停统计'
+  // 第 1 局打到 A8·20（满级）
+  repository.insert(match({ season: S, endedAt: 1000, rankBefore: 'A8 财富造物主18', rankAfter: 'A8 财富造物主20', result: 'win', durationSec: 600 }))
+  // 之后又打了两局（一负一胜），不应计入满级卡
+  repository.insert(match({ season: S, endedAt: 2000, rankBefore: 'A8 财富造物主20', rankAfter: 'A8 财富造物主20', result: 'loss', durationSec: 900 }))
+  repository.insert(match({ season: S, endedAt: 3000, rankBefore: 'A8 财富造物主20', rankAfter: 'A8 财富造物主20', result: 'win', durationSec: 900 }))
+
+  const data = repository.celebrationData(S)
+  assert.ok(data, '应识别为满级')
+  assert.equal(data.total, 1, '只统计到满级那一局')
+  assert.equal(data.wins, 1)
+  assert.equal(data.losses, 0)
+  assert.equal(data.winRate, 1)
+  assert.equal(data.totalDurationSec, 600, '满级后的时长不计入')
+  assert.equal(data.bestWinStreak, 1)
+  assert.equal(data.curve.length, 2, '起点 + 满级那一局')
+  // 但赛季总览仍统计全部对局（那是赛季层面的数据，不是满级卡）
+  assert.equal(repository.overview(S).total, 3)
+  repository.close()
 })
