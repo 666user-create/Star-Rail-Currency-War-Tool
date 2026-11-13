@@ -5,7 +5,7 @@ import { SEASONS, defaultSeason, formatStartDate, parseStartDate, resolvedSeason
 import EditMatch from './EditMatch'
 import { CelebrationCard } from './CelebrationCard'
 // 段位展示统一去掉 A 前缀（历史数据写法不一，混着显示会忽有忽无）
-import { displayRank, maxSubLevel, parseRank } from '@shared/ranks'
+import { displayRank, isSubOverflow, maxSubLevel, parseRank } from '@shared/ranks'
 import { RankRibbon } from './RankRibbon'
 
 /**
@@ -26,8 +26,9 @@ function RankHealth({ matches, onOpen }: { matches: Match[]; onOpen: (match: Mat
       if (!text) continue
       const value = parseRank(text)
       if (!value) { issues.push({ match: m, field, raw: text, reason: '无法识别' }); continue }
-      const cap = maxSubLevel(value.code)
-      if (Number.isFinite(cap) && value.sub > cap) {
+      // 统一用 isSubOverflow，避免这里和 ranks.ts 各判一遍
+      if (isSubOverflow(value)) {
+        const cap = maxSubLevel(value.code)
         issues.push({ match: m, field, raw: text, reason: value.code + ' 最多 ' + cap + ' 档' })
       } else if (value.sub === 0) {
         issues.push({ match: m, field, raw: text, reason: '没填小段位' })
