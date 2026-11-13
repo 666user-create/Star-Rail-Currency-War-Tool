@@ -7,6 +7,8 @@ export default function App() {
   const hasApi = typeof window !== 'undefined' && !!window.api
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [gamePath, setGamePath] = useState(hasApi ? '' : 'D:\\Star Rail')
+  // 默认走官方启动器：官方已封死直接启动游戏 exe，launcher.exe 是唯一受支持入口
+  const [launchMode, setLaunchMode] = useState<'game' | 'launcher'>('launcher')
   const [screenshotDir, setScreenshotDir] = useState(hasApi ? '' : 'D:\\Star Rail Currency War Tool\\data\\screenshots')
   const [detected, setDetected] = useState<{ path: string | null; message: string } | null>(
     hasApi ? null : { path: 'D:\\Star Rail', message: '已找到：D:\\Star Rail' }
@@ -77,7 +79,7 @@ export default function App() {
   }
 
   const finish = async () => {
-    if (hasApi) await window.api.completeWizard({ gamePath, screenshotDir })
+    if (hasApi) await window.api.completeWizard({ gamePath, screenshotDir, launchMode })
     window.close()
   }
 
@@ -112,6 +114,16 @@ export default function App() {
             <input value={gamePath} onChange={(e) => setGamePath(e.target.value)} placeholder="例如 D:\Star Rail" />
             <button className="ghost" onClick={pickGame} type="button">浏览…</button>
           </div>
+          <div className="row">
+            <label className="field-label" style={{ flex: '0 0 64px' }}>启动方式</label>
+            <select value={launchMode} onChange={(e) => setLaunchMode(e.target.value as 'game' | 'launcher')} style={{ flex: 1 }}>
+              <option value="launcher">通过官方启动器（推荐，唯一受支持入口）</option>
+              <option value="game">直接启动游戏（部分旧版本可用，新版会提示不支持）</option>
+            </select>
+          </div>
+          <p className="hint">
+            官方已封死直接启动游戏 exe。推荐用官方 launcher.exe：它打开启动器界面，还需再点一次「开始游戏」才会进入游戏。
+          </p>
           <div className="row">
             <button className="ghost" onClick={detect} disabled={detecting} type="button">
               {detecting ? '正在探测…' : '自动探测'}

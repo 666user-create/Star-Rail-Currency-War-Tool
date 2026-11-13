@@ -9,6 +9,7 @@ import { createTrayIcon } from './trayIcon'
 import { checkForUpdate, markNotified, openDownloadPage, wasNotified } from './updateCheck'
 import { TrayMenuController } from './trayMenu'
 import { createWizardWindow, hasCompletedWizard, setupWizardIpc } from './wizard'
+import { resolveGameLauncher } from './gameLauncher'
 import { defaultSeason } from '../shared/seasons'
 import { normalizeSettings } from '../shared/petPreferences'
 import { validateDraftInput } from '../shared/recordingValidation'
@@ -760,37 +761,6 @@ async function readClipboardImage(): Promise<string | null> {
   return null
 }
 
-/**
- * 把用户选的路径解析成用于「启动游戏」的可执行文件。
- * 优先 launcher.exe（官方启动器，asInvoker 普通权限，无需 UAC，会负责更新与进入游戏）；
- * 没有启动器时退回 Game\StarRail.exe（requireAdministrator，会弹 UAC）。
- * 支持用户填：游戏根目录 / Game 目录 / 任意一个 exe 的完整路径。
- */
-function resolveGameLauncher(input: string): { exe: string; viaLauncher: boolean } | null {
-  const raw = (input ?? '').trim().replace(/^"|"$/g, '')
-  if (!raw) return null
-  // 用户在设置里可能填的是 exe 本身：取其所在目录作为根
-  const roots: string[] = [raw]
-  try {
-    if (fs.statSync(raw).isFile()) roots.unshift(path.dirname(path.dirname(raw)), path.dirname(raw))
-  } catch { /* 路径不可访问时按目录处理 */ }
-
-  for (const root of roots) {
-    // 1) 官方启动器：根目录下的 launcher.exe（不需要管理员权限，体验最好）
-    const launcher = path.join(root, 'launcher.exe')
-    try {
-      if (fs.statSync(launcher).isFile()) return { exe: launcher, viaLauncher: true }
-    } catch { /* 继续 */ }
-    // 2) 退回游戏主程序
-    for (const gameExe of [path.join(root, 'Game', 'StarRail.exe'), path.join(root, 'StarRail.exe')]) {
-      try {
-        if (fs.statSync(gameExe).isFile()) return { exe: gameExe, viaLauncher: false }
-      } catch { /* 继续 */ }
-    }
-  }
-  return null
-}
-
 function setupIpc(): void {
   // 赛季隔离：面板切换赛季后，列表与所有统计只统计该赛季（传 null/undefined 表示不隔离）
   ipcMain.handle('record:list', (_e, limit?: number, season?: string | null) => repo.list(limit, false, season))
@@ -1017,10 +987,11 @@ function setupIpc(): void {
   })
 
   // 「货币战争启动!」：解析游戏启动器并启动（不是打开文件夹）
-  // 优先 launcher.exe：普通权限、无 UAC、由官方启动器处理更新与登录。
-  // 仅当没有启动器时才用 Game\StarRail.exe —— 它 manifest 要求管理员，必须走 ShellExecute 弹 UAC。
+  // 官方已封死直接启动游戏 exe（会弹「现在已经不支持」），唯一受支持入口是
+  // 官方 launcher.exe —— 它打开启动器界面，还需要再手动点一次「开始游戏」。
+  // 详见 gameLauncher.ts 的说明。两者 manifest 都要求管理员，都会走 ShellExecute 弹 UAC。
   ipcMain.handle('game:launch', async () => {
-    const target = resolveGameLauncher(settings.gamePath)
+    const target = resolveGameLauncher(settings.gamePath, settings.launchMode ?? 'launcher')
     if (!target) return false
     try {
       // shell.openPath 走 ShellExecute：既能启动 exe，也会在需要时正确触发 UAC 提权
@@ -1282,7 +1253,7 @@ if (ownsData) app.whenReady().then(async () => {
   setupWizardIpc({
     getSettings: () => settings,
     applyConfig: (config) => {
-      updateSettings({ gamePath: config.gamePath, screenshotDir: config.screenshotDir })
+      updateSettings({ gamePath: config.gamePath, screenshotDir: config.screenshotDir, launchMode: config.launchMode })
     }
   })
   if (!hasCompletedWizard()) {

@@ -154,7 +154,7 @@ export function markWizardDone(): void {
 /** 注册向导相关 IPC。回调用于把配置写回主进程 settings。 */
 export function setupWizardIpc(options: {
   getSettings: () => { screenshotDir?: string }
-  applyConfig: (config: { gamePath: string; screenshotDir: string }) => void
+  applyConfig: (config: { gamePath: string; screenshotDir: string; launchMode?: 'game' | 'launcher' }) => void
 }): void {
   ipcMain.handle('wizard:detect-game', () => detectGameRoot())
   ipcMain.handle('wizard:pick-game', async () => {
@@ -231,8 +231,12 @@ export function setupWizardIpc(options: {
     }
   })
 
-  ipcMain.handle('wizard:complete', (_event, config: { gamePath: string; screenshotDir: string }) => {
-    options.applyConfig({ gamePath: config.gamePath ?? '', screenshotDir: config.screenshotDir ?? '' })
+  ipcMain.handle('wizard:complete', (_event, config: { gamePath: string; screenshotDir: string; launchMode?: 'game' | 'launcher' }) => {
+    options.applyConfig({
+      gamePath: config.gamePath ?? '',
+      screenshotDir: config.screenshotDir ?? '',
+      launchMode: config.launchMode === 'launcher' ? 'launcher' : 'game'
+    })
     markWizardDone()
     if (wizardWindow && !wizardWindow.isDestroyed()) { wizardWindow.close(); wizardWindow = null }
   })
