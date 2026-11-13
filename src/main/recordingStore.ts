@@ -7,6 +7,16 @@ import type { RecordingDraft, RecordFields } from '@shared/types'
 interface RecordingState {
   version: 1
   startedAt: number | null
+  /**
+   * 已累计的计秒数（跨进程重启延续用）。
+   *
+   * 语义：startedAt 是"这一次运行内开始计时的时间戳"，
+   * accumulatedSec 是"之前几次运行累计下来的秒数"。
+   * 真正显示的时长 = accumulatedSec + (now - startedAt)。
+   * 关闭软件时把当前这段折进 accumulatedSec，重启后重新用 now 起算，
+   * 于是软件关着的那些时间不会被计入。
+   */
+  accumulatedSec?: number
   drafts: RecordingDraft[]
 }
 
@@ -69,7 +79,7 @@ function validateState(value: unknown): asserts value is RecordingState {
 /** 计时状态与待确认草稿独立持久化；任何操作均不删除截图文件。 */
 export class RecordingStore {
   private filePath: string
-  private state: RecordingState = { version: 1, startedAt: null, drafts: [] }
+  private state: RecordingState = { version: 1, startedAt: null, accumulatedSec: 0, drafts: [] }
 
   constructor(filePath: string) {
     this.filePath = filePath
@@ -99,22 +109,63 @@ export class RecordingStore {
 
   getStartedAt(): number | null { return this.state.startedAt }
 
+  /** 当前已累计秒数（不含正在跑的这一段） */
+  getAccumulatedSec(): number { return this.state.accumulatedSec ?? 0 }
+
+  /** 真实时长（秒）= 历史累计 + 本次运行已跑的时间 */
+  elapsedSec(now = Date.now()): number {
+    const base = this.state.accumulatedSec ?? 0
+    if (this.state.startedAt === null) return base
+    return base + Math.max(0, Math.round((now - this.state.startedAt) / 1000))
+  }
+
   /**
-   * 丢弃正在进行的计时（不清空草稿）。
+   * 暂停计时：把当前这段折进 accumulatedSec，并清掉 startedAt。
    *
-   * 用途：程序启动时如果发现磁盘里还留着 startedAt，说明上次是非正常退出
-   * （崩溃/被强杀/开发时热重启），这段时间桌宠并不在工作，
-   * 继续累计会把「关着软件的时长」算进对局，不符合设计，所以直接清零。
+   * 退出软件时调用，记下"今天已经打了多久"。
+   * 下次启动 resumeRunningTimer() 用 now - accumulatedSec 重建 startedAt，
+   * 于是计时接着走，而软件关着的这段时间不会被算进去。
    */
-  discardRunningTimer(): void {
+  pauseRunningTimer(now = Date.now()): void {
     if (this.state.startedAt === null) return
-    this.save({ ...this.state, startedAt: null })
+    const base = this.state.accumulatedSec ?? 0
+    const total = base + Math.max(0, Math.round((now - this.state.startedAt) / 1000))
+    this.save({ ...this.state, startedAt: null, accumulatedSec: total })
+  }
+
+  /**
+   * 恢复计时：把「已累计秒数」折算成 startedAt，让其自然继续。
+   *
+   * 做法是把 accumulatedSec 清零，同时把 startedAt 设成 `now - base`。
+   * 这样 elapsedSec() 的公式 base + (now - startedAt) 里 base 是 0，
+   * 结果正好是 `now - (now - base) = base`，不会重复累加。
+   * （之前的实现既保留 accumulatedSec 又把它折进 startedAt，导致时长翻倍。）
+   *
+   * 返回恢复后的 startedAt，没有可恢复的计时则返回 null。
+   */
+  resumeRunningTimer(now = Date.now()): number | null {
+    if (this.state.startedAt !== null) return this.state.startedAt
+    const base = this.state.accumulatedSec ?? 0
+    if (base <= 0) return null
+    if (!validTime(now)) return null
+    const startedAt = now - base * 1000
+    if (startedAt < 0) return null
+    // 关键：base 已经折进 startedAt，必须清零否则会双算
+    this.save({ ...this.state, startedAt, accumulatedSec: 0 })
+    return startedAt
+  }
+
+  /** 彻底丢弃计时（用户主动取消，不算进任何时长） */
+  discardRunningTimer(): void {
+    if (this.state.startedAt === null && (this.state.accumulatedSec ?? 0) === 0) return
+    this.save({ ...this.state, startedAt: null, accumulatedSec: 0 })
   }
 
   start(now = Date.now()): number {
     if (this.state.startedAt !== null) return this.state.startedAt
     if (!validTime(now)) throw new Error('开始时间无效。')
-    this.save({ ...this.state, startedAt: now })
+    // 新一局从 0 起算
+    this.save({ ...this.state, startedAt: now, accumulatedSec: 0 })
     return now
   }
 
@@ -122,13 +173,24 @@ export class RecordingStore {
     const startedAt = this.state.startedAt
     if (startedAt === null) return null
     if (!validTime(now)) throw new Error('结束时间无效。')
-    const draft = this.makeDraft(Math.max(startedAt, now), startedAt)
+    /*
+     * 草稿时长取「总计时长」（可能跨了多次运行）。
+     * 但 startedAt 必须用真实的 this.state.startedAt：
+     * 之前用 `now - totalSec` 反推，秒数取整会累积误差
+     * （例如 start=1000、now=3100 会反推出 1100），
+     * 让草稿里的开局时间偏掉。
+     * 跨重启时 startedAt 本身就是"现在 - 已累计"，已经正确，
+     * 不需要再动。
+     */
+    const totalSec = this.elapsedSec(now)
+    const draft = this.makeDraft(now, startedAt)
+    draft.durationSec = totalSec
     draft.fields.season = season.trim().slice(0, 80)
     // 自助截图模式：不自动截屏，直接进入待粘贴/待填写的核对状态
     draft.status = 'review'
     draft.warnings.push('计时已冻结；请截图后粘贴（Ctrl+V）或导入，也可直接手动填写。')
     // 冻结时间、生成草稿及停止秒表是一次原子变更；失败仍保持原计时。
-    this.save({ ...this.state, startedAt: null, drafts: [...this.state.drafts, draft] })
+    this.save({ ...this.state, startedAt: null, accumulatedSec: 0, drafts: [...this.state.drafts, draft] })
     return clone(draft)
   }
 

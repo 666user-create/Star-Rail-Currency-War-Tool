@@ -434,14 +434,15 @@ export class Repository {
   }
 
   durationHistogram(season?: string | null): DurationBucket[] {
+    // 分档不带单位，单位统一在图表标题上标注
     const buckets: DurationBucket[] = [
-      { label: '<10分', count: 0 }, { label: '10-15', count: 0 }, { label: '15-20', count: 0 },
-      { label: '20-30', count: 0 }, { label: '30-45', count: 0 }, { label: '>45分', count: 0 }
+      { label: '<30', count: 0 }, { label: '30-40', count: 0 }, { label: '40-50', count: 0 },
+      { label: '50-60', count: 0 }, { label: '60-70', count: 0 }, { label: '>70', count: 0 }
     ]
     const w = this.where(season, { clause: "result IN ('win','loss') AND duration_sec IS NOT NULL", params: [] })
     for (const row of this.rows(`SELECT duration_sec AS d FROM matches${w.sql}`, w.params)) {
       const minutes = (row.d as number) / 60
-      const index = minutes < 10 ? 0 : minutes < 15 ? 1 : minutes < 20 ? 2 : minutes < 30 ? 3 : minutes < 45 ? 4 : 5
+      const index = minutes < 30 ? 0 : minutes < 40 ? 1 : minutes < 50 ? 2 : minutes < 60 ? 3 : minutes < 70 ? 4 : 5
       buckets[index].count++
     }
     return buckets

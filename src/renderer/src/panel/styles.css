@@ -69,6 +69,16 @@ button { font-family: inherit; }
 button:disabled { cursor: default; opacity: 0.5; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .primary-btn { background: var(--gold); color: var(--bg); border: 1px solid var(--gold); border-radius: 7px; padding: 5px 13px; font-size: 12px; font-weight: 700; cursor: pointer; }
+/* 次要按钮：与主按钮同尺寸，仅换配色 */
+.primary-btn.ghost {
+  background: transparent;
+  color: var(--gold);
+  border: 1px solid rgba(232, 196, 118, .5);
+}
+.primary-btn.ghost:hover {
+  background: rgba(232, 196, 118, .12);
+  border-color: var(--gold);
+}
 .tb-btn.danger { color: var(--loss); }
 .inline-error, .inline-success, .inline-status { border-radius: 8px; padding: 9px 11px; font-size: 12px; line-height: 1.6; }
 .inline-error { background: rgba(224,114,114,0.09); border: 1px solid rgba(224,114,114,0.28); color: #f1a1a1; overflow-wrap: anywhere; }
@@ -108,6 +118,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* 待复核截图 */
 .draft-card { background: rgba(232,196,118,0.035); border: 1px solid var(--gold-dim); border-radius: 12px; padding: 10px 13px; margin-bottom: 12px; flex-shrink: 0; }
 .draft-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 7px; font-size: 12px; }
+/* 草稿区右上角的导入/粘贴按钮 */
+.draft-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.draft-actions .primary-btn {
+  min-height: 30px;
+  padding: 0 16px;
+  font-size: 12.5px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .draft-count { display: inline-block; padding: 0 6px; margin-left: 3px; border-radius: 9px; background: rgba(232,196,118,0.13); color: var(--gold); font-family: var(--mono); }
 .draft-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 3px; }
 .draft-item { flex: 0 0 auto; display: grid; grid-template-columns: auto auto; gap: 5px 12px; min-width: 190px; border: 1px solid rgba(255,255,255,0.1); border-radius: 7px; padding: 7px 9px; background: var(--panel); color: var(--text); font-size: 11.5px; text-align: left; cursor: pointer; }
@@ -183,7 +205,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   cursor: pointer;
 }
 .tabs button.on { color: var(--bg); background: var(--gold); border-color: var(--gold); font-weight: 700; }
-.tab-body { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+.tab-body { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; min-width: 0; overflow: hidden; }
 .chart { width: 100%; max-height: 100%; overflow: visible; }
 .chart-note { fill: var(--muted); font-size: 11px; }
 .chart-empty { color: var(--muted); font-size: 12.5px; }
@@ -727,4 +749,408 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .win-btn:hover {
   color: #f4d994;
   border-color: rgba(232, 196, 118, .45);
+}
+/* 纵向柱状图的容器与单位标注 */
+.vbars-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.vbars-caption {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--muted, rgba(255, 255, 255, .45));
+  letter-spacing: .5px;
+  padding: 0 2px 8px;
+}
+.vbars-wrap .vbars {
+  flex: 1;
+  min-height: 0;
+}
+/* 时长/时段分布：横向紧凑条形图（24 个时段竖向排列会细得像牙签） */
+/* 紧凑排布：行距固定，整体在容器里垂直居中 */
+.hbars-dense {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+.hbars-dense .hbar-row-narrow {
+  grid-template-columns: 62px 1fr 56px;
+  gap: 10px;
+}
+.hbars-dense .hbar-track {
+  height: 18px;
+}
+.hbars-dense .hbar-value {
+  position: static;
+  font-size: 11.5px;
+  color: rgba(232, 196, 118, .8);
+  text-align: right;
+  white-space: nowrap;
+}
+/* 纵向柱状图：内容居中、随数据项数量自适应柱宽 */
+.vbars-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.vbars-caption {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--muted, rgba(255, 255, 255, .45));
+  letter-spacing: .5px;
+  padding: 0 2px 10px;
+}
+.vbars-fit {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 14px;
+  padding: 4px 10px 0;
+}
+.vbars-fit .vbar-col {
+  flex: 0 1 84px;
+  min-width: 46px;
+  max-width: 96px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+.vbars-fit .vbar-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(232, 196, 118, .85);
+  margin-bottom: 6px;
+  line-height: 1;
+}
+.vbars-fit .vbar-fill {
+  width: 100%;
+  border-radius: 5px 5px 0 0;
+  background: linear-gradient(180deg, var(--gold), rgba(232, 196, 118, .22));
+  min-height: 3px;
+  box-shadow: 0 0 16px rgba(232, 196, 118, .18);
+}
+.vbars-fit .vbar-label {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+/* 0 局的档位：柱子高度为 0，标签仍显示，用暗色弱化 */
+.vbars-fit .vbar-col-empty .vbar-value {
+  color: rgba(255, 255, 255, .22);
+  font-weight: 500;
+}
+.vbars-fit .vbar-col-empty .vbar-label {
+  color: rgba(255, 255, 255, .28);
+}
+.vbars-fit .vbar-col-empty .vbar-fill {
+  background: rgba(255, 255, 255, .08);
+  box-shadow: none;
+}
+
+/* ===== 横向条形图（时长/时段/评级）===== */
+/* 横条图：高度按内容，最多占满；整体居中不拉伸 */
+.hbars-chart {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+.hbars-caption {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--muted, rgba(255, 255, 255, .45));
+  letter-spacing: .5px;
+  padding: 0 2px 10px;
+}
+/* 行之间用 space-between 均匀铺满，而不是挤在顶部留一大片空 */
+.hbars-dense {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 4px;
+  padding-right: 4px;
+}
+.hbars-dense .hbar-row-narrow {
+  grid-template-columns: 86px 1fr 96px;
+  gap: 12px;
+  align-items: center;
+}
+.hbars-dense .hbar-track {
+  height: 24px;
+  background: rgba(255, 255, 255, .045);
+}
+.hbars-dense .hbar-value {
+  position: static;
+  font-size: 11.5px;
+  color: rgba(232, 196, 118, .8);
+  text-align: right;
+  white-space: nowrap;
+}
+/* 没有数据的行：轨道留空但不能消失，让「这一档是 0」也看得见 */
+.hbar-row-empty .hbar-label {
+  color: rgba(255, 255, 255, .26);
+}
+.hbar-row-empty .hbar-track {
+  background: rgba(255, 255, 255, .025);
+  border: 1px dashed rgba(255, 255, 255, .07);
+}
+.hbar-row-empty .hbar-value {
+  color: rgba(255, 255, 255, .22);
+}
+
+/* ===== 活跃时段：24 小时时钟径向图 ===== */
+.hour-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  gap: 6px;
+}
+.hour-clock-svg {
+  width: auto;
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
+  display: block;
+}
+.hour-clock-tick {
+  font-size: 11px;
+  fill: rgba(232, 196, 118, .5);
+  font-family: var(--mono);
+}
+.hour-clock-center-num {
+  font-size: 26px;
+  font-weight: 800;
+  fill: #f4d994;
+}
+.hour-clock-center-label {
+  font-size: 10px;
+  fill: rgba(232, 196, 118, .45);
+}
+.hour-clock-foot {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: var(--muted, rgba(255, 255, 255, .5));
+  letter-spacing: .5px;
+}
+.hour-clock-foot b {
+  color: #f4d994;
+  font-weight: 700;
+}
+.hour-clock-foot span {
+  color: rgba(232, 196, 118, .55);
+}
+
+/* ===== 日历热力图 ===== */
+.heatmap-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 2px;
+  gap: 10px;
+}
+.heatmap-caption {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--muted, rgba(255, 255, 255, .5));
+  letter-spacing: .5px;
+}
+.heatmap-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+.heatmap-svg {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  display: block;
+}
+.heatmap-weekday,
+.heatmap-month {
+  font-size: 11px;
+  fill: rgba(255, 255, 255, .34);
+  font-family: var(--mono);
+}
+
+/* 点击某天后的详情条 */
+.heatmap-detail {
+  flex: 0 0 auto;
+  border: 1px solid rgba(232, 196, 118, .22);
+  border-radius: 8px;
+  background: rgba(232, 196, 118, .05);
+  padding: 10px 12px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+.heatmap-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+}
+.heatmap-detail-head b {
+  color: #f4d994;
+  font-size: 13.5px;
+}
+.heatmap-detail-head span {
+  color: var(--muted, rgba(255, 255, 255, .5));
+}
+.heatmap-detail-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, .4);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.heatmap-detail-close:hover {
+  color: var(--gold);
+  background: rgba(232, 196, 118, .1);
+}
+.heatmap-detail-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.heatmap-chip {
+  font-size: 11px;
+  padding: 4px 9px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .06);
+  color: rgba(255, 255, 255, .72);
+  white-space: nowrap;
+}
+.heatmap-chip.win {
+  background: rgba(232, 196, 118, .16);
+  color: #f4d994;
+}
+.heatmap-chip.loss {
+  background: rgba(224, 108, 108, .18);
+  color: #e88c8c;
+}
+
+.heatmap-legend {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, .32);
+}
+.heatmap-legend i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+﻿/* ===== 活跃时段：极坐标玫瑰图 ===== */
+.rose-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.rose-svg {
+  flex: 0 0 auto;
+  display: block;
+}
+.rose-tick {
+  font-size: 11px;
+  fill: rgba(232, 196, 118, .55);
+  font-family: var(--mono);
+}
+.rose-center-num {
+  font-size: 26px;
+  font-weight: 800;
+  fill: #f4d994;
+}
+.rose-center-label {
+  font-size: 10px;
+  fill: rgba(232, 196, 118, .45);
+}
+.rose-foot {
+  font-size: 12px;
+  color: var(--muted, rgba(255, 255, 255, .5));
+  letter-spacing: .5px;
+}
+.rose-foot b {
+  color: #f4d994;
+  font-weight: 700;
+}
+.rose-foot span {
+  color: rgba(232, 196, 118, .55);
+}
+﻿/* 热力图底部：图例 + 分页 */
+.heatmap-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.heatmap-pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.heatmap-page-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid rgba(232, 196, 118, .3);
+  background: transparent;
+  color: var(--gold);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.heatmap-page-btn:hover:not(:disabled) {
+  background: rgba(232, 196, 118, .14);
+  border-color: var(--gold);
+}
+.heatmap-page-btn:disabled {
+  opacity: .28;
+  cursor: default;
+}
+.heatmap-page-info {
+  font-size: 10.5px;
+  color: rgba(232, 196, 118, .6);
+  font-family: var(--mono);
+  min-width: 32px;
+  text-align: center;
 }

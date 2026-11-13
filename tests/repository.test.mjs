@@ -98,7 +98,9 @@ test('所有统计排除演示，未知时长不当0计平均/直方图，未知
   assert.deepEqual(repository.rankCurve(), [
     { time: 601000, cumulative: 8020, label: '财富造物主20', result: 'win' }
   ])
-  assert.deepEqual(repository.durationHistogram().map((bucket) => bucket.count), [0, 1, 0, 0, 0, 0])
+  // 分档：<30 / 30-40 / 40-50 / 50-60 / 60-70 / >70（分钟）
+  // 本测试里有一局 600 秒 = 10 分钟，落在「<30」档
+  assert.deepEqual(repository.durationHistogram().map((bucket) => bucket.count), [1, 0, 0, 0, 0, 0])
   const hours = repository.hourHistogram()
   assert.equal(hours.reduce((sum, bucket) => sum + bucket.count, 0), 2)
   assert.equal(hours[8].count, 1)

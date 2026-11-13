@@ -437,10 +437,12 @@ function createPetWindow(): void {
 
 function createPanelWindow(): void {
   panelWindow = new BrowserWindow({
-    width: 1020,
-    height: 760,
-    minWidth: 820,
-    minHeight: 560,
+    // 默认尺寸放大：原来 1020×760 在小屏上左右偏挤，
+    // 屏幕工作区 1536×816 下取 1280×800，宽出 260px 放统计区和记录列表
+    width: 1280,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
     frame: false,
     resizable: true,
     show: false,
@@ -476,16 +478,16 @@ function togglePanel(): void {
 function showPanel(): void {
   if (!panelWindow) createPanelWindow()
   if (!petWindow || !panelWindow || captureInProgress) return
-  // 弹在桌宠所在显示器，尺寸和位置都夹紧，保证小屏能看到确认按钮。
+  // 在桌宠所在显示器上居中显示。
+  // 原来贴在桌宠旁边（pb.x + pb.width + 12），桌宠靠左时面板就贴到屏幕左边缘，
+  // 看起来偏得很怪。面板本身够大（1280×800），居中更自然也不会被裁切。
   const pb = petWindow.getBounds()
   const { workArea } = screen.getDisplayMatching(pb)
   const pw = Math.min(panelWindow.getBounds().width, workArea.width)
   const ph = Math.min(panelWindow.getBounds().height, workArea.height)
-  panelWindow.setMinimumSize(Math.min(820, workArea.width), Math.min(560, workArea.height))
-  let x = pb.x + pb.width + 12
-  if (x + pw > workArea.x + workArea.width) x = pb.x - pw - 12
-  const y = Math.min(Math.max(pb.y - 60, workArea.y), workArea.y + workArea.height - ph)
-  x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - pw))
+  panelWindow.setMinimumSize(Math.min(900, workArea.width), Math.min(600, workArea.height))
+  const x = Math.round(workArea.x + (workArea.width - pw) / 2)
+  const y = Math.round(workArea.y + (workArea.height - ph) / 2)
   panelWindow.setBounds({ x, y, width: pw, height: ph })
   panelWindow.show()
   panelWindow.focus()
@@ -1226,21 +1228,23 @@ if (ownsData) app.whenReady().then(async () => {
     if (draftUpdated) console.log(`[screenshot-migrate] 已更新 ${draftUpdated} 份草稿的原图路径`)
   } catch (error) { console.error('[screenshot-migrate] 路径重写失败', error) }
   /*
-   * 启动时不恢复上次的计时状态。
+   * 启动时恢复上次未结束的计时（暂停-恢复语义）。
    *
-   * 如果磁盘里还留着 startedAt，说明上次是非正常退出（崩溃、强杀、开发热重启）——
-   * 这段时间桌宠根本没在运行，继续累计会把「软件关着的时间」算进对局时长，
-   * 不符合设计。软件关闭即应停止计时，所以这里直接清零。
+   * 退出软件时会把「已经计了多久」存进 accumulatedSec（见 before-quit）。
+   * 这里用 now - accumulatedSec 反推 startedAt，于是：
+   *   - 计时从上一次的进度继续（不是清零重来）
+   *   - 但软件关闭的那段时间不计入（因为起点被推到"现在减去已计时长"）
    *
-   * 用户主动结束计时（Ctrl+Shift+F8 或菜单）生成的草稿不受影响，草稿照常保留。
+   * 如果上次是崩溃/强杀，来不及执行 before-quit，
+   * 那 accumulatedSec 就是更早一次正常退出时的值（或 0），
+   * 同样不会把崩溃期间的时长算进去 —— 这一点和之前的行为一致。
    */
-  const staleStartedAt = recordingStore.getStartedAt()
-  if (staleStartedAt !== null) {
-    const minutes = Math.round((Date.now() - staleStartedAt) / 60000)
-    bootTrace(`[record] 丢弃上次未结束的计时（已过 ${minutes} 分钟）：软件曾关闭，不应继续累计`)
-    recordingStore.discardRunningTimer()
+  const resumed = recordingStore.resumeRunningTimer()
+  if (resumed !== null) {
+    const sec = recordingStore.getAccumulatedSec()
+    bootTrace(`[record] 恢复上次未结束的计时：已累计 ${Math.round(sec / 60)} 分钟，从该进度继续`)
   }
-  recordStartedAt = null
+  recordStartedAt = resumed
   setupIpc()
   // 首次启动：先走向导（选游戏路径/截图目录/解包模型），完成后才创建桌宠
   setupWizardIpc({
@@ -1295,5 +1299,17 @@ if (ownsData) app.whenReady().then(async () => {
   }
 })
 
-app.on('before-quit', () => { globalShortcut.unregisterAll(); petTray?.destroy(); petTray = null })
+  app.on('before-quit', () => {
+    // 退出前把正在跑的计时折进 accumulatedSec，
+    // 下次启动 resumeRunningTimer() 才能从当前进度继续（而不是把关闭期间也算进去）
+    try {
+      if (recordingStore.getStartedAt() !== null) {
+        recordingStore.pauseRunningTimer()
+        bootTrace(`[record] 退出时暂停计时，已累计 ${Math.round(recordingStore.getAccumulatedSec() / 60)} 分钟`)
+      }
+    } catch (error) {
+      bootTrace(`[record] 退出时暂停计时失败：${String(error)}`)
+    }
+    globalShortcut.unregisterAll(); petTray?.destroy(); petTray = null
+  })
 app.on('window-all-closed', () => app.quit())

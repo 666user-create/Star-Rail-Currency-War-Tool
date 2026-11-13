@@ -124,46 +124,61 @@ function LineChart({ points, compact = false }: { points: RankPoint[]; compact?:
  * 只统计填了评级的对局 —— 分母是「有评级的局数」，不是总对局数。
  * 没填评级的局若计入分母会把各档比例稀释，看起来像自己评级很差。
  */
+/**
+ * 评级分布：横向条形图。
+ *
+ * 只统计填了评级的对局 —— 分母是「有评级的局数」，不是总对局数。
+ * 没填评级的局若计入分母会把各档比例稀释，看起来像自己评级很差。
+ *
+ * 固定列出常见档位（SSS/SS/S/A/B/C），没有数据的档位也保留一行空条，
+ * 这样一眼能看出"我从来没拿过 B"，而不是让档位悄悄消失。
+ */
 function RatingBars({ stats }: { stats: RatingBucket[] }): React.JSX.Element {
   if (!stats.length) return <div className="chart-empty">还没有填写过评级的对局~</div>
 
   const total = stats.reduce((sum, item) => sum + item.count, 0)
   const max = Math.max(...stats.map((item) => item.count), 1)
+  const byLabel = new Map(stats.map((item) => [item.label, item]))
 
-  // 评级配色：越高越金，越低越暗
-  const toneOf = (label: string): { bar: string; text: string } => {
-    if (label === 'SSS') return { bar: 'linear-gradient(180deg, #fff3cf, #e8c476)', text: '#fff3cf' }
-    if (label === 'SS') return { bar: 'linear-gradient(180deg, #ffe9a8, #d9b45f)', text: '#ffe9a8' }
-    if (label === 'S') return { bar: 'linear-gradient(180deg, #f0d69c, #bfa050)', text: '#f0d69c' }
-    if (label === 'A') return { bar: 'linear-gradient(180deg, #9fb4d8, #6d82a8)', text: '#9fb4d8' }
-    if (label === 'B') return { bar: 'linear-gradient(180deg, #8a93a6, #5d6472)', text: '#8a93a6' }
-    return { bar: 'linear-gradient(180deg, #7a6a72, #4d434a)', text: '#7a6a72' }
+  // 固定档位顺序；数据里出现的额外档位追加在后面
+  const ORDER = ['SSS', 'SS', 'S', 'A', 'B', 'C', 'D']
+  const extra = stats.map((item) => item.label).filter((label) => !ORDER.includes(label))
+  const labels = [...ORDER, ...extra]
+
+  const toneOf = (label: string): { bar: string; text: string; empty: string } => {
+    if (label === 'SSS') return { bar: 'linear-gradient(90deg, rgba(232,196,118,.35), #fff3cf)', text: '#fff3cf', empty: 'rgba(232,196,118,.10)' }
+    if (label === 'SS') return { bar: 'linear-gradient(90deg, rgba(232,196,118,.28), #ffe9a8)', text: '#ffe9a8', empty: 'rgba(232,196,118,.09)' }
+    if (label === 'S') return { bar: 'linear-gradient(90deg, rgba(232,196,118,.22), #f0d69c)', text: '#f0d69c', empty: 'rgba(232,196,118,.08)' }
+    if (label === 'A') return { bar: 'linear-gradient(90deg, rgba(159,180,216,.25), #9fb4d8)', text: '#9fb4d8', empty: 'rgba(159,180,216,.09)' }
+    if (label === 'B') return { bar: 'linear-gradient(90deg, rgba(138,147,166,.25), #8a93a6)', text: '#8a93a6', empty: 'rgba(138,147,166,.08)' }
+    return { bar: 'linear-gradient(90deg, rgba(122,106,114,.25), #7a6a72)', text: '#7a6a72', empty: 'rgba(122,106,114,.08)' }
   }
 
   return (
-    <div className="rating-chart">
-      <div className="rating-bars">
-        {stats.map((item) => {
-          const tone = toneOf(item.label)
-          const heightPct = Math.max(6, (item.count / max) * 100)
+    <div className="hbars-chart">
+      <div className="hbars-caption">横轴：评级档位 · 共 {total} 局有评级</div>
+      <div className="hbars hbars-dense">
+        {labels.map((label) => {
+          const item = byLabel.get(label)
+          const count = item?.count ?? 0
+          const ratio = item?.ratio ?? 0
+          const tone = toneOf(label)
+          const isEmpty = count === 0
           return (
-            <div key={item.label} className="rating-col">
-              <div className="rating-count">{item.count}</div>
-              <div className="rating-track">
-                <div
-                  className="rating-fill"
-                  style={{ height: `${heightPct}%`, background: tone.bar }}
-                />
+            <div key={label} className={`hbar-row hbar-row-narrow${isEmpty ? ' hbar-row-empty' : ''}`}>
+              <span className="hbar-label" style={{ color: isEmpty ? undefined : tone.text }}>{label}</span>
+              <div className="hbar-track">
+                {!isEmpty && (
+                  <div
+                    className="hbar-fill"
+                    style={{ width: `${Math.max(3, (count / max) * 100)}%`, background: tone.bar }}
+                  />
+                )}
               </div>
-              <div className="rating-label" style={{ color: tone.text }}>{item.label}</div>
-              <div className="rating-pct">{Math.round(item.ratio * 100)}%</div>
+              <span className="hbar-value">{isEmpty ? '—' : `${count}局 ${Math.round(ratio * 100)}%`}</span>
             </div>
           )
         })}
-      </div>
-      <div className="rating-foot">
-        共 {total} 局有评级
-        {total > 0 && <span> · 胜率统计不含未填评级的对局</span>}
       </div>
     </div>
   )
@@ -187,17 +202,387 @@ function WinrateBars({ stats }: { stats: LineupStat[] }) {
   )
 }
 
-function VBars({ buckets, unit }: { buckets: (DurationBucket | HourBucket)[]; unit: string }) {
+/**
+ * 日历热力图：按天统计对局数，布局同 GitHub 贡献图。
+ *
+ * 数据量很小（一天一格，一年 365 格），用 SVG rect 渲染，
+ * DOM 节点不到 400 个，内存开销可以忽略 —— 不需要 Canvas。
+ *
+ * 配色按当天局数分档：0 局空、1-2 局浅、3-4 局中、5+ 局深。
+ * 鼠标悬停显示「X月X日：N 局」。
+ */
+function CalendarHeatmap({ matches }: { matches: Match[] }): React.JSX.Element {
+  /** 选中某天后显示当天对局 */
+  const [pickedDay, setPickedDay] = React.useState<string | null>(null)
+  /** 热力图分页：数据超过一屏时按 18 周/页 切分 */
+  const [page, setPage] = React.useState(0)
+
+  if (!matches.length) return <div className="chart-empty">还没有对局记录~</div>
+
+  /** 按本地日期聚合成 Map<'YYYY-MM-DD', Match[]> */
+  const byDay = new Map<string, Match[]>()
+  for (const m of matches) {
+    if (!m.endedAt) continue
+    const d = new Date(m.endedAt)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const list = byDay.get(key) ?? []
+    list.push(m)
+    byDay.set(key, list)
+  }
+  if (!byDay.size) return <div className="chart-empty">还没有对局记录~</div>
+
+  /*
+   * 时间范围跟着实际数据走：
+   * 只画「第一局那天 → 今天」，不补前面几个月空白。
+   * 刚用几天就显示几列，攒久了自然变长 —— 而不是一上来就铺满 52 周空格子。
+   */
+  const times = matches.filter((m) => m.endedAt).map((m) => m.endedAt as number)
+  const first = new Date(Math.min(...times))
+  first.setHours(0, 0, 0, 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  // 起点退回本周周日，终点推到本周周六（满一周，避免最后一行缺角）
+  const start = new Date(first)
+  start.setDate(start.getDate() - start.getDay())
+  const end = new Date(today)
+  end.setDate(end.getDate() + (6 - end.getDay()))
+
+  const days: Array<{ date: Date; key: string; count: number; week: number; weekday: number; future: boolean }> = []
+  const cursor = new Date(start)
+  let week = 0
+  while (cursor <= end) {
+    const weekday = cursor.getDay()
+    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`
+    days.push({
+      date: new Date(cursor),
+      key,
+      count: byDay.get(key)?.length ?? 0,
+      week,
+      weekday,
+      future: cursor > today
+    })
+    if (weekday === 6) week++
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  // 格子放大：22px 宽，比之前的 11px 好点得多
+  const CELL = 18
+  const GAP = 4
+  const LEFT = 24
+  const TOP = 18
+  /*
+   * 分页：一页最多 18 周（约 4 个月）。
+   * 再多就超出容器宽度了 —— 与其把格子压小到看不清，
+   * 不如分页，每页保持固定的格子尺寸。
+   */
+  const WEEKS_PER_PAGE = 18
+  const totalWeeks = Math.ceil(days.length / 7)
+  const pageCount = Math.max(1, Math.ceil(totalWeeks / WEEKS_PER_PAGE))
+  const safePage = Math.min(page, pageCount - 1)
+  const firstWeek = safePage * WEEKS_PER_PAGE
+  const lastWeek = Math.min(totalWeeks, firstWeek + WEEKS_PER_PAGE) - 1
+  const visibleDays = days.filter((d) => d.week >= firstWeek && d.week <= lastWeek)
+  const pageWeeks = lastWeek - firstWeek + 1
+  const W = LEFT + pageWeeks * (CELL + GAP) - GAP
+  const H = TOP + 7 * (CELL + GAP) - GAP
+
+  const colorOf = (count: number): string => {
+    if (count === 0) return 'rgba(255,255,255,.055)'
+    if (count <= 2) return 'rgba(232,196,118,.50)'
+    if (count <= 4) return 'rgba(232,196,118,.72)'
+    if (count <= 7) return 'rgba(244,217,148,.90)'
+    return '#fff3cf'
+  }
+
+  // 月份标签
+  const monthLabels: Array<{ label: string; x: number }> = []
+  let lastMonth = -1
+  for (const d of days) {
+    if (d.weekday === 0 && d.date.getMonth() !== lastMonth) {
+      lastMonth = d.date.getMonth()
+      monthLabels.push({ label: `${lastMonth + 1}月`, x: LEFT + d.week * (CELL + GAP) })
+    }
+  }
+
+  const maxDay = Math.max(...days.map((d) => d.count))
+  const activeDays = days.filter((d) => d.count > 0).length
+  const picked = pickedDay ? byDay.get(pickedDay) ?? [] : []
+  const pickedDate = pickedDay ? pickedDay.split('-').map(Number) : null
+
+  /*
+   * 宽度自适应：列数少时按固定格宽铺开（字大好看），
+   * 列数多时（超过容器）让外层滚动，不压缩格子。
+   */
+  const minCellTotal = LEFT + totalWeeks * (CELL + GAP)
+
+  return (
+    <div className="heatmap-wrap">
+      <div className="heatmap-caption">
+        {activeDays} 天有对局 · 单日最多 {maxDay} 局
+      </div>
+
+      <div className="heatmap-scroll">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="heatmap-svg"
+          style={{ minWidth: Math.min(minCellTotal, 620) }}
+          preserveAspectRatio="xMinYMin meet"
+        >
+          {/* 星期标签 */}
+          {[{ i: 1, t: '一' }, { i: 3, t: '三' }, { i: 5, t: '五' }].map(({ i, t }) => (
+            <text key={t} x={LEFT - 7} y={TOP + i * (CELL + GAP) + CELL - 8} className="heatmap-weekday" textAnchor="end">{t}</text>
+          ))}
+
+          {/* 月份标签（只显示本页范围内的） */}
+          {monthLabels
+            .filter((m, i, arr) => {
+              // 按 x 换算成周数，判断是否落在本页
+              const wk = Math.round((m.x - LEFT) / (CELL + GAP))
+              return wk >= firstWeek && wk <= lastWeek
+            })
+            .map((m) => (
+              <text key={m.label + m.x} x={m.x - firstWeek * (CELL + GAP)} y={TOP - 7} className="heatmap-month">{m.label}</text>
+            ))}
+
+          {/* 每天一格：只画当前页 */}
+          {visibleDays.map((d) => (d.future ? null : (
+            <rect
+              key={d.key}
+              x={LEFT + (d.week - firstWeek) * (CELL + GAP)}
+              y={TOP + d.weekday * (CELL + GAP)}
+              width={CELL}
+              height={CELL}
+              rx={4}
+              fill={colorOf(d.count)}
+              stroke={pickedDay === d.key ? '#fff3cf' : 'none'}
+              strokeWidth={pickedDay === d.key ? 2 : 0}
+              style={{ cursor: d.count > 0 ? 'pointer' : 'default' }}
+              onClick={() => setPickedDay((prev) => (prev === d.key ? null : d.key))}
+            >
+              <title>{`${d.date.getMonth() + 1}月${d.date.getDate()}日：${d.count} 局`}</title>
+            </rect>
+          )))}
+        </svg>
+      </div>
+
+      {/* 点击后显示当天详情 */}
+      {pickedDay && pickedDate && (
+        <div className="heatmap-detail">
+          <div className="heatmap-detail-head">
+            <b>{pickedDate[1]}月{pickedDate[2]}日</b>
+            <span>{picked.length} 局</span>
+            <button type="button" className="heatmap-detail-close" aria-label="关闭" onClick={() => setPickedDay(null)}>✕</button>
+          </div>
+          <div className="heatmap-detail-list">
+            {picked.length === 0 && <span className="muted">这天没有对局</span>}
+            {picked.map((m) => (
+              <span key={m.id} className={`heatmap-chip ${m.result === 'win' ? 'win' : m.result === 'loss' ? 'loss' : ''}`}>
+                {new Date(m.endedAt as number).getHours().toString().padStart(2, '0')}:{new Date(m.endedAt as number).getMinutes().toString().padStart(2, '0')}
+                {' '}
+                {m.result === 'win' ? '胜' : m.result === 'loss' ? '负' : '?'}
+                {m.rating ? ` ${m.rating}` : ''}
+                {m.rankAfter ? ` · ${m.rankAfter}` : ''}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="heatmap-footer">
+        <div className="heatmap-legend">
+          <span>少</span>
+          {[0, 2, 4, 7, 9].map((n) => (
+            <i key={n} style={{ background: colorOf(n) }} />
+          ))}
+          <span>多</span>
+        </div>
+        {/* 数据超过一屏时按 4 个月一页翻 */}
+        {pageCount > 1 && (
+          <div className="heatmap-pager">
+            <button
+              type="button"
+              className="heatmap-page-btn"
+              disabled={safePage <= 0}
+              aria-label="上一页"
+              onClick={() => setPage((v) => Math.max(0, v - 1))}
+            >‹</button>
+            <span className="heatmap-page-info">{safePage + 1} / {pageCount}</span>
+            <button
+              type="button"
+              className="heatmap-page-btn"
+              disabled={safePage >= pageCount - 1}
+              aria-label="下一页"
+              onClick={() => setPage((v) => Math.min(pageCount - 1, v + 1))}
+            >›</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 活跃时段：24 小时时钟径向图。
+ *
+ * 24 个时段用柱状图怎么排都别扭（竖着窄、横着长且一半是空行），
+ * 而「一天中的活跃分布」本质是周期性数据 —— 摊成环形最直观：
+ * 每个时刻占 15°，扇区越长表示那小时打的局数越多，
+ * 0 局的时刻只留一小截刻度，能看出「这个点从没打过」。
+ */
+function HourClock({ buckets }: { buckets: HourBucket[] }): React.JSX.Element {
+  const byHour = new Map(buckets.map((b) => [b.hour, b.count]))
+  const counts = buckets.map((b) => b.count)
+  const max = Math.max(1, ...counts)
+  const total = counts.reduce((sum, n) => sum + n, 0)
+
+  /*
+   * 极坐标玫瑰图（wind rose / polar area）。
+   *
+   * 24 个时刻按 15° 均分，扇区半径表示该小时的对局数。
+   * 比柱状图更能体现"一天之内"的周期感 —— 一眼看出活动集中在哪个时段，
+   * 而不是在 24 根细柱或 24 行条形之间上下扫。
+   *
+   * 尺寸固定、居中显示：SVG 有固有宽高，外面用 flex 居中，
+   * 不随容器拉伸变形。
+   */
+  const SIZE = 340
+  const cx = SIZE / 2
+  const cy = SIZE / 2
+  const R_OUTER = 132         // 最外圈（最大值）半径
+  const R_GRID = [0.25, 0.5, 0.75, 1].map((r) => R_OUTER * r)
+
+  const angleOf = (hour: number): number => (hour / 24) * Math.PI * 2 - Math.PI / 2
+
+  /** 一个扇区（从圆心出发，半径按比例） */
+  const sectorPath = (hour: number, ratio: number): string => {
+    const half = (Math.PI * 2 / 24) * 0.40
+    const a0 = angleOf(hour) - half
+    const a1 = angleOf(hour) + half
+    // 0 局的时段留一点最小半径，看得出"这个时刻存在但没有对局"
+    const r = Math.max(8, R_OUTER * ratio)
+    const pt = (radius: number, a: number): string =>
+      `${(cx + radius * Math.cos(a)).toFixed(2)},${(cy + radius * Math.sin(a)).toFixed(2)}`
+    return [
+      `M${cx},${cy}`,
+      `L${pt(r, a0)}`,
+      `A${r.toFixed(2)},${r.toFixed(2)} 0 0 1 ${pt(r, a1)}`,
+      'Z'
+    ].join(' ')
+  }
+
+  /** 局数 → 颜色（参考图的紫→橙→黄渐变，但贴合本项目的金色系） */
+  const colorOf = (count: number): string => {
+    if (count === 0) return 'rgba(255,255,255,.07)'
+    const t = count / max
+    if (t <= 0.25) return 'rgba(120, 100, 200, .55)'   // 少：冷紫
+    if (t <= 0.5) return 'rgba(200, 130, 160, .65)'    // 中：粉紫
+    if (t <= 0.75) return 'rgba(232, 170, 120, .78)'   // 多：橙
+    return 'rgba(244, 217, 148, .95)'                  // 最多：金
+  }
+
+  const peakHour = buckets.reduce((best, b) => (b.count > (byHour.get(best) ?? 0) ? b.hour : best), 0)
+
+  return (
+    <div className="rose-wrap">
+      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="rose-svg">
+        {/* 同心网格圈 */}
+        {R_GRID.map((r) => (
+          <circle key={r} cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,.07)" strokeWidth="1" />
+        ))}
+        {/* 24 条放射网格线 */}
+        {Array.from({ length: 24 }, (_, h) => {
+          const a = angleOf(h)
+          return (
+            <line
+              key={h}
+              x1={cx} y1={cy}
+              x2={cx + R_OUTER * Math.cos(a)}
+              y2={cy + R_OUTER * Math.sin(a)}
+              stroke="rgba(255,255,255,.05)"
+              strokeWidth="1"
+            />
+          )
+        })}
+
+        {/* 24 个扇区 */}
+        {Array.from({ length: 24 }, (_, hour) => {
+          const count = byHour.get(hour) ?? 0
+          const isPeak = count > 0 && hour === peakHour
+          return (
+            <path
+              key={hour}
+              d={sectorPath(hour, count / max)}
+              fill={colorOf(count)}
+              stroke={isPeak ? 'rgba(255,243,207,.85)' : 'none'}
+              strokeWidth={isPeak ? 1.4 : 0}
+              style={{ cursor: count > 0 ? 'pointer' : 'default' }}
+            >
+              <title>{`${hour} 时：${count} 局`}</title>
+            </path>
+          )
+        })}
+
+        {/* 时刻标签：每 3 小时标一个，避免拥挤 */}
+        {[0, 3, 6, 9, 12, 15, 18, 21].map((hour) => {
+          const a = angleOf(hour)
+          const r = R_OUTER + 20
+          return (
+            <text
+              key={hour}
+              x={cx + r * Math.cos(a)}
+              y={cy + r * Math.sin(a)}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="rose-tick"
+            >{hour}时</text>
+          )
+        })}
+
+      </svg>
+
+      <div className="rose-foot">
+        共 {total} 局 · 最活跃 <b>{peakHour} 时</b>
+        <span>（{byHour.get(peakHour) ?? 0} 局）</span>
+      </div>
+    </div>
+  )
+}
+
+function VBars({ buckets, unit, axisCaption, hideZero = false }: { buckets: (DurationBucket | HourBucket)[]; unit: string; axisCaption?: string; hideZero?: boolean }) {
   if (!buckets.some((bucket) => bucket.count > 0)) return <div className="chart-empty">暂无可统计的记录</div>
   const max = Math.max(1, ...buckets.map((b) => b.count))
+
+  const rows = buckets
+    .map((b, i) => ({
+      label: 'label' in b ? b.label : String((b as HourBucket).hour),
+      count: b.count,
+      index: i
+    }))
+    .filter((row) => !hideZero || row.count > 0)
+
   return (
-    <div className="vbars">
-      {buckets.map((b, i) => (
-        <div key={i} className="vbar-col" title={`${'label' in b ? b.label : (b as HourBucket).hour + '时'}：${b.count}${unit}`}>
-          <div className="vbar-fill" style={{ height: `${(b.count / max) * 100}%` }} />
-          <span className="vbar-label">{'label' in b ? b.label : (b as HourBucket).hour}</span>
-        </div>
-      ))}
+    <div className="hbars-chart">
+      {axisCaption && <div className="hbars-caption">横轴：{axisCaption}</div>}
+      <div className="hbars hbars-dense">
+        {rows.map((row) => {
+          const isEmpty = row.count === 0
+          return (
+            <div key={row.index} className={`hbar-row hbar-row-narrow${isEmpty ? ' hbar-row-empty' : ''}`}>
+              <span className="hbar-label">{row.label}</span>
+              <div className="hbar-track">
+                {!isEmpty && (
+                  <div
+                    className="hbar-fill"
+                    style={{ width: `${Math.max(3, (row.count / max) * 100)}%` }}
+                  />
+                )}
+              </div>
+              <span className="hbar-value">{isEmpty ? '—' : `${row.count}${unit}`}</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -218,7 +603,7 @@ export default function App() {
   const [hours, setHours] = useState<HourBucket[]>([])
   /** 评级分布（只含有评级的对局） */
   const [ratings, setRatings] = useState<RatingBucket[]>([])
-  const [tab, setTab] = useState<'lineup' | 'bond' | 'rank' | 'duration' | 'hour' | 'rating'>('lineup')
+  const [tab, setTab] = useState<'lineup' | 'bond' | 'rank' | 'duration' | 'hour' | 'rating' | 'calendar'>('lineup')
   /** 面板是否处于最大化（无边框窗口靠自定义按钮切换，需要跟踪状态改图标） */
   const [maximized, setMaximized] = useState(false)
   const [detail, setDetail] = useState<Match | null>(null)
@@ -434,8 +819,7 @@ export default function App() {
           )}
         </div>
         <div className="title-actions">
-          <button className="primary-btn" disabled={importing} onClick={() => void importScreenshot()}>{importing ? '正在导入…' : '导入结算截图'}</button>
-          <button className="tb-btn" disabled={importing} title="从剪贴板粘贴截图（Ctrl+V）" onClick={() => void pasteClipboard()}>粘贴截图</button>
+          <button className="tb-btn" title="重新读取记录与统计" onClick={() => void reload()}>刷新</button>
           {/* 无边框窗口需要自定义窗口按钮；用 SVG 而非字符，避免字体差异和"看起来像汉字"的问题 */}
           <button className="tb-btn win-btn" title="最小化" aria-label="最小化" onClick={() => window.api.panelMinimize()}>
             <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
@@ -466,16 +850,24 @@ export default function App() {
         <div className="tile"><div className="tile-num">{overview?.total ?? '—'}</div><div className="tile-label">总局数</div></div>
         <div className="tile"><div className="tile-num gold">{winRate}</div><div className="tile-label">胜率</div></div>
         <div className="tile"><div className="tile-num">{overview?.knownDurationGames ? (overview.totalDurationSec / 3600).toFixed(1) : '—'}</div><div className="tile-label">总时长(小时)</div></div>
-        <div className="tile"><div className="tile-num">{overview?.avgDurationSec != null ? Math.round(overview.avgDurationSec / 60) : '—'}</div><div className="tile-label">平均时长(分)</div></div>
+        <div className="tile"><div className="tile-num">{overview?.avgDurationSec != null ? Math.round(overview.avgDurationSec / 60) : '—'}</div><div className="tile-label">平均时长(分钟)</div></div>
         <div className="tile"><div className="tile-num">{overview?.avgSquadHp != null ? Math.round(overview.avgSquadHp) : '—'}</div><div className="tile-label">平均血量</div></div>
         <div className="tile"><div className="tile-num win">{overview?.bestWinStreak ?? '—'}</div><div className="tile-label">最长连胜</div></div>
         <div className="tile"><div className="tile-num loss">{overview?.bestLossStreak ?? '—'}</div><div className="tile-label">最长连败</div></div>
       </div>
-      {error && <div className="inline-error panel-message" role="alert">{error}<button className="tb-btn" onClick={() => void reload()}>重试</button></div>}
+      {error && <div className="inline-error panel-message" role="alert">{error}</div>}
       {notice && <div className="inline-success panel-message" role="status">{notice}</div>}
 
       <section className="draft-card" aria-label="待确认草稿">
-        <div className="draft-heading"><strong>待确认草稿 <span className="draft-count">{drafts.length}</span></strong><span className="muted">先核对，再计入统计</span></div>
+        <div className="draft-heading">
+          <strong>待确认草稿 <span className="draft-count">{drafts.length}</span></strong>
+          <span className="muted">先核对，再计入统计</span>
+          {/* 导入/粘贴直接产出草稿，放在这里比标题栏更顺手 */}
+          <div className="draft-actions">
+            <button className="primary-btn" disabled={importing} onClick={() => void importScreenshot()}>{importing ? '正在导入…' : '导入截图'}</button>
+            <button className="primary-btn ghost" disabled={importing} title="从剪贴板粘贴截图（Ctrl+V）" onClick={() => void pasteClipboard()}>粘贴截图</button>
+          </div>
+        </div>
         {drafts.length ? <div className="draft-list">{drafts.map((draft) => <button className="draft-item" key={draft.id} onClick={() => setSelectedDraftId(draft.id)}><span>{fmtTime(draft.endedAt)}</span><span className="draft-status">{draft.status === 'capturing' ? '正在截图' : draft.status === 'recognizing' ? '正在识别' : draft.error ? '需手动核对' : '待核对'}</span><span className="muted">{draft.fields.result === 'suspected' ? '结果待核实' : RESULT_LABEL[draft.fields.result]} · {fmtDur(draft.durationSec)}</span></button>)}</div> : <p className="draft-empty">{loading ? '正在读取草稿…' : '暂无草稿。导入一张结算截图，或在结算界面结束本局计时。'}</p>}
       </section>
 
@@ -505,6 +897,7 @@ export default function App() {
             <button className={tab === 'duration' ? 'on' : ''} onClick={() => setTab('duration')}>时长分布</button>
             <button className={tab === 'hour' ? 'on' : ''} onClick={() => setTab('hour')}>活跃时段</button>
             <button className={tab === 'rating' ? 'on' : ''} onClick={() => setTab('rating')}>评级分布</button>
+            <button className={tab === 'calendar' ? 'on' : ''} onClick={() => setTab('calendar')}>日历热力图</button>
           </div>
           <div className="tab-body">
             {tab === 'lineup' && <WinrateBars stats={lineups} />}
@@ -547,9 +940,10 @@ export default function App() {
                 <LineChart points={rank} />
               )
             )}
-            {tab === 'duration' && <VBars buckets={durations} unit="局" />}
-            {tab === 'hour' && <VBars buckets={hours} unit="局" />}
+            {tab === 'duration' && <VBars buckets={durations} unit="局" axisCaption="对局时长（分钟）" />}
+            {tab === 'hour' && <HourClock buckets={hours} />}
             {tab === 'rating' && <RatingBars stats={ratings} />}
+            {tab === 'calendar' && <CalendarHeatmap matches={matches} />}
           </div>
         </div>
       </div>
