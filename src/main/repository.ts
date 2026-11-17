@@ -533,7 +533,9 @@ export class Repository {
    */
   ratingStats(season?: string | null): RatingBucket[] {
     const w = this.where(season, {
-      clause: "result IN ('win','loss') AND rating IS NOT NULL AND TRIM(rating)!=''",
+      // 评级只有 SSS/SS/S/A/B/C 六档（游戏内无 D 档）。
+      // 历史数据里可能残留误识别出来的 D，这里一并排除，避免图表出现幽灵档位。
+      clause: "result IN ('win','loss') AND rating IS NOT NULL AND TRIM(rating)!='' AND UPPER(TRIM(rating)) IN ('SSS','SS','S','A','B','C')",
       params: []
     })
     const rows = this.rows(
@@ -542,7 +544,7 @@ export class Repository {
     )
     if (!rows.length) return []
     const total = rows.reduce((sum, row) => sum + (row.n as number), 0)
-    const order = ['SSS', 'SS', 'S', 'A', 'B', 'C', 'D']
+    const order = ['SSS', 'SS', 'S', 'A', 'B', 'C']
     const rankOf = (label: string): number => {
       const index = order.indexOf(label)
       return index < 0 ? order.length : index

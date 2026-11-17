@@ -264,7 +264,7 @@ export function parseOcrResult(document: OcrDocument): OcrAnalysis {
     const outcome = outcomeLines[0]
     const mode = modeLines[0]
     if (outcome.y != null && mode.y != null && mode.y > outcome.y) {
-      const ratingLines = lines.filter((line) => /^(?:SSS|SS|S|A|B|C|D)$/.test(line.text)
+      const ratingLines = lines.filter((line) => /^(?:SSS|SS|S|A|B|C)$/.test(line.text)
         && line.y != null && line.y > outcome.y! + outcome.height && line.y < mode.y!
         && line.x != null && outcome.x != null
         && Math.abs(line.x + line.width / 2 - outcome.x - outcome.width / 2) < Math.max(document.width * 0.12, outcome.width))
@@ -276,7 +276,7 @@ export function parseOcrResult(document: OcrDocument): OcrAnalysis {
   const ratings = new Set<string>(fields.rating ? [fields.rating] : [])
   for (const region of regions.filter((entry) => entry.kind === 'rating')) {
     for (const line of region.parsed) {
-      if (!/^(?:SSS|SS|S|A|B|C|D)$/i.test(line.text) || line.x == null || line.y == null || lineupHeading?.x == null) continue
+      if (!/^(?:SSS|SS|S|A|B|C)$/i.test(line.text) || line.x == null || line.y == null || lineupHeading?.x == null) continue
       if (line.x + line.width / 2 >= lineupHeading.x || line.y > document.height * 0.75) continue
       const ratingY = line.y
       if (!ratingTitles.some((title) => title.y != null && ratingY > title.y + title.height)) continue
@@ -290,6 +290,24 @@ export function parseOcrResult(document: OcrDocument): OcrAnalysis {
   }
 
   warnings.push('角色头像和羁绊图标尚未识别，请按原图手动补充阵容。')
+
+  /*
+   * 识别质量兜底：即时结算界面的截图经常识别不全
+   * （动画/特效遮挡、半透明面板、字体描边），一旦关键字段大面积缺失，
+   * 与其让用户在一堆空字段里手工补，不如直接提示换「对战记录」页截图重来。
+   *
+   * 触发条件：认识的文字行太少，或者关键字段缺 2 个以上。
+   */
+  if (pageKind === 'settlement') {
+    const keyFields = [fields.result, fields.rankAfter ?? fields.rankBefore, fields.mode, fields.rating]
+    const missing = keyFields.filter((v) => v == null).length
+    if (lines.length < 6 || missing >= 2) {
+      warnings.unshift(
+        '这张截图识别得很不完整（即时结算画面经常有遮挡）。建议改成「对战记录」页面的截图再导入，那里文字更清晰、字段更全。'
+      )
+    }
+  }
+
   const extraText = regions.filter((entry) => entry.parsed.length > 0)
     .map((entry) => `[局部识别·${entry.kind === 'rating' ? '评分' : entry.kind === 'header' ? '职级与生命' : '羁绊数字'}]\n${entry.lines.map((line) => line.text).join('\n')}`)
   return { text: [rawText, ...extraText].join('\n'), pageKind, fields, warnings, vision: visionRegions(document, lines) }

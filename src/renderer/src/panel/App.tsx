@@ -110,8 +110,8 @@ function RatingBars({ stats }: { stats: RatingBucket[] }): React.JSX.Element {
   const max = Math.max(...stats.map((item) => item.count), 1)
   const byLabel = new Map(stats.map((item) => [item.label, item]))
 
-  // 固定档位顺序；数据里出现的额外档位追加在后面
-  const ORDER = ['SSS', 'SS', 'S', 'A', 'B', 'C', 'D']
+  // 固定档位顺序（游戏内只有这六档，无 D 档）；数据里出现的额外档位追加在后面
+  const ORDER = ['SSS', 'SS', 'S', 'A', 'B', 'C']
   const extra = stats.map((item) => item.label).filter((label) => !ORDER.includes(label))
   const labels = [...ORDER, ...extra]
 
@@ -905,7 +905,8 @@ export default function App() {
         </div>
       </div>
 
-      <p className="capture-hint">自助添加：游戏结算画面用 Win+Shift+S 截图，回到面板 Ctrl+V（或点「粘贴截图」）即进入核对。</p>
+      <p className="capture-hint">自助添加：<b>优先截「对战记录」页面</b>（文字清晰、字段全），用 Win+Shift+S 截图后回到面板 Ctrl+V（或点「粘贴截图」）即进入核对。</p>
+      <p className="capture-hint">即时结算画面经常有遮挡、容易识别不全，不建议作为截图来源。</p>
       <p className="capture-hint">Ctrl+Shift+F8 开始/结束计时（若快捷键未被占用）。结束后截图会进入待确认草稿。</p>
 
       {/* 总览统计 */}
