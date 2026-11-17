@@ -294,7 +294,7 @@ export function parseOcrResult(document: OcrDocument): OcrAnalysis {
   /*
    * 识别质量兜底：即时结算界面的截图经常识别不全
    * （动画/特效遮挡、半透明面板、字体描边），一旦关键字段大面积缺失，
-   * 与其让用户在一堆空字段里手工补，不如直接提示换「对战记录」页截图重来。
+   * 与其让用户在一堆空字段里手工补，不如直接提示换「对局记录」页截图重来。
    *
    * 触发条件：认识的文字行太少，或者关键字段缺 2 个以上。
    */
@@ -303,7 +303,7 @@ export function parseOcrResult(document: OcrDocument): OcrAnalysis {
     const missing = keyFields.filter((v) => v == null).length
     if (lines.length < 6 || missing >= 2) {
       warnings.unshift(
-        '这张截图识别得很不完整（即时结算画面经常有遮挡）。建议改成「对战记录」页面的截图再导入，那里文字更清晰、字段更全。'
+        '这张截图识别得很不完整（即时结算画面经常有遮挡）。建议改成「对局记录」页面的截图再导入，那里文字更清晰、字段更全。'
       )
     }
   }
