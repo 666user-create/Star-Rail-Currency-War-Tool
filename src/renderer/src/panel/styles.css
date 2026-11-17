@@ -190,7 +190,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .match-list { overflow-y: auto; flex: 1; }
 .match-row {
   display: grid;
-  grid-template-columns: 92px 38px 54px 1fr auto;
+  grid-template-columns: 92px 38px 54px 34px 1fr auto;
   gap: 8px;
   align-items: center;
   padding: 7px 8px;
@@ -203,6 +203,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   color: var(--text);
   text-align: left;
   border-left: 3px solid transparent;
+}
+/* 列表里的评级标记；未评级用灰色弱化，方便一眼找出待补的 */
+.m-rating {
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--gold);
+  letter-spacing: .3px;
+}
+.m-rating-none {
+  color: rgba(255, 255, 255, .28);
+  font-weight: 500;
 }
 .list-empty { padding: 34px 15px; color: var(--muted); font-size: 12px; text-align: center; line-height: 1.8; }
 .list-empty strong { display: block; font-size: 14px; color: var(--text); margin-bottom: 5px; }

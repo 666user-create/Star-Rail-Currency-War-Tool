@@ -950,17 +950,29 @@ export default function App() {
             >
               <option value="">全部</option>
               {RATING_ORDER.map((r) => <option key={r} value={r}>{r}</option>)}
+              {/* 未评级单独一项：方便把缺评级的记录捞出来补 */}
+              <option value="__none__">未评级</option>
             </select>
             <button type="button" className="tb-btn" disabled={exporting || !matches.length} onClick={() => void exportCsv()}>
               {exporting ? '正在导出…' : '导出 CSV'}
             </button>
           </div>
           <div className="match-list">
-            {matches.filter((m) => !ratingFilter || (m.rating ?? '') === ratingFilter).map((m) => (
+            {matches.filter((m) => {
+              if (!ratingFilter) return true
+              const rating = (m.rating ?? '').trim()
+              // 「未评级」筛选：rating 为空或只有空白的记录
+              if (ratingFilter === '__none__') return rating === ''
+              return rating === ratingFilter
+            }).map((m) => (
               <button type="button" key={m.id} className={`match-row r-${m.result}`} onClick={() => { setDetail(m); setEditing(false) }}>
                 <span className="m-time">{fmtTime(m.startedAt ?? m.endedAt)}</span>
                 <span className={`m-badge b-${m.result}`}>{RESULT_LABEL[m.result]}</span>
                 <span className="m-dur">{fmtDur(m.durationSec)}</span>
+                {/* 评级标记：未评级显示灰色「未评」，方便一眼找出要补的 */}
+                {(m.rating ?? '').trim()
+                  ? <span className="m-rating">{m.rating}</span>
+                  : <span className="m-rating m-rating-none">未评</span>}
                 <span className="m-lineup">{[...m.lineup, ...m.bonds].join('·') || '阵容未填写'}</span>
               </button>
             ))}
