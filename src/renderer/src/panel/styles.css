@@ -204,16 +204,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   text-align: left;
   border-left: 3px solid transparent;
 }
-/* 列表里的评级标记；未评级用灰色弱化，方便一眼找出待补的 */
-.m-rating {
-  font-size: 11px;
+/* 列表里的队伍生命；缺失用灰色短横线，不显示错误的 0 */
+.m-hp {
+  font-size: 12px;
   font-weight: 700;
   text-align: center;
-  color: var(--gold);
+  color: #6fcf97;
   letter-spacing: .3px;
 }
-.m-rating-none {
-  color: rgba(255, 255, 255, .28);
+.m-hp-none {
+  color: rgba(255, 255, 255, .25);
   font-weight: 500;
 }
 .list-empty { padding: 34px 15px; color: var(--muted); font-size: 12px; text-align: center; line-height: 1.8; }

@@ -382,7 +382,13 @@ function CalendarHeatmap({ matches }: { matches: Match[] }): React.JSX.Element {
                   <span className={`heatmap-game-result ${isWin ? 'win' : isLoss ? 'loss' : ''}`}>
                     {isWin ? '胜' : isLoss ? '负' : '?'}
                   </span>
-                  <span className="heatmap-game-rank">{displayRank(m.rankAfter) || '—'}</span>
+                  {/*
+                    显示起始段位（rank_before）而不是结算后段位：
+                    满级之后游戏不再显示结算段位，rank_after 会大面积为空（表现为一片「—」）；
+                    而 rank_before 每条都有填，任何时段都能正确显示。
+                    极端情况下 before 也没填，再回落到 after。
+                  */}
+                  <span className="heatmap-game-rank">{displayRank(m.rankBefore) || displayRank(m.rankAfter) || '—'}</span>
                   <span className="heatmap-game-rating">{m.rating || '—'}</span>
                 </div>
               )
@@ -938,7 +944,7 @@ export default function App() {
       <div className="main-grid">
         {/* 对局列表 */}
         <div className="card list-card">
-          <div className="card-title">正式记录 <span className="muted">（点行查看详情与原图）</span></div>
+          <div className="card-title">正式记录 <span className="muted">（点行查看详情与原图 · 数字为队伍生命）</span></div>
           {/* 工具条：评级筛选 + 导出，和列表标题同行，不占额外大块空间 */}
           <div className="list-toolbar">
             <label className="filter-label" htmlFor="rating-filter">评级</label>
@@ -969,10 +975,10 @@ export default function App() {
                 <span className="m-time">{fmtTime(m.startedAt ?? m.endedAt)}</span>
                 <span className={`m-badge b-${m.result}`}>{RESULT_LABEL[m.result]}</span>
                 <span className="m-dur">{fmtDur(m.durationSec)}</span>
-                {/* 评级标记：未评级显示灰色「未评」，方便一眼找出要补的 */}
-                {(m.rating ?? '').trim()
-                  ? <span className="m-rating">{m.rating}</span>
-                  : <span className="m-rating m-rating-none">未评</span>}
+                {/* 队伍生命：评级可以靠筛选找，血量只能进详情看，所以列表里优先展示血量 */}
+                {m.squadHp != null
+                  ? <span className="m-hp">{m.squadHp}</span>
+                  : <span className="m-hp m-hp-none">—</span>}
                 <span className="m-lineup">{[...m.lineup, ...m.bonds].join('·') || '阵容未填写'}</span>
               </button>
             ))}
