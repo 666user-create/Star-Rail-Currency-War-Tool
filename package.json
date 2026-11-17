@@ -1,6 +1,6 @@
 {
   "name": "currency-war-pet",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "货币战争桌宠助手 — 话痨阴阳怪气小奇美拉，专治官方只给10条对战记录（非米哈游官方作品）",
   "author": "currency-war-pet contributors",
   "main": "out/main/index.js",
@@ -26,7 +26,7 @@
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6.1.2",
     "electron": "^44.9.2",
-    "electron-builder": "^26.18.0",
+    "electron-builder": "^25.1.8",
     "electron-vite": "^6.0.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.4"
@@ -40,7 +40,10 @@
     "files": [
       "out/**/*",
       "!out/**/*.map",
-      "package.json"
+      "package.json",
+      "assets/official_pet/**/*",
+      "assets/pet/**/*",
+      "assets/rank/**/*"
     ],
     "extraResources": [
       {
@@ -76,9 +79,16 @@
         }
       ],
       "icon": "build/icon.ico",
-      "verifyUpdateCodeSignature": false
+      "verifyUpdateCodeSignature": false,
+      "signAndEditExecutable": true,
+      "sign": null,
+      "legalTrademarks": "",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "compression": "normal",
-    "asar": true
+    "asar": true,
+    "electronDist": "node_modules/electron/dist",
+    "npmRebuild": false,
+    "copyright": "非官方同人作品，与 miHoYo/HoYoverse 无关联"
   }
 }

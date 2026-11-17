@@ -1,7 +1,6 @@
 .superpowers/
 node_modules/
 dist/
-out/
 *.log
 __pycache__/
 # 官方素材形象：本地/release 分发，不进仓库（非商业同人使用条款）
@@ -45,3 +44,16 @@ promo-video/public/shots/
 # 发布版成片与剪映素材：体积大，自行留存，不进仓库
 docs/发布版/
 docs/剪映素材/
+
+# 编译产物 out/ 仅在本地忽略（用 .git/info/exclude），不能在 .gitignore 里写 out/
+# 否则 electron-builder 会把它排除出安装包，导致打出的 exe 无法启动
+
+# 打包产物（体积大，不进仓库）
+release/
+release-manual/
+release-final/
+dist-app/
+ab-outside/
+
+# 嵌入 Python 运行环境（902 个文件，体积大）
+python-embed/
