@@ -350,9 +350,10 @@ export default function App() {
     if (key === 'record') void toggleRecord()
     if (key === 'panel') window.api.panelToggle()
     if (key === 'launch') {
-      const ok = await window.api.launchGame()
-      if (ok) { playAnim('cheer'); say(line('launch')) }
-      else say(line('needGamePath'), 5000)
+      const result = await window.api.launchGame()
+      if (result === 'ok') { playAnim('cheer'); say(line('launch')) }
+      else if (result === 'noPath') say(line('needGamePath'), 5000)
+      else say(line('noLauncher'), 6000)
     }
     if (key === 'settings') window.api.settingsOpen()
     if (key === 'checkUpdate') {

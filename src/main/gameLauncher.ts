@@ -21,7 +21,7 @@ export interface ResolvedLaunch {
  * 1. 在用户填的路径及其上级里找 HYP.exe
  * 2. 在游戏所在盘（及 C 盘）的 miHoYo Launcher 目录里找 HYP.exe
  * 3. 退回游戏根下的 launcher.exe（部分安装可能还有）
- * 4. 最后兜底游戏 exe
+ * 4. 全都找不到 → 返回 null（绝不直启已被官方封死的游戏 exe）
  *
  * 两个 exe 的 manifest 都声明 requireAdministrator，都会走 ShellExecute
  * 弹 UAC，这一步无法绕过。
@@ -65,14 +65,8 @@ export function resolveGameLauncher(input: string): ResolvedLaunch | null {
   const launcher = roots.map((root) => path.join(root, 'launcher.exe')).find((p) => exists(p))
   if (launcher) return { exe: launcher, viaLauncher: true }
 
-  // 4) 兜底：游戏 exe
-  const gameExePaths = roots.flatMap((root) => [
-    path.join(root, 'Game', 'StarRail.exe'),
-    path.join(root, 'StarRail.exe')
-  ])
-  const game = gameExePaths.find((p) => exists(p))
-  if (game) return { exe: game, viaLauncher: false }
-
+  // 不再兜底直启 Game\StarRail.exe：官方已封死（实测弹「现在已经不支持」），
+  // 启动了也是失败，还会让桌宠误报「启动器开好了」。找不到启动器就明确返回 null。
   return null
 }
 

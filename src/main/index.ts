@@ -1125,18 +1125,19 @@ function setupIpc(): void {
   // 米哈游启动器（HYP.exe，位于 <盘>:\miHoYo Launcher\<版本>\）。
   // 它会打开启动器界面，还需再手动点一次「开始游戏」。详见 gameLauncher.ts。
   // 各 exe manifest 都要求管理员，都会走 ShellExecute 弹 UAC。
-  ipcMain.handle('game:launch', async () => {
+  ipcMain.handle('game:launch', async (): Promise<'ok' | 'noPath' | 'noLauncher'> => {
+    if (!settings.gamePath?.trim()) return 'noPath'
     const target = resolveGameLauncher(settings.gamePath)
-    if (!target) return false
+    if (!target) return 'noLauncher'
     try {
       // shell.openPath 走 ShellExecute：既能启动 exe，也会在需要时正确触发 UAC 提权
       const failure = await shell.openPath(target.exe)
-      if (failure) { console.error('[game-launch]', failure); return false }
+      if (failure) { console.error('[game-launch]', failure); return 'noLauncher' }
       console.log(`[game-launch] ${target.viaLauncher ? 'launcher' : 'game exe'}: ${target.exe}`)
-      return true
+      return 'ok'
     } catch (error) {
       console.error('[game-launch]', error)
-      return false
+      return 'noLauncher'
     }
   })
 

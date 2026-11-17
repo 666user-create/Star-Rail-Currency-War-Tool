@@ -36,12 +36,10 @@ test('没有 HYP.exe 时退回游戏根下的 launcher.exe', (t) => {
   assert.equal(resolved.exe, path.join(root, 'launcher.exe'))
 })
 
-test('连 launcher.exe 都没有时，才回退到游戏 exe', (t) => {
+test('连 launcher.exe 都没有时，绝不直启游戏 exe（官方已封死），返回 null', (t) => {
   const root = makeGameTree(t, true, false, false)
   const resolved = resolveGameLauncher(root)
-  assert.ok(resolved)
-  assert.equal(resolved.viaLauncher, false)
-  assert.equal(resolved.exe, path.join(root, 'Game', 'StarRail.exe'))
+  assert.equal(resolved, null)
 })
 
 test('填 Game 目录也能定位到上级的启动器', (t) => {

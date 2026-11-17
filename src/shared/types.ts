@@ -169,7 +169,7 @@ export interface RatingBucket {
 
 export type DialogueEvent =
   | 'click' | 'win' | 'loss' | 'winStreak' | 'lossStreak'
-  | 'start' | 'end' | 'idle' | 'launch' | 'needGamePath' | 'checkUpdate'
+  | 'start' | 'end' | 'idle' | 'launch' | 'needGamePath' | 'noLauncher' | 'checkUpdate'
 
 export interface DialogueContext {
   [key: string]: string | number | undefined
@@ -285,7 +285,8 @@ export interface PetApi {
   /** 面板打开时自动选中指定的待确认草稿（结束计时后触发） */
   onDraftFocus(listener: (id: string) => void): () => void
   onRecordingChange(listener: (change: RecordingChange) => void): () => void
-  launchGame(): Promise<boolean>
+  /** 启动游戏：'ok' 已唤起启动器；'noPath' 未设置游戏路径；'noLauncher' 找不到官方启动器 */
+  launchGame(): Promise<'ok' | 'noPath' | 'noLauncher'>
   /** 导出全部战绩为 CSV，返回保存路径与导出条数 */
   exportCsv(): Promise<{ ok: boolean; canceled?: boolean; path?: string; count?: number; error?: string }>
   /** 备份当前数据库到用户指定位置 */
