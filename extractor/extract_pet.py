@@ -47,9 +47,15 @@ DEFAULT_OUT = os.path.join(REPO_ROOT, "assets", "official_pet")
 PET_MARKER = b"PlayerBall_Pet_03"
 PET_MODEL_PREFIX = "NPC_Special_Complainer"
 
+# 用于定位「prefab 所在 block」的宽松标记。
+# 原因：资产名在 block 内是 LZ4 压缩的，精确名（PlayerBall_Pet_03）在原始字节里
+# 通常不可见；但 AssetBundle 头部的依赖/预载表未压缩，能看到 PlayerBall_Pet 前缀。
+# 所以用前缀扫原始字节找 block，再用 UnityPy 在里面按 PET_MARKER 精确找 bundle。
+PET_BLOCK_SCAN_MARKER = b"PlayerBall_Pet"
+
 # 已知的 prefab bundle 在该 block 内的偏移（版本相关，仅作加速提示；
 # 找不到时会退化为在该 block 内按 PET_MARKER 搜索，所以换版本也能跑）
-KNOWN_PREFAB_OFFSET = 964672
+KNOWN_PREFAB_OFFSET = 964798
 
 # 输出贴图名 → 输出文件名
 TEXTURE_EXPORTS = [
@@ -73,6 +79,43 @@ def log(v, msg):
 
 
 # ---------------------------------------------------------------- step 1: 打开 prefab
+def find_pet_block(asb_dir, marker=None, v=False):
+    """
+    在 asb 目录下扫描所有 .block，返回包含随宠 prefab 的那个。
+
+    block 文件名是内容的 md5，会随游戏版本变化，不能写死。
+    资产精确名（PlayerBall_Pet_03）在 block 内是 LZ4 压缩的，原始字节里看不到；
+    但 AssetBundle 头部的依赖表未压缩，能看到 PlayerBall_Pet 前缀 —— 用它定位 block，
+    之后再由 open_bundle_from_block 用 UnityPy 解压后精确找 bundle。
+    """
+    scan = marker or PET_BLOCK_SCAN_MARKER
+    blocks = sorted(
+        os.path.join(asb_dir, f)
+        for f in os.listdir(asb_dir)
+        if f.lower().endswith(".block")
+    )
+    if not blocks:
+        return None, []
+
+    for i, bp in enumerate(blocks):
+        try:
+            with open(bp, "rb") as fh:
+                # 前缀在 block 头部附近（实测 ~900KB），读 2MB 足够；
+                # 命中后再全文确认一次，避免误报
+                chunk = fh.read(2 * 1024 * 1024)
+                if scan not in chunk:
+                    if v and i and (i % 500 == 0):
+                        log(v, f"[block] 已扫描 {i}/{len(blocks)}…")
+                    continue
+                fh.seek(0)
+                if scan in fh.read():
+                    log(v, f"[block] 扫描 {len(blocks)} 个，第 {i+1} 个命中 {scan.decode()}")
+                    return bp, blocks
+        except OSError:
+            continue
+    return None, blocks
+
+
 def open_bundle_from_block(block_path, bundle_offset=None, marker=None, v=False):
     """返回 (data, hdr, env, cab_paths)。优先用 bundle_offset，否则按 marker 搜索。"""
     data = open(block_path, "rb").read()
@@ -394,10 +437,14 @@ def main(argv=None):
     log(v, f"[game] {root}")
     log(v, f"[asb ] {asb}")
 
-    pet_block = os.path.join(asb, "072465116d0a75341688ef20b3317abe.block")
-    if not os.path.isfile(pet_block):
-        print(f"随宠资产 block 不存在：{pet_block}\n"
-              "（该文件名随游戏版本变化；如果你刚更新过游戏，需要重新确认 block 名）",
+    pet_block, all_blocks = find_pet_block(asb, v=v)
+    if not pet_block:
+        print(f"在 {asb} 下扫描了 {len(all_blocks)} 个 block 文件，都没找到随宠模型。\n"
+              f"（查找标记：{PET_BLOCK_SCAN_MARKER.decode()}；已改为自动扫描，不再依赖固定文件名）\n"
+              "可能原因：\n"
+              "  1) 游戏刚更新，资源尚未下载完整 —— 启动一次游戏进到主界面让它下完\n"
+              "  2) 随宠内部代号被改（当前代号：PlayerBall_Pet_03 / NPC_Special_Complainer）\n"
+              "可以先跳过，桌宠会显示简化轮廓；之后随时能在设置里重新提取。",
               file=sys.stderr)
         return 1
     log(v, f"[block] {os.path.basename(pet_block)}")
