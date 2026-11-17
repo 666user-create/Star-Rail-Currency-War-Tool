@@ -35,3 +35,13 @@ python-embed/
 
 # GitHub Release 请求体临时文件
 release-body.json
+
+# Remotion 宣传视频工程：仅本地生成视频用，不进仓库
+promo-video/node_modules/
+promo-video/out/
+promo-video/.tmp-render/
+promo-video/public/audio/
+promo-video/public/shots/
+# 发布版成片与剪映素材：体积大，自行留存，不进仓库
+docs/发布版/
+docs/剪映素材/
