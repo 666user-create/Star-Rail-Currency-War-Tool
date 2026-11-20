@@ -57,3 +57,5 @@ ab-outside/
 
 # 嵌入 Python 运行环境（902 个文件，体积大）
 python-embed/
+
+docs/celebration/
