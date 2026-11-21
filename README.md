@@ -87,6 +87,14 @@ npm run dist
 
 产物在 `release/`：`货币战争桌宠-x.x.x-win.zip`（绿色包）。**解压到任意路径都能运行**，不限空格或中文。
 
+> **注意：`release/win-unpacked/` 只是打包中间产物，别直接双击它测试。**
+>
+> `npm run dist` 会先生成 `release/win-unpacked/`（electron-builder 的原始输出），再压缩成 zip。这个目录**位于开发工作区内**，实测会遇到双击无反应、进程秒退的情况（项目 workspace 目录下的 exe 容易被安全软件按「开发目录」策略静默拦截；同样的文件复制到任何普通目录都正常）。
+>
+> - 这不代表包有问题：`win-unpacked` 与 zip 内的文件 SHA256 逐字节相同
+> - 想本地测试，**解压 zip 到普通目录**（如 `D:\CurrencyWarPet`）再运行，或直接把整个 `win-unpacked` 复制到工作区外
+> - 对外分发只用 zip，`win-unpacked` 可以随手删掉，下次打包会重新生成
+
 ### 让自建的包带上内置 Python（可选）
 
 仓库不含 `python-embed/`，所以默认打出来的包不带内置 Python。想打成和 Releases 一样的完整包，先准备内嵌 Python：
@@ -206,6 +214,7 @@ python extractor/extract_pet.py --game "D:\Star Rail\Game"   # 或手动指定
 - 真实游戏全屏结算、失败/中退画面仍待更多样本验收。
 - **首次识别阵容/羁绊需要联网**下载头像与羁绊小图标（详见上文「首次识别需要联网」）。断网时文字字段仍可正常识别，阵容与羁绊需手动补充。
 - 打包版没有代码签名，Windows SmartScreen 可能提示"未知发布者"，选择"仍要运行"即可。
+- 如果你的杀毒软件（如金山毒霸、360 等）对未签名程序敏感，可能静默拦截启动（双击无反应）。把程序目录加入白名单即可；对外分发请用 zip，不要用 `release/win-unpacked/`（见上文打包说明）。
 
 ## 免责声明
 
